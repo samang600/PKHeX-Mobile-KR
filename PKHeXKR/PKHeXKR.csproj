@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net10.0-android36.0</TargetFrameworks>
+		<!-- iOS는 macOS(Xcode)에서만 빌드 가능 → 맥(GitHub Actions 등)에서만 iOS 대상 추가 -->
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android36.0;net10.0-ios</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>PKHeXKR</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>disable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<ApplicationTitle>PKHeX 모바일</ApplicationTitle>
+		<ApplicationId>com.pkhexkr.mobile</ApplicationId>
+		<ApplicationDisplayVersion>1.3.3</ApplicationDisplayVersion>
+		<ApplicationVersion>43</ApplicationVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>
+	</PropertyGroup>
+	<!-- iOS: 리플렉션을 쓰는 코드(PKHeX·ALM·앱)가 잘리지 않도록 SDK만 축소, 동적 코드는 인터프리터로 -->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+		<MtouchLink>SdkOnly</MtouchLink>
+		<MtouchInterpreter>-all</MtouchInterpreter>
+		<CodesignKey></CodesignKey>
+	</PropertyGroup>
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\icon.png" ForegroundFile="Resources\AppIcon\iconfg.png" Color="#FFFFFF" />
+		<MauiSplashScreen Include="Resources\AppIcon\iconfg.png" BaseSize="200,200" Color="#FFFFFF" />
+		<MauiImage Include="Resources\Images\NonShinySprites\*" />
+		<MauiImage Include="Resources\Images\ShinySprites\*" />
+		<MauiImage Include="Resources\Images\SVSprites\*" />
+		<MauiImage Include="Resources\Images\balls\*" />
+		<MauiImage Include="Resources\Images\ItemSprites\*" />
+		<MauiImage Include="Resources\Images\square\*" />
+		<MauiImage Include="Resources\Images\icons\*" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+		<MauiImage Include="Resources\Images\Ribbons\*" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="FluentFTP" Version="52.1.0" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.90" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.0" />
+		<PackageReference Include="PKHeX.Core" Version="26.8.26" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
+		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.Injection\PKHeX.Core.Injection.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
+		<ProjectReference Include="..\HOMELive\HomeLive.Core\HomeLive.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
+		<ProjectReference Include="..\HOMELive\HomeLive.DeviceExecutor\HomeLive.DeviceExecutor.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
+		<Reference Include="SysBot.Base"><HintPath>..\HOMELive\HomeLive.DeviceExecutor\deps\SysBot.Base.dll</HintPath></Reference>
+	</ItemGroup>
+</Project>

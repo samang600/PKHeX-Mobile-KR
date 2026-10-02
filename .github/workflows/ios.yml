@@ -1,0 +1,58 @@
+# iOS 빌드 (서명 없는 IPA) — GitHub의 맥 서버에서 빌드
+# 실행: 저장소 Actions 탭 → "iOS 빌드" → Run workflow
+# 릴리스를 발행(Publish)하면 자동으로 빌드해서 그 릴리스에 IPA를 첨부합니다.
+name: iOS 빌드
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15   # Xcode 버전이 맞지 않으면 macos-latest 또는 macos-26 으로 바꿔 보세요
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 선택 (설치된 것 중 최신)
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: MAUI iOS 워크로드 설치
+        run: dotnet workload install maui-ios
+
+      - name: 빌드 (서명 없음)
+        run: >
+          dotnet build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64
+          -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false
+
+      - name: IPA 만들기
+        run: |
+          APP=$(find PKHeXKR/bin/Release/net10.0-ios/ios-arm64 -maxdepth 1 -name "*.app" | head -1)
+          echo "앱: $APP"
+          mkdir -p Payload && cp -R "$APP" Payload/
+          VER=$(grep -o '<ApplicationDisplayVersion>[^<]*' PKHeXKR/PKHeXKR.csproj | sed 's/.*>//')
+          zip -qry "PKHeX_Mobile_iOS_v${VER}_unsigned.ipa" Payload
+          ls -la *.ipa
+
+      - name: 결과 파일 보관 (Actions 실행 화면에서 받기)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PKHeX_Mobile_iOS_unsigned
+          path: "*.ipa"
+
+      - name: 릴리스에 첨부 (릴리스 발행으로 실행된 경우)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.ipa"

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 다크 모드: 날짜 선택 창 등 시스템 대화상자의 버튼이 잘 보이도록 밝은 강조색 -->
+    <color name="colorPrimary">#A5B4FC</color>
+    <color name="colorPrimaryDark">#1E1B4B</color>
+    <color name="colorAccent">#A5B4FC</color>
+</resources>

@@ -1,0 +1,22 @@
+# 빌드 결과물
+bin/
+obj/
+*.apk
+*.aab
+*.ipa
+Payload/
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+# 서명 키·비밀번호 (절대 올리지 않음)
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+keystore_pass*.txt
+# 기타
+.DS_Store
+Thumbs.db
