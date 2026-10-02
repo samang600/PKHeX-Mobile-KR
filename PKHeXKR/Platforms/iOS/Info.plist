@@ -27,7 +27,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>XSAppIconAssets</key>
-	<string>Assets.xcassets/appicon.appiconset</string>
+	<string>Assets.xcassets/icon.appiconset</string>
 	<!-- 스위치·3DS와 무선 통신(라이브헥스, FTP) -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>스위치·3DS와 같은 와이파이에서 무선으로 통신(라이브헥스, FTP 세이브)하려면 로컬 네트워크 접근이 필요합니다.</string>
