@@ -24,7 +24,7 @@ public class QuickSheet : Sheet
         var dictBtn = T.Pill("내 사전"); dictBtn.Clicked += (_, _) => SheetHost.Show(new UserDictSheet());
         var frame = new Border { Content = input, StrokeThickness = 1, Padding = 6, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
         frame.SetAppThemeColor(Border.StrokeProperty, Color.FromArgb("#D1D5DB"), Color.FromArgb("#374151"));
-        var hint = T.L("한 줄 또는 '/'마다 한 마리. 포켓몬·성별(암/수)·이로치(이로치·우두로치·별·네모)·볼(럽볼·렙볼·프볼…)·크기(가장작게·L·가장크게)·증표(작증·큰증·카레)·성격·숨특·6V·A0·Lv50·x3 등을 순서 상관없이 적으세요. '어버이: 이름 TID' 줄은 아래 전체에 적용되고, 적지 않은 값은 게임에서 자연스럽게 나오는 값으로 채웁니다. 한 마리면 편집기로, 여러 마리면 현재 박스부터 빈 칸에 넣습니다.", 12, sub: true);
+        var hint = T.L("한 줄에 한 마리(괄호 안에 '/'로 적어도 됨: 에써르 (수/ 작증/ 럽볼)). 포켓몬·성별(암/수)·이로치(이로치·우두로치·별·네모)·볼(럽볼·렙볼·프볼…)·크기(가장작게·L·가장크게)·증표(작증·큰증·카레)·성격·숨특·6V·A0·Lv50·x3 등을 순서 상관없이 적으세요. '어버이: 이름 TID' 줄은 아래 전체에 적용되고, 적지 않은 값은 게임에서 자연스럽게 나오는 값으로 채웁니다. 한 마리면 편집기로, 여러 마리면 현재 박스부터 빈 칸에 넣습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, frame, new HorizontalStackLayout { Spacing = 8, Children = { parseBtn, makeBtn, dictBtn, stopBtn } }, status, preview } } });
     }
@@ -200,7 +200,7 @@ public class QuickSheet : Sheet
     private static PKM TryBoth(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
         Seeder sd = null;
-        if (e is EncounterSlot8) { try { sd = Seeder.For(e, sav); } catch { } }
+        try { sd = Seeder.For(e, sav); } catch { }   // 시드로 만들 수 있는 조우(SV 레이드·소드실드 야생 등)는 순차·무작위 동시
         if (sd == null) return TryEncounter(o, e, sav, tok, seconds);
         using var race = CancellationTokenSource.CreateLinkedTokenSource(tok);
         var a = Task.Run(() => TryEncounter(o, e, sav, race.Token, seconds));
@@ -263,6 +263,7 @@ public class QuickSheet : Sheet
     /// <summary>마무리: Z-A 우두머리는 HP 노력치 252(게임 실제 값), 어버이 지정 반영(이로치 모양 유지).</summary>
     private static PKM Finish(OrderSpec o, PKM p, SaveFile sav)
     {
+        { var t = p.Clone(); AppState.ClearNickTrash(t); AppState.ClearOTTrash(t); t.RefreshChecksum(); if (!AppState.IsLegal(p) || AppState.IsLegal(t)) p = t; }   // 쓰레기 바이트 지우기
         if (p is PA9 { IsAlpha: true } z && z.EV_HP + z.EV_ATK + z.EV_DEF + z.EV_SPA + z.EV_SPD + z.EV_SPE == 0) { z.EV_HP = 252; z.ResetPartyStats(); }
         bool giftOT = o.Event && p.FatefulEncounter && !string.IsNullOrEmpty(p.OriginalTrainerName) && p.OriginalTrainerName != sav.OT;
         if (giftOT) o.Notes.Add($"배포 어버이 {p.OriginalTrainerName} {p.DisplayTID}를 그대로 사용");
@@ -344,6 +345,6 @@ public class UserDictSheet : Sheet
         var save = T.Pill("저장", primary: true); save.Clicked += (_, _) => { UserDict.Text = ed.Text; Note.Show($"사전 {UserDict.Load().Count}개를 저장했습니다"); Close(); };
         var hint = T.L("'줄임말 = 바꿀 말' 형식으로 한 줄에 하나씩 적습니다. 바꿀 말에 '/'를 넣으면 여러 마리로 나뉩니다. 내 사전이 기본 사전보다 먼저 적용됩니다.", 12, sub: true); hint.LineBreakMode = LineBreakMode.WordWrap;
         var builtIn = T.L("기본 사전: " + string.Join(", ", QuickParse.BuiltInAlias.Select(kv => $"{kv.Key}→{kv.Value}")), 11, sub: true); builtIn.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, frame, save, builtIn } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, frame, save } } });
     }
 }

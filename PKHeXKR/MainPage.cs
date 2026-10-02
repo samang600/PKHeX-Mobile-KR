@@ -159,6 +159,7 @@ public class MainPage : ContentPage
         SelectTab(0);
         foreach (var s in sections) s.Reload();
         UpdateSummary(); UpdateLive();
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), async () => await UpdateCheck.Run(false));
         AppState.LiveLost += () => MainThread.BeginInvokeOnMainThread(() => { UpdateLive(); Note.Show("라이브헥스 연결이 끊어졌습니다"); });
     }
 
@@ -284,7 +285,7 @@ public class MainPage : ContentPage
         var pk = AppState.Pk;
         if (pk.Species == 0)
         {
-            sprite.Source = null; name.Text = "편집할 포켓몬이 없습니다"; info.Text = "박스에서 고르거나, 인카운터·쇼다운으로 만들어 보세요";
+            sprite.Source = null; name.Text = "편집할 포켓몬이 없습니다"; info.FormattedText = null; info.Text = "박스에서 고르거나, 인카운터·쇼다운으로 만들어 보세요";
             shinyIcon.IsVisible = false; ballIcon.Source = itemIcon.Source = null; genderLabel.Text = ""; legalBtn.IsVisible = false; return;
         }
         sprite.Source = AppState.Sprite(pk);
@@ -295,7 +296,16 @@ public class MainPage : ContentPage
         natureLabel.Text = pk.Format >= 3 ? GameInfo.Strings.natures[(int)pk.Nature] : ""; natureLabel.IsVisible = pk.Format >= 3;
         mintLabel.IsVisible = pk.Format >= 8; if (pk.Format >= 8) mintLabel.Text = $"({GameInfo.Strings.natures[(int)pk.StatAlignment]})";
         genderLabel.TextColor = pk.Gender switch { 0 => Color.FromArgb("#2563EB"), 1 => Color.FromArgb("#DB2777"), _ => Colors.Gray };
-        info.Text = $"Lv.{pk.CurrentLevel}  ·  {AppState.LangName(pk.Language)}  ·  {(AppState.Dirty ? "변경됨" : "저장됨")}";
+        {
+            var lvSpan = new Span { Text = $"Lv.{pk.CurrentLevel}", TextDecorations = TextDecorations.Underline };
+            var lvTap = new TapGestureRecognizer(); lvTap.Tapped += (_, _) => { if (AppState.Pk.CurrentLevel < 100) Quick(p => { p.CurrentLevel = 100; p.ResetPartyStats(); }, p => "레벨 100으로 바꿨습니다"); };
+            lvSpan.GestureRecognizers.Add(lvTap);
+            var lgSpan = new Span { Text = AppState.LangName(pk.Language), TextDecorations = TextDecorations.Underline };
+            var lgTap = new TapGestureRecognizer(); lgTap.Tapped += (_, _) => SheetHost.Show(new PickerSheet("언어", AppState.Src.Languages, AppState.Pk.Language, c => Quick(p => p.Language = c.Value, p => $"언어를 {AppState.LangName(p.Language)}(으)로 바꿨습니다")));
+            lgSpan.GestureRecognizers.Add(lgTap);
+            var fs = new FormattedString(); fs.Spans.Add(lvSpan); fs.Spans.Add(new Span { Text = "  ·  " }); fs.Spans.Add(lgSpan); fs.Spans.Add(new Span { Text = $"  ·  {(AppState.Dirty ? "변경됨" : "저장됨")}" });
+            info.FormattedText = fs;
+        }
         shinyIcon.IsVisible = pk.IsShiny;
         ballIcon.Source = pk.Format >= 3 ? AppState.BallSprite(pk.Ball) : null;
         itemIcon.Source = AppState.ItemSprite(pk.HeldItem);
@@ -534,6 +544,11 @@ public class MainPage : ContentPage
     /// <summary>바이트로 열기 (파일 선택·다른 앱에서 공유/열기·최근 목록 공통).</summary>
     public async Task OpenBytes(byte[] data, string fileName, bool remember = true)
     {
+        if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))   // DBI 등 압축 세이브: 안의 세이브 파일(main 등)을 꺼내 엶
+        {
+            if (ZipSave.Extract(data) is not { } z) { await DisplayAlertAsync("열기 실패", "zip 안에서 세이브 파일을 찾지 못했습니다", "확인"); return; }
+            data = z.Data; fileName = System.IO.Path.GetFileName(z.Entry);
+        }
         try
         {
             var obj = FileUtil.GetSupportedFile(data, System.IO.Path.GetExtension(fileName), AppState.Sav);

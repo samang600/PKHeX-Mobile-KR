@@ -26,6 +26,18 @@ public static class EncCond
 
     /// <summary>소드실드 야생 슬롯 전체 (PKHeX 조우 데이터).</summary>
     private static List<EncounterSlot8> allSlots8;
+    /// <summary>PKHeX 조우 데이터에서 특정 종류 전부 (배열로 들어 있는 것).</summary>
+    public static List<TEnc> AllOf<TEnc>()
+    {
+        var list = new List<TEnc>();
+        try
+        {
+            foreach (var f in typeof(EncounterArea8).Assembly.GetTypes().SelectMany(t => t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)).Where(f => f.FieldType == typeof(TEnc[])))
+                if (f.GetValue(null) is TEnc[] arr) list.AddRange(arr);
+        }
+        catch { }
+        return list;
+    }
     public static IEnumerable<EncounterSlot8> AllSlots8()
     {
         if (allSlots8 != null) return allSlots8;
@@ -42,6 +54,7 @@ public static class EncCond
     public static List<ushort> MarkSpecies()
     {
         if (Mark < 0) return [];
+        if (MarkIndex == RibbonIndex.MarkMightiest) return AllOf<EncounterMight9>().Select(x => x.Species).Distinct().OrderBy(x => x).ToList();
         return AllSlots8().Where(x => MarkPossible(x)).Select(x => x.Species).Distinct().OrderBy(x => x).ToList();
     }
 
@@ -52,6 +65,7 @@ public static class EncCond
         var m = MarkIndex;
         if (m == RibbonIndex.MarkCurry) return e is EncounterSlot8 { CanEncounterViaCurry: true };
         if (m == RibbonIndex.MarkFishing) return e is EncounterSlot8 { CanEncounterViaFishing: true };
+        if (m == RibbonIndex.MarkMightiest) return e is EncounterMight9;   // 최강의증표: SV 7성 최강 레이드
         if (e is EncounterSlot8 s8)
         {
             var need = m switch
@@ -495,7 +509,7 @@ public class EncounterSheet : Sheet
             markHelp.IsVisible = EncCond.Mark >= 0 && rows.Count == 0;
             if (markHelp.IsVisible)
                 status.Text = $"{GameInfo.Strings.Species[species]}은(는) {EncCond.MarkName(EncCond.Mark)}을(를) 붙일 수 있는 조우가 없습니다" +
-                    (EncCond.MarkIndex == RibbonIndex.MarkCurry ? " (소드실드 숨은 조우 중 와일드에어리어가 아닌 곳에서만 가능)" : "");
+                    (EncCond.MarkIndex == RibbonIndex.MarkCurry ? " (소드실드 숨은 조우 중 와일드에어리어가 아닌 곳에서만 가능)" : EncCond.MarkIndex == RibbonIndex.MarkMightiest ? " (SV 7성 최강 레이드 포켓몬만 가능)" : "");
         }
         catch (Exception ex) { status.Text = "검색 실패: " + ex.Message; }
         finally { busy.IsVisible = busy.IsRunning = false; }

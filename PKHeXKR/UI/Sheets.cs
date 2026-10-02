@@ -68,6 +68,7 @@ public class PickerSheet : Sheet
     public PickerSheet(string title, IReadOnlyList<PKHeX.Core.ComboItem> items, int current, Action<PKHeX.Core.ComboItem> onPick, Func<PKHeX.Core.ComboItem, string> icon = null, Func<PKHeX.Core.ComboItem, int> tier = null) : base(title)
     {
         all = items; picked = onPick;
+        if (title.StartsWith("볼")) list.ItemsLayout = new GridItemsLayout(2, ItemsLayoutOrientation.Vertical);   // 볼은 2열로
         var search = T.Input(placeholder: "검색 (초성 가능: ㅍㅋㅊ)");
         search.TextChanged += (_, e) => Filter(e.NewTextValue);
         list.ItemTemplate = new DataTemplate(() =>

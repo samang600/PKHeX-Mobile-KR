@@ -190,13 +190,17 @@ public static class QuickParse
     }
 
     // "/" 로 나누되 "어버이 새아 / TID" 같은 공통 줄은 위에서 처리
-    private static IEnumerable<string> SplitEntries(string line) => line.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0);
+    private static IEnumerable<string> SplitEntries(string line) { var t = line.Trim(); if (t.Length > 0) yield return t; }   // 한 줄 = 한 마리 ('/'는 구분자가 아님)
 
     // "싸리용(뻗은,젖힌) 우두로치" → ("싸리용 우두로치", 뻗은), ("싸리용 우두로치", 젖힌)
     private static IEnumerable<(string Text, string Form)> ExpandForms(string part)
     {
         var m = Regex.Match(part, @"\(([^)]*)\)");
         if (!m.Success) { yield return (part, null); yield break; }
+        if (m.Groups[1].Value.Contains('/'))   // "에써르 (수/ 작증 / 럽볼)" → 괄호 안은 속성
+        {
+            yield return ((part[..m.Index] + " " + m.Groups[1].Value.Replace('/', ' ') + " " + part[(m.Index + m.Length)..]).Trim(), null); yield break;
+        }
         if (m.Groups[1].Value.Contains("진화"))   // "나오하(마스카나진화)" → 나오하 다음에 진화 대상
         {
             var target = m.Groups[1].Value.Replace("진화형", "").Replace("진화", "").Replace("까지", "").Trim();
@@ -210,7 +214,7 @@ public static class QuickParse
 
     private static List<string> Tokenize(string t)
     {
-        t = Regex.Replace(t, @"[,，:：]", " ");
+        t = Regex.Replace(t, @"[,，:：/]", " ");   // '/'는 구분용으로만 쓰고 무시
         return t.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 
@@ -294,6 +298,7 @@ public static class QuickParse
             return true;
         }
         if (t is "카레" or "카레증표" or "카레의증표") { o.Mark = (int)RibbonIndex.MarkCurry; return true; }
+        if (t is "최강" or "최강증표" or "최강의증표" or "최강의") { o.Mark = (int)RibbonIndex.MarkMightiest; return true; }
         if (t is "낚시" or "낚시증표" or "낚시의증표") { o.Mark = (int)RibbonIndex.MarkFishing; return true; }
         foreach (var r in Enum.GetValues<RibbonIndex>().Where(x => x.ToString().StartsWith("Mark")))
             if (s.Ribbons.GetNameSafe("Ribbon" + r, out var kn) && (Norm(kn) == t || Norm(kn).Replace("의", "") == t)) { o.Mark = (int)r; return true; }

@@ -144,6 +144,8 @@ public class SettingsSheet : Sheet
         var trkO = Tog("홈 트래커 없음 검사 (다른 게임)", AppState.TrackerCheckOther, v => AppState.TrackerCheckOther = v);
         var htf = Tog("'현재 트레이너는 어버이가 될 수 없음' 검사", AppState.HTFlagCheck, v => AppState.HTFlagCheck = v);
         var chkHint = T.L("합법성 검사 항목을 켜고 끕니다. 끈 항목만 문제인 개체는 합법으로 표시됩니다.", 12, sub: true); chkHint.LineBreakMode = LineBreakMode.WordWrap;
+        var upd = Tog("업데이트 알림 (GitHub 새 버전 확인)", UpdateCheck.Enabled, v => UpdateCheck.Enabled = v);
+        var updNow = T.Pill("지금 업데이트 확인"); updNow.Clicked += async (_, _) => await UpdateCheck.Run(true);
         var bk = new Switch { IsToggled = SaveStore.AutoBackup, OnColor = T.Accent }; bk.Toggled += (_, e) => SaveStore.AutoBackup = e.Value;
         var bkRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 }; bkRow.Add(T.L("자동 백업", 15), 0); bkRow.Add(bk, 1);
         var bkHint = T.L("켜면 세이브를 열 때 원본을, 내보낼 때 저장본을 앱 안에 보관합니다(최근 30개).", 12, sub: true); bkHint.LineBreakMode = LineBreakMode.WordWrap;
@@ -163,7 +165,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, chkHint, bkRow, bkHint, list } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, chkHint, upd, updNow, bkRow, bkHint, list } } });
     }
 }
 
@@ -180,12 +182,22 @@ public class LivingDexSheet : Sheet
         var skipRow = Sw("이미 박스에 있는 포켓몬 건너뛰기", true, out var skip);
         var status = T.L("", 13, sub: true); status.LineBreakMode = LineBreakMode.WordWrap;
         var bar = new ProgressBar { ProgressColor = T.Accent, IsVisible = false };
+        var dFrom = T.Input(placeholder: "예: 2025-10-16"); var dTo = T.Input(placeholder: "예: 2026-09-30");
+        var dateRow = T.Cols(2, 6); dateRow.Add(T.Field("만난 날짜 시작 (비우면 그대로)", dFrom), 0); dateRow.Add(T.Field("만난 날짜 끝", dTo), 1);
+        var ots = new Editor { AutoSize = EditorAutoSizeOption.TextChanges, MinimumHeightRequest = 70, FontSize = 14, Placeholder = "어버이 여러 명 (한 줄에 '이름 TID'), 비우면 세이브 트레이너\n예) 새아 468686\n하늘 123456" };
+        ots.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
         var go = T.Pill("채우기 시작", primary: true); var stop = T.Pill("중지"); stop.IsVisible = false;
         stop.Clicked += (_, _) => cts?.Cancel();
         go.Clicked += async (_, _) =>
         {
             go.IsEnabled = false; stop.IsVisible = true; bar.IsVisible = true; cts = new CancellationTokenSource(); var tok = cts.Token;
             bool sh = shiny.IsToggled, fm = forms.IsToggled, sk = skip.IsToggled; int startBox = AppState.Box;
+            DateOnly? from = DateOnly.TryParse(dFrom.Text, out var df) ? df : null, to = DateOnly.TryParse(dTo.Text, out var dt) ? dt : null;
+            if (from != null && to == null) to = from; if (to != null && from == null) from = to;
+            if (from > to) (from, to) = (to, from);
+            var otList = (ots.Text ?? "").Replace("\r", "").Split('\n').Select(l => l.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)).Where(a => a.Length >= 1)
+                .Select(a => (Name: a[0], TID: a.Length > 1 && int.TryParse(a[1], out var tid) ? tid : -1)).ToList();
+            int nth = 0;
             var result = await Task.Run(() =>
             {
                 // 대상 목록 (도감 순)
@@ -221,6 +233,21 @@ public class LivingDexSheet : Sheet
                     }
                     catch { }
                     if (pk == null || pk.Species != s) { fail++; continue; }
+                    // 어버이 여러 명이면 돌아가며, 날짜 구간이면 그 안의 무작위 날짜 (합법이 유지될 때만)
+                    if (otList.Count > 0)
+                    {
+                        var (on, otid) = otList[nth++ % otList.Count];
+                        bool six = pk.Format >= 7; int tid = otid >= 0 ? otid : (six ? (int)(sav.ID32 % 1_000_000) : sav.TID16);
+                        uint id32 = six ? (uint)(Random.Shared.Next(4295) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Random.Shared.Next(65536) << 16) | Math.Min(tid, 65535));
+                        var t2 = pk.Clone(); AppState.AutoOT(t2, new AppState.Partner(on, id32, six, sav.Gender, sav.Language > 0 ? sav.Language : pk.Language));
+                        if (new LegalityAnalysis(t2).Valid || !new LegalityAnalysis(pk).Valid) pk = t2;
+                    }
+                    if (from != null && pk.Format >= 4)
+                    {
+                        var span = to.Value.DayNumber - from.Value.DayNumber;
+                        var t3 = pk.Clone(); t3.MetDate = from.Value.AddDays(Random.Shared.Next(span + 1)); t3.RefreshChecksum();
+                        if (new LegalityAnalysis(t3).Valid || !new LegalityAnalysis(pk).Valid) pk = t3;
+                    }
                     sav.SetBoxSlotAtIndex(pk, box, slot); made++;
                     if (new LegalityAnalysis(pk).Valid) legal++;
                     if (++slot >= sav.BoxSlotCount) { slot = 0; box++; }
@@ -235,7 +262,7 @@ public class LivingDexSheet : Sheet
         };
         var hint = T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, dateRow, ots, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
     }
 }
 
@@ -425,5 +452,133 @@ public static class UiFold
         t.Tapped += (_, _) => { open = !open; Preferences.Set(key, open); inner.IsVisible = open; head.Text = (open ? "▾  " : "▸  ") + title; };
         head.GestureRecognizers.Add(t);
         return T.Card(new VerticalStackLayout { Spacing = 10, Children = { head, inner } });
+    }
+}
+
+
+/// <summary>압축(zip) 세이브: 안의 세이브 파일 꺼내기 / 원래 구성 그대로 세이브만 바꿔 다시 묶기 (DBI 백업 등).</summary>
+public static class ZipSave
+{
+    private static byte[] Read(System.IO.Compression.ZipArchiveEntry e) { using var r = e.Open(); using var ms = new MemoryStream(); r.CopyTo(ms); return ms.ToArray(); }
+    private static bool IsSave(byte[] b, string name) { try { return FileUtil.GetSupportedFile(b, Path.GetExtension(name), AppState.Sav) is SaveFile; } catch { return false; } }
+
+    /// <summary>세이브 파일 찾기: 이름이 main인 것 → 없으면 PKHeX가 세이브로 알아보는 가장 큰 파일.</summary>
+    public static (string Entry, byte[] Data)? Extract(byte[] zip)
+    {
+        try
+        {
+            using var za = new System.IO.Compression.ZipArchive(new MemoryStream(zip), System.IO.Compression.ZipArchiveMode.Read);
+            var files = za.Entries.Where(e => e.Length > 0 && !e.FullName.EndsWith('/')).ToList();
+            var main = files.FirstOrDefault(e => e.Name.Equals("main", StringComparison.OrdinalIgnoreCase));
+            if (main != null) return (main.FullName, Read(main));
+            foreach (var e in files.OrderByDescending(e => e.Length)) { var b = Read(e); if (IsSave(b, e.Name)) return (e.FullName, b); }
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>원래 zip을 같은 순서·경로·시간·압축 방식으로 다시 묶되, entry 하나만 새 내용으로.</summary>
+    public static byte[] Replace(byte[] zip, string entry, byte[] data)
+    {
+        using var src = new System.IO.Compression.ZipArchive(new MemoryStream(zip), System.IO.Compression.ZipArchiveMode.Read);
+        // DBI·JKSV 백업의 "backup"은 main과 같은 사본 → 원래 main과 같았으면 함께 바꿔 둘을 일치시킴
+        string syncBackup = null;
+        try
+        {
+            var me = src.GetEntry(entry);
+            var be = src.Entries.FirstOrDefault(e => e.Name.Equals("backup", StringComparison.OrdinalIgnoreCase) && e.FullName != entry);
+            if (me != null && be != null && be.Length == me.Length && Read(be).AsSpan().SequenceEqual(Read(me))) syncBackup = be.FullName;
+        }
+        catch { }
+        var outMs = new MemoryStream();
+        using (var dst = new System.IO.Compression.ZipArchive(outMs, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var e in src.Entries)
+            {
+                bool stored = e.CompressedLength == e.Length;
+                var ne = dst.CreateEntry(e.FullName, stored ? System.IO.Compression.CompressionLevel.NoCompression : System.IO.Compression.CompressionLevel.Optimal);
+                ne.LastWriteTime = e.LastWriteTime;
+                try { ne.ExternalAttributes = e.ExternalAttributes; } catch { }   // 원본 속성 그대로 (DBI: 폴더 0x10, 파일 0)
+                if (e.FullName.EndsWith('/')) continue;
+                using var w = ne.Open();
+                if (e.FullName == entry || e.FullName == syncBackup) w.Write(data); else { using var r = e.Open(); r.CopyTo(w); }
+            }
+        }
+        return outMs.ToArray();
+    }
+}
+
+/// <summary>GitHub 릴리스로 새 버전 확인 (하루 한 번, 설정에서 끄기·지금 확인).</summary>
+public static class UpdateCheck
+{
+    public const string Repo = "samang600/PKHeX-Mobile-KR";
+    public static bool Enabled { get => Preferences.Get("upd_on", true); set => Preferences.Set("upd_on", value); }
+    private static Version Parse(string s)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(s ?? "", @"(\d+)\.(\d+)(?:\.(\d+))?");
+        return m.Success ? new Version(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0) : null;
+    }
+    public static async Task Run(bool manual)
+    {
+        try
+        {
+            if (!manual)
+            {
+                if (!Enabled) return;
+                var last = Preferences.Get("upd_last", DateTime.MinValue);
+                if ((DateTime.Now - last).TotalHours < 20) return;
+            }
+            Preferences.Set("upd_last", DateTime.Now);
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("PKHeX-Mobile-KR");
+            var json = await http.GetStringAsync($"https://api.github.com/repos/{Repo}/releases/latest");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            string tag = root.TryGetProperty("tag_name", out var t) ? t.GetString() : "", name = root.TryGetProperty("name", out var n) ? n.GetString() : "";
+            string url = root.TryGetProperty("html_url", out var u) ? u.GetString() : $"https://github.com/{Repo}/releases";
+            string body = root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
+            var latest = Parse(tag) ?? Parse(name); var mine = Parse(AppInfo.Current.VersionString);
+            var page = Application.Current?.Windows[0].Page;
+            if (latest == null || mine == null || page == null) { if (manual) Note.Show("최신 버전 정보를 읽지 못했습니다 (릴리스 태그를 v1.4.0 형식으로)"); return; }
+            if (latest <= mine) { if (manual) Note.Show($"최신 버전입니다 (v{mine.ToString(3)})"); return; }
+            if (!manual && Preferences.Get("upd_skip", "") == latest.ToString()) return;
+            var excerpt = body.Length > 300 ? body[..300] + "…" : body;
+            var pick = await page.DisplayActionSheetAsync($"새 버전 v{latest.ToString(3)}이 있습니다 (지금 v{mine.ToString(3)})\n\n{excerpt}", "나중에", null, "릴리스 페이지 열기", "이 버전 건너뛰기");
+            if (pick == "릴리스 페이지 열기") await Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
+            else if (pick == "이 버전 건너뛰기") Preferences.Set("upd_skip", latest.ToString());
+        }
+        catch { if (manual) Note.Show("업데이트를 확인하지 못했습니다 (인터넷 연결 확인)"); }
+    }
+}
+
+/// <summary>플레이어 의상·꾸미기 한 번에 얻기 (PKHeX가 지원하는 게임만).</summary>
+public static class Cosmetics
+{
+    public static string UnlockAll(SaveFile sav)
+    {
+        var done = new List<string>();
+        object Get(object o, string p) { try { return o?.GetType().GetProperty(p)?.GetValue(o); } catch { return null; } }
+        var owners = new List<object> { sav }; if (Get(sav, "Blocks") is { } blocks) owners.Add(blocks);
+        foreach (var o in owners)
+            foreach (var pr in o.GetType().GetProperties().Where(p => p.PropertyType.Name.Contains("Fashion") || p.Name.Contains("Fashion")))
+            {
+                object f; try { f = pr.GetValue(o); } catch { continue; }
+                if (f == null) continue;
+                foreach (var m in new[] { "UnlockAllLegal", "UnlockAllAccessoriesPlayer", "UnlockAllAccessories", "UnlockAll" })
+                {
+                    var mi = f.GetType().GetMethod(m, Type.EmptyTypes);
+                    if (mi == null) continue;
+                    try { mi.Invoke(f, null); done.Add("의상"); } catch { }
+                    break;
+                }
+            }
+        foreach (var (m, label) in new[] { ("UnlockAllThrowStyles", "던지기 동작") })
+        {
+            var mi = sav.GetType().GetMethod(m, Type.EmptyTypes);
+            if (mi != null) try { mi.Invoke(sav, null); done.Add(label); } catch { }
+        }
+        if (done.Count == 0) return null;
+        sav.State.Edited = true;
+        return string.Join(", ", done.Distinct());
     }
 }

@@ -426,9 +426,47 @@ public static class AppState
     public static bool EffectiveValid(LegalityAnalysis la)
     {
         if (la.Valid) return true;
-        if (HTFlagCheck) return false;
-        return la.Results.Where(r => r.Judgement == Severity.Invalid).All(r => r.Result == LegalityCheckResultCode.TransferHandlerFlagRequired);
+        var bad = la.Results.Where(r => r.Judgement == Severity.Invalid).ToList();
+        if (!HTFlagCheck) bad = bad.Where(r => r.Result != LegalityCheckResultCode.TransferHandlerFlagRequired).ToList();
+        if (bad.Count == 0) return true;
+        // 리본만 문제: 진화 전 포켓몬이 받을 수 있는 리본이면 허용 (예: BDSP 리본을 단 이브이 → BDSP에 없는 님피아로 진화)
+        if (bad.All(r => r.Identifier == CheckIdentifier.Ribbon) && RibbonOkViaPreEvo(la)) return true;
+        return false;
     }
+    private static bool RibbonOkViaPreEvo(LegalityAnalysis la)
+    {
+        try
+        {
+            var pk = typeof(LegalityAnalysis).GetField("Entity", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)?.GetValue(la) as PKM;
+            if (pk == null) return false;
+            foreach (var s in Family(pk.Species).Where(x => x != pk.Species && x < pk.Species + 0x7FFF))
+            {
+                var c = pk.Clone(); c.Species = s; c.Form = 0; c.RefreshChecksum();
+                var lc = Analyze(c, out _);
+                if (!lc.Results.Any(r => r.Judgement == Severity.Invalid && r.Identifier == CheckIdentifier.Ribbon)) return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>같은 진화 계열 (알에서 나오는 종이 같은 포켓몬).</summary>
+    public static HashSet<ushort> Family(ushort species)
+    {
+        var set = new HashSet<ushort> { species };
+        try
+        {
+            ushort Hatch(ushort s) { var pi = Sav.Personal.GetFormEntry(s, 0); var v = pi.GetType().GetProperty("HatchSpecies")?.GetValue(pi); return v is ushort u && u != 0 ? u : s; }
+            var root = Hatch(species);
+            for (ushort s = 1; s <= Sav.MaxSpeciesID; s++) if (Hatch(s) == root) set.Add(s);
+        }
+        catch { }
+        return set;
+    }
+
+    /// <summary>쓰레기 바이트 지우기 (이름은 그대로).</summary>
+    public static void ClearNickTrash(PKM p) { try { var n = p.Nickname; p.NicknameTrash.Clear(); p.Nickname = n; } catch { } }
+    public static void ClearOTTrash(PKM p) { try { var n = p.OriginalTrainerName; p.OriginalTrainerTrash.Clear(); p.OriginalTrainerName = n; } catch { } }
 
     public static void ApplyParse()
     {

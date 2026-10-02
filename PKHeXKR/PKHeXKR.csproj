@@ -3,8 +3,8 @@
 		<TargetFrameworks>net10.0-android36.0</TargetFrameworks>
 		<!-- iOS는 macOS(Xcode)에서만 빌드 가능 → 맥(GitHub Actions 등)에서만 iOS 대상 추가 -->
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android36.0;net10.0-ios</TargetFrameworks>
-		<!-- GitHub Actions iOS 빌드: -p:IosOnly=true 로 iOS만 (안드로이드 워크로드 없이) -->
-		<TargetFrameworks Condition="'$(IosOnly)' == 'true'">net10.0-ios</TargetFrameworks>
+		<!-- GitHub Actions 맥 서버(또는 -p:IosOnly=true)에서는 iOS만 빌드 → 안드로이드 워크로드 불필요 -->
+		<TargetFrameworks Condition="'$(IosOnly)' == 'true' Or ('$(GITHUB_ACTIONS)' == 'true' And $([MSBuild]::IsOSPlatform('osx')))">net10.0-ios</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<RootNamespace>PKHeXKR</RootNamespace>
 		<UseMaui>true</UseMaui>
@@ -14,8 +14,8 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<ApplicationTitle>PKHeX 모바일</ApplicationTitle>
 		<ApplicationId>com.pkhexkr.mobile</ApplicationId>
-		<ApplicationDisplayVersion>1.3.3</ApplicationDisplayVersion>
-		<ApplicationVersion>43</ApplicationVersion>
+		<ApplicationDisplayVersion>1.4.1</ApplicationDisplayVersion>
+		<ApplicationVersion>45</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>

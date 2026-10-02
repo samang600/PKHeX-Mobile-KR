@@ -83,7 +83,7 @@ public class MainSection : Section
 
     public MainSection()
     {
-        (var sv, species) = T.Chooser(() => Pick("포켓몬", AppState.Src.Species, Pk.Species, c => { AppState.Checkpoint(true); SetSpecies((ushort)c.Value); AppState.Edited(); }, c => AppState.Sprite((ushort)c.Value, 0, false)));
+        (var sv, species) = T.Chooser(() => { var fam = AppState.Family(Pk.Species); SheetHost.Show(new PickerSheet("포켓몬", AppState.Src.Species, Pk.Species, c => { AppState.Checkpoint(true); SetSpecies((ushort)c.Value); AppState.Edited(); }, c => AppState.Sprite((ushort)c.Value, 0, false), c => fam.Contains((ushort)c.Value) ? 0 : 2)); });
         (var fv, form) = T.Chooser(() =>
         {
             var names = Forms(Pk.Species);
@@ -91,7 +91,7 @@ public class MainSection : Section
             Pick("폼", names.Select((n, i) => new ComboItem(n, i)).ToList(), Pk.Form, c => Changed(() => { Pk.Form = (byte)c.Value; Pk.SetGender(Pk.GetSaneGender()); Reload(); }), c => AppState.Sprite(Pk.Species, (byte)c.Value, false));
         });
         formRow = T.Field("폼", fv);
-        nick = T.Input(); nick.TextChanged += (_, e) => Changed(() => { Pk.Nickname = e.NewTextValue ?? ""; });
+        nick = T.Input(); nick.TextChanged += (_, e) => Changed(() => { Pk.Nickname = e.NewTextValue ?? ""; AppState.ClearNickTrash(Pk); });
         var nickRow = Switch("닉네임 직접 지정", out nickSw);
         nickSw.Toggled += (_, e) => Changed(() => { Pk.IsNicknamed = e.Value; if (!e.Value) { ResetNickname(); Reload(); } });
         level = Num(v => Changed(() => { Pk.CurrentLevel = (byte)Math.Clamp(v, 1, 100); }), 100);
@@ -314,17 +314,26 @@ public class StatsSection : Section
     private readonly Label[] baseL = new Label[6], statL = new Label[6];
     private readonly Entry[] ivE = new Entry[6], evE = new Entry[6];
     private readonly CheckBox[] htC = new CheckBox[6];
-    private Label evSumL;
     private readonly Label evTotal = new() { FontSize = 13, FontAttributes = FontAttributes.Bold };
+    private readonly Label baseTotal = new() { FontSize = 13, FontAttributes = FontAttributes.Bold };
+    private readonly Label hpType = new() { FontSize = 13, FontAttributes = FontAttributes.Bold, TextDecorations = TextDecorations.Underline };
     private static bool GetHT(IHyperTrain h, int i) => i switch { 0 => h.HT_HP, 1 => h.HT_ATK, 2 => h.HT_DEF, 3 => h.HT_SPA, 4 => h.HT_SPD, _ => h.HT_SPE };
     private static void SetHT(IHyperTrain h, int i, bool v) { switch (i) { case 0: h.HT_HP = v; break; case 1: h.HT_ATK = v; break; case 2: h.HT_DEF = v; break; case 3: h.HT_SPA = v; break; case 4: h.HT_SPD = v; break; default: h.HT_SPE = v; break; } }
-    private readonly Label total = new Label { FontSize = 13, LineBreakMode = LineBreakMode.WordWrap };
+
+    /// <summary>작은 ± 버튼 (최대 ↔ 최소).</summary>
+    private static Button Pm(Action click)
+    {
+        var b = new Button { Text = "±", FontSize = 12, Padding = 0, WidthRequest = 26, HeightRequest = 26, CornerRadius = 13, BorderWidth = 1, VerticalOptions = LayoutOptions.Center };
+        b.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); b.BorderColor = T.Accent; b.TextColor = T.Accent;
+        b.Clicked += (_, _) => click(); return b;
+    }
+    private static Grid Cell(View entry, View btn) { var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 2, VerticalOptions = LayoutOptions.Center }; g.Add(entry, 0); g.Add(btn, 1); return g; }
+    private int EvCap(int k) { int others = Enumerable.Range(0, 6).Where(j => j != k).Sum(GetEV); return Pk.Format < 3 ? Pk.MaxEV : Math.Max(0, Math.Min(252, 510 - others)); }
 
     public StatsSection()
     {
-        var g = new Grid { ColumnSpacing = 8, RowSpacing = 6, ColumnDefinitions = { new(GridLength.Auto), new(new GridLength(1, GridUnitType.Star)), new(new GridLength(1.1, GridUnitType.Star)), new(new GridLength(1.6, GridUnitType.Star)), new(new GridLength(1, GridUnitType.Star)) } };
+        var g = new Grid { ColumnSpacing = 6, RowSpacing = 6, ColumnDefinitions = { new(GridLength.Auto), new(new GridLength(0.9, GridUnitType.Star)), new(new GridLength(1.5, GridUnitType.Star)), new(new GridLength(1.6, GridUnitType.Star)), new(new GridLength(0.9, GridUnitType.Star)), new(GridLength.Auto) } };
         string[] head = ["", "종족값", "개체값", "노력치", "능력치", "특훈"];
-        g.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         g.RowDefinitions.Add(new(GridLength.Auto));
         for (int c = 0; c < 6; c++) { var h = T.L(head[c], 12, sub: true); h.HorizontalTextAlignment = TextAlignment.Center; h.HorizontalOptions = LayoutOptions.Fill; g.Add(h, c, 0); }
         for (int i = 0; i < 6; i++)
@@ -335,61 +344,79 @@ public class StatsSection : Section
             ivE[i] = Num(v => Changed(() => { int val = Math.Min(v, Pk.MaxIV); SetIV(k, val); Recalc(); if (val != v) { var e = ivE[k]; e.Dispatcher.Dispatch(() => e.Text = val.ToString()); } }), 31);
             evE[i] = Num(v => Changed(() =>
             {
-                // 노력치: 한 능력치 최대 252, 합계 최대 510 → 넘치면 들어갈 수 있는 만큼으로 자동 조정
-                int others = Enumerable.Range(0, 6).Where(j => j != k).Sum(GetEV);
-                int val = Pk.Format < 3 ? Math.Min(v, Pk.MaxEV) : Math.Min(v, Math.Max(0, Math.Min(252, 510 - others)));   // 1·2세대는 노력 경험치 0~65535
+                // 노력치: 한 능력치 최대 252, 합계 최대 510 → 넘치면 들어갈 수 있는 만큼으로 자동 조정 (1·2세대는 0~65535)
+                int val = Math.Min(v, EvCap(k));
                 SetEV(k, val); Recalc();
                 if (val != v) { var e = evE[k]; e.Dispatcher.Dispatch(() => e.Text = val.ToString()); }
             }), 65535);
             ivE[i].HorizontalTextAlignment = evE[i].HorizontalTextAlignment = TextAlignment.Center;
             foreach (var l in new[] { baseL[i], statL[i] }) { l.HorizontalTextAlignment = TextAlignment.Center; l.VerticalTextAlignment = TextAlignment.Center; l.HorizontalOptions = LayoutOptions.Fill; l.VerticalOptions = LayoutOptions.Center; }
-            var evMax = new Button { Text = "최대", FontSize = 9, Padding = 0, WidthRequest = 30, HeightRequest = 24, CornerRadius = 8, BorderWidth = 1, VerticalOptions = LayoutOptions.Center };
-            evMax.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); evMax.BorderColor = T.Accent; evMax.TextColor = T.Accent;
-            evMax.Clicked += (_, _) => { int others = Enumerable.Range(0, 6).Where(j => j != k).Sum(GetEV); int v = Pk.Format < 3 ? Pk.MaxEV : Math.Max(0, Math.Min(252, 510 - others)); evE[k].Text = v.ToString(); };
-            var evCell = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 2 }; evCell.Add(evE[i], 0); evCell.Add(evMax, 1);
+            // ± : 최대가 아니면 최대로, 최대면 0으로 (개체값 V ↔ Z, 노력치 최대 ↔ 0)
+            var ivPm = Pm(() => ivE[k].Text = (GetIV(k) >= Pk.MaxIV ? 0 : Pk.MaxIV).ToString());
+            var evPm = Pm(() => { int cap = EvCap(k); evE[k].Text = (GetEV(k) >= cap && cap > 0 ? 0 : cap).ToString(); });
             var nameL = T.L(Names[i], 14, bold: true); nameL.VerticalOptions = LayoutOptions.Center;
-            ivE[i].VerticalOptions = LayoutOptions.Center;
-            g.Add(nameL, 0, i + 1); g.Add(baseL[i], 1, i + 1); g.Add(ivE[i], 2, i + 1); g.Add(evCell, 3, i + 1); g.Add(statL[i], 4, i + 1);
+            g.Add(nameL, 0, i + 1); g.Add(baseL[i], 1, i + 1); g.Add(Cell(ivE[i], ivPm), 2, i + 1); g.Add(Cell(evE[i], evPm), 3, i + 1); g.Add(statL[i], 4, i + 1);
             htC[i] = new CheckBox { Color = T.Accent, VerticalOptions = LayoutOptions.Center, HorizontalOptions = LayoutOptions.Center };
             htC[i].CheckedChanged += (_, e) => Changed(() => { if (Pk is IHyperTrain h) SetHT(h, k, e.Value); Recalc(); });
             g.Add(htC[i], 5, i + 1);
         }
-        // 노력치 칸 바로 아래 합계
+        // 아래 줄: 종족값 합계 · 잠재파워 타입(누르면 변경) · 노력치 합계 · 특훈 전부
         g.RowDefinitions.Add(new(GridLength.Auto));
         g.Add(T.L("합계", 12, sub: true), 0, 7);
-        evTotal.HorizontalTextAlignment = TextAlignment.Center; g.Add(evTotal, 3, 7);
-        var six = Small("6V"); six.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetIV(i, 31); Reload(); });
+        foreach (var l in new[] { baseTotal, hpType, evTotal }) { l.HorizontalTextAlignment = TextAlignment.Center; l.VerticalTextAlignment = TextAlignment.Center; }
+        g.Add(baseTotal, 1, 7); g.Add(hpType, 2, 7); g.Add(evTotal, 3, 7);
+        hpType.TextColor = T.Accent;
+        var hpTap = new TapGestureRecognizer(); hpTap.Tapped += (_, _) => PickHiddenPower(); hpType.GestureRecognizers.Add(hpTap);
+        var htAll = new Button { Text = "전부", FontSize = 10, Padding = new Thickness(4, 0), HeightRequest = 26, CornerRadius = 13, BorderWidth = 1, BorderColor = T.Accent, TextColor = T.Accent, VerticalOptions = LayoutOptions.Center };
+        htAll.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24"));
+        htAll.Clicked += (_, _) => Changed(() => { if (Pk is IHyperTrain h) for (int i = 0; i < 6; i++) SetHT(h, i, GetIV(i) < 31); Reload(); });   // 개체값 31은 자동 제외
+        g.Add(htAll, 5, 7); htAllBtn = htAll;
+
         var rnd = Small("IV 무작위"); rnd.Clicked += (_, _) => Changed(() =>
         {
             // 조우가 보장하는 V 개수(우두머리 3V 등)만큼 무작위 칸을 31로
             int flawless = Pk is IAlpha { IsAlpha: true } ? 3 : 0;
             try { if (new LegalityAnalysis(Pk).EncounterMatch is IFlawlessIVCount fc) flawless = Math.Max(flawless, fc.FlawlessIVCount); } catch { }
-            for (int i = 0; i < 6; i++) SetIV(i, Random.Shared.Next(32));
-            foreach (var i in Enumerable.Range(0, 6).OrderBy(_ => Random.Shared.Next()).Take(flawless)) SetIV(i, 31);
+            for (int i = 0; i < 6; i++) SetIV(i, Random.Shared.Next(Pk.MaxIV + 1));
+            foreach (var i in Enumerable.Range(0, 6).OrderBy(_ => Random.Shared.Next()).Take(flawless)) SetIV(i, Pk.MaxIV);
+            Reload();
+        });
+        var evR = Small("EV 무작위"); evR.Clicked += (_, _) => Changed(() =>
+        {
+            for (int i = 0; i < 6; i++) SetEV(i, 0);
+            if (Pk.Format < 3) { for (int i = 0; i < 6; i++) SetEV(i, Random.Shared.Next(Pk.MaxEV + 1)); }
+            else { int left = 510; foreach (var i in Enumerable.Range(0, 6).OrderBy(_ => Random.Shared.Next())) { int v = Random.Shared.Next(Math.Min(252, left) + 1); SetEV(i, v); left -= v; } }
             Reload();
         });
         var ev0 = Small("EV 0"); ev0.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetEV(i, 0); Reload(); });
-        var ht = Small("특훈 전부"); ht.Clicked += (_, _) => Changed(() => { if (Pk is IHyperTrain h) for (int i = 0; i < 6; i++) SetHT(h, i, GetIV(i) < 31); Reload(); });   // 개체값 31은 자동 제외
-        var buttons = T.Cols(4, 6); buttons.Add(six, 0); buttons.Add(rnd, 1); buttons.Add(ev0, 2); buttons.Add(ht, 3);
+        var buttons = T.Cols(3, 6); buttons.Add(rnd, 0); buttons.Add(evR, 1); buttons.Add(ev0, 2);
+
+        // 크기: 키·몸무게·배율 한 줄, 각 칸 옆에 작은 최대/최소
         hE = Num(v => Changed(() => { if (Pk is IScaledSize z) z.HeightScalar = (byte)Math.Min(v, 255); UpdateSize(); }), 255);
         wE = Num(v => Changed(() => { if (Pk is IScaledSize z) z.WeightScalar = (byte)Math.Min(v, 255); UpdateSize(); }), 255);
         sE = Num(v => Changed(() => { if (Pk is IScaledSize3 z) z.Scale = (byte)Math.Min(v, 255); UpdateSize(); }), 255);
-        sRow = T.Field("배율 (Scale)", sE);
-        var rnd2 = Small("무작위"); rnd2.Clicked += (_, _) => Changed(() =>
+        static Button Tiny(string t, Action a) { var b = new Button { Text = t, FontSize = 9, Padding = 0, WidthRequest = 30, HeightRequest = 20, CornerRadius = 6, BorderWidth = 1, BorderColor = T.Accent, TextColor = T.Accent }; b.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); b.Clicked += (_, _) => a(); return b; }
+        View SizeField(string label, Entry e)
+        {
+            e.HorizontalTextAlignment = TextAlignment.Center;
+            var btns = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { Tiny("최대", () => e.Text = "255"), Tiny("최소", () => e.Text = "0") } };
+            return T.Field(label, Cell(e, btns));
+        }
+        sRow = SizeField("배율", sE);
+        var sizeRow = T.Cols(3, 6); sizeRow.Add(SizeField("키", hE), 0); sizeRow.Add(SizeField("몸무게", wE), 1); sizeRow.Add(sRow, 2);
+        var rnd2 = Small("크기 무작위"); rnd2.Clicked += (_, _) => Changed(() =>
         {
             if (Pk is IScaledSize z) { z.HeightScalar = (byte)Random.Shared.Next(256); z.WeightScalar = (byte)Random.Shared.Next(256); }
             if (Pk is IScaledSize3 z3) z3.Scale = (byte)Random.Shared.Next(256);
             Reload();
         });
-        var maxB = Small("최대 255"); maxB.Clicked += (_, _) => Changed(() => { if (Pk is IScaledSize z) { z.HeightScalar = 255; z.WeightScalar = 255; } if (Pk is IScaledSize3 z3) z3.Scale = 255; Reload(); });
-        var minB = Small("최소 0"); minB.Clicked += (_, _) => Changed(() => { if (Pk is IScaledSize z) { z.HeightScalar = 0; z.WeightScalar = 0; } if (Pk is IScaledSize3 z3) z3.Scale = 0; Reload(); });
-        var sb = T.Cols(3, 6); sb.Add(rnd2, 0); sb.Add(maxB, 1); sb.Add(minB, 2);
-        sizeCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("크기 (0~255)", 13, sub: true), Two(T.Field("키", hE), T.Field("몸무게", wE)), sRow, sizeInfo, sb,
+        sizeCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("크기 (0~255)", 13, sub: true), sizeRow, sizeInfo, rnd2,
             Wrap(T.L("크기는 조우마다 정해진 방식이 있어 임의로 바꾸면 불법이 될 수 있습니다 (예: Z-A 우두머리 배율 255 고정, 시드와 연결된 값).", 11, sub: true)) } });
-        Content = Stack(T.Card(new VerticalStackLayout { Spacing = 8, Children = { g, total } }), buttons, sizeCard);
+        Content = Stack(T.Card(g), buttons, sizeCard);
     }
     private readonly Entry hE, wE, sE;
     private readonly View sizeCard, sRow;
+    private Button htAllBtn;
     private readonly Label sizeInfo = T.L("", 12, sub: true);
     private static string Rate(byte v) => PokeSizeUtil.GetSizeRating(v) switch { PokeSize.XS => "아주 작음", PokeSize.S => "작음", PokeSize.M => "보통", PokeSize.L => "큼", _ => "아주 큼" };
     private void UpdateSize()
@@ -399,6 +426,29 @@ public class StatsSection : Section
         if (Pk is IScaledSize3 z3s) parts.Add($"배율 {Rate(z3s.Scale)}");
         if (Pk is IScaledSizeAbsolute a) parts.Add($"실제 {a.HeightAbsolute:0.00}m / {a.WeightAbsolute:0.0}kg");
         sizeInfo.Text = string.Join("  ·  ", parts);
+    }
+
+    /// <summary>잠재파워 타입 바꾸기: 지금 개체값에서 가장 적게 바꿔(각 능력치 ±1 이내) 원하는 타입이 되게.</summary>
+    private void PickHiddenPower()
+    {
+        if (Pk.Format < 3) { Note.Show("1·2세대는 개체값(DV) 방식이 달라 여기서 바꿀 수 없습니다"); return; }
+        var types = Enumerable.Range(0, 16).Select(t => new ComboItem(GameInfo.Strings.types[t + 1], t)).ToList();
+        int cur = -1; try { Span<int> iv0 = stackalloc int[6]; Pk.GetIVs(iv0); cur = HiddenPower.GetType(iv0, Pk.Context); } catch { }
+        SheetHost.Show(new PickerSheet("잠재파워 타입", types, cur, c => Changed(() =>
+        {
+            Span<int> ivs = stackalloc int[6]; Pk.GetIVs(ivs);
+            int[] baseIv = ivs.ToArray(), best = null; int bestCost = int.MaxValue;
+            for (int mask = 0; mask < 64; mask++)
+            {
+                var t = (int[])baseIv.Clone(); int cost = 0;
+                for (int i = 0; i < 6; i++) if ((mask >> i & 1) != 0) { t[i] = t[i] == 0 ? 1 : t[i] - (t[i] % 2 == 1 ? 1 : -1); if (t[i] > 31) t[i] = 30; cost++; }
+                if (cost >= bestCost) continue;
+                try { if (HiddenPower.GetType(t, Pk.Context) == c.Value) { best = t; bestCost = cost; } } catch { }
+            }
+            if (best == null) { Note.Show("이 타입으로 만들 수 없습니다"); return; }
+            Pk.SetIVs(best); Reload();
+            Note.Show($"잠재파워 {c.Text} (개체값 {bestCost}칸 조정)");
+        }), t => $"type_icon_{t.Value + 1:00}.png"));
     }
 
     private int GetIV(int i) => i switch { 0 => Pk.IV_HP, 1 => Pk.IV_ATK, 2 => Pk.IV_DEF, 3 => Pk.IV_SPA, 4 => Pk.IV_SPD, _ => Pk.IV_SPE };
@@ -413,8 +463,8 @@ public class StatsSection : Section
         var pi = AppState.Sav.Personal.GetFormEntry(Pk.Species, Pk.Form); if (pi.HP == 0) pi = Pk.PersonalInfo;
         int[] bs = [pi.HP, pi.ATK, pi.DEF, pi.SPA, pi.SPD, pi.SPE];
         int up = -1, down = -1; var nat = (int)Pk.StatAlignment;
-        int[] toRow = [1, 2, 5, 3, 4];   // 성격 표의 능력치 순서 → 화면 표 순서
-        if (nat is >= 0 and < 25 && nat / 5 != nat % 5) { up = toRow[nat / 5]; down = toRow[nat % 5]; }
+        int[] toRow = [1, 2, 5, 3, 4];   // 성격 표의 능력치 순서 → 화면 표 순서 (빨강 상승·파랑 하락)
+        if (Pk.Format >= 3 && nat is >= 0 and < 25 && nat / 5 != nat % 5) { up = toRow[nat / 5]; down = toRow[nat % 5]; }
         for (int i = 0; i < 6; i++)
         {
             baseL[i].Text = bs[i].ToString(); statL[i].Text = st[i].ToString();
@@ -422,11 +472,9 @@ public class StatsSection : Section
             if (statL[i].TextColor == null) T.Text(statL[i]);
         }
         int evSum = Enumerable.Range(0, 6).Sum(GetEV);
-        if (evSumL != null) { evSumL.Text = Pk.Format < 3 ? $"{evSum}" : $"{evSum}/510"; if (evSum >= 510) evSumL.TextColor = T.Good; else T.Text(evSumL); }
         evTotal.Text = Pk.Format < 3 ? $"{evSum}" : $"{evSum}/510"; evTotal.TextColor = Pk.Format < 3 ? null : evSum > 510 ? T.Bad : evSum == 510 ? T.Good : null; if (evTotal.TextColor == null) T.Text(evTotal);
-        string hp = "";
-        try { Span<int> ivs = stackalloc int[6]; Pk.GetIVs(ivs); var ht = HiddenPower.GetType(ivs, Pk.Context); hp = $"잠재파워 {GameInfo.Strings.types[ht + 1]}  ·  "; } catch { }
-        total.Text = $"{hp.TrimEnd(' ', '·')}\n종족값 합계 {bs.Sum()}  ·  노력치 합계 {evSum}/510\n빨강 = 성격 상승 · 파랑 = 하락";
+        baseTotal.Text = bs.Sum().ToString(); T.Text(baseTotal);
+        try { Span<int> ivs = stackalloc int[6]; Pk.GetIVs(ivs); var ht = HiddenPower.GetType(ivs, Pk.Context); hpType.Text = Pk.Format >= 2 ? $"잠재 {GameInfo.Strings.types[ht + 1]}" : ""; } catch { hpType.Text = ""; }
     }
 
     protected override void Load(PKM pk)
@@ -436,6 +484,7 @@ public class StatsSection : Section
             ivE[i].Text = GetIV(i).ToString(); evE[i].Text = GetEV(i).ToString();
             htC[i].IsVisible = pk is IHyperTrain; if (pk is IHyperTrain h) htC[i].IsChecked = GetHT(h, i);
         }
+        if (htAllBtn != null) htAllBtn.IsVisible = pk is IHyperTrain;
         Recalc();
         sizeCard.IsVisible = pk.Species != 0 && pk is IScaledSize;
         if (pk is IScaledSize z) { hE.Text = z.HeightScalar.ToString(); wE.Text = z.WeightScalar.ToString(); }

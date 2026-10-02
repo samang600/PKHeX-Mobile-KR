@@ -251,7 +251,11 @@ public class PlayerSheet : Sheet
         var dexHint = T.L("현재 게임에 나오는 포켓몬을 도감에 일괄 등록합니다. 게임에 따라 지원하지 않을 수 있습니다.", 12, sub: true); dexHint.LineBreakMode = LineBreakMode.WordWrap;
         var dexCard = UiFold.Card("세이브 도감 일괄 등록", "pl_dex", false, new VerticalStackLayout { Spacing = 10, Children = { dexHint,
             new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { dexSeen, dexCaught, dexClear } } } } });
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { trCard, bagCard, dexCard, status } } });
+        var cosBtn = T.Pill("의상·꾸미기 전부 얻기", primary: true);
+        cosBtn.Clicked += (_, _) => { var r = Cosmetics.UnlockAll(AppState.Sav); status.Text = r == null ? "이 게임은 의상 일괄 해금을 지원하지 않습니다 (PKHeX 지원: 소드실드·레츠고·XY 등)" : $"{r}을(를) 모두 얻었습니다 · 세이브 내보내기로 저장하세요"; };
+        var cosHint = T.L("PKHeX가 지원하는 게임(소드실드 의상, 레츠고 액세서리, XY 액세서리, SV 던지기 동작 등)만 동작합니다.", 12, sub: true); cosHint.LineBreakMode = LineBreakMode.WordWrap;
+        var cosCard = UiFold.Card("의상·꾸미기", "pl_cos", false, new VerticalStackLayout { Spacing = 10, Children = { cosHint, cosBtn } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { trCard, bagCard, dexCard, cosCard, status } } });
         Load();
     }
 
