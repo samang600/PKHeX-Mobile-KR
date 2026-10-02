@@ -25,6 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: 설정 확인 (iOS 빌드 설정 v8)
+        run: |
+          echo "=== iOS 빌드 설정 v8 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
+
       - name: Xcode 선택과 맞는 .NET 버전 결정
         run: |
           echo "설치된 Xcode:"; ls -d /Applications/Xcode*.app
@@ -45,22 +50,24 @@ jobs:
         run: |
           curl -sSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
           bash dotnet-install.sh --version "$PIN_SDK" --install-dir "$HOME/dotnet-pinned"
-          echo "$HOME/dotnet-pinned" >> $GITHUB_PATH
+          echo "DN=$HOME/dotnet-pinned/dotnet" >> $GITHUB_ENV
           echo "DOTNET_ROOT=$HOME/dotnet-pinned" >> $GITHUB_ENV
           echo "DOTNET_MULTILEVEL_LOOKUP=0" >> $GITHUB_ENV
           echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV
 
       - name: MAUI iOS 워크로드 설치 (버전 고정)
         run: |
-          which dotnet; dotnet --version
-          dotnet workload install maui-ios --version "$PIN_WS"
-          dotnet workload --version
-          dotnet workload list
-          ls "$HOME/dotnet-pinned/packs" | grep -i ios || true
+          "$DN" --version
+          "$DN" workload install maui-ios --version "$PIN_WS"
+          "$DN" workload --version
+          "$DN" workload list
+          echo "설치된 iOS 도구:"; ls "$HOME/dotnet-pinned/packs" | grep -i "Microsoft.iOS.Sdk" || true
+          # Xcode 27용 iOS 도구가 섞여 들어갔으면 여기서 바로 멈춤 (원인 파악용)
+          if ls "$HOME/dotnet-pinned/packs" | grep -q "Microsoft.iOS.Sdk.net10.0_27"; then echo "::error::iOS 27 도구가 설치됨 (워크로드 버전 고정 실패)"; exit 1; fi
 
       - name: 빌드 (서명 없음)
         run: >
-          dotnet build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64 -p:IosOnly=true
+          "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64 -p:IosOnly=true
           -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false
 
       - name: IPA 만들기
