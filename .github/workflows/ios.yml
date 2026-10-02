@@ -1,6 +1,10 @@
 # iOS 빌드 (서명 없는 IPA) — GitHub의 맥 서버에서 빌드
 # 실행: 저장소 Actions 탭 → "iOS 빌드" → Run workflow
 # 릴리스를 발행(Publish)하면 자동으로 빌드해서 그 릴리스에 IPA를 첨부합니다.
+#
+# 버전 고정 이유: 최신 .NET iOS 도구(27.x)는 Xcode 27이 필요한데 GitHub 맥 서버에는 Xcode 26.x만 있음.
+#  → .NET SDK 10.0.303 + 워크로드 세트 10.303.1 (iOS 26.5 도구) + Xcode 26.5 로 맞춤.
+#  (MAUI 10.0.90·CommunityToolkit 15는 iOS 26.0 이상이면 됨)
 name: iOS 빌드
 
 on:
@@ -11,32 +15,45 @@ on:
 permissions:
   contents: write
 
+env:
+  DOTNET_SDK: '10.0.303'
+  WORKLOAD_SET: '10.303.1'
+
 jobs:
   ios:
-    runs-on: macos-latest   # 가장 최신 맥 서버 (Xcode가 더 최신)
-    timeout-minutes: 90
+    runs-on: macos-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
 
-      - name: Xcode 선택 (설치된 것 중 최신)
+      - name: Xcode 26.5 선택 (없으면 설치된 26.x 중 최신)
         run: |
           ls -d /Applications/Xcode*.app
-          XC=$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -1)
+          XC=$(ls -d /Applications/Xcode_26.5*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          [ -z "$XC" ] && XC=$(ls -d /Applications/Xcode_26*.app | grep -v -i beta | sort -V | tail -1)
+          echo "선택: $XC"
           sudo xcode-select -s "$XC"
           xcodebuild -version
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: ${{ env.DOTNET_SDK }}
 
-      - name: MAUI iOS 워크로드 설치
-        run: dotnet workload install maui-ios
+      - name: .NET SDK 버전 고정 (이 빌드에서만)
+        run: |
+          echo "{\"sdk\":{\"version\":\"${DOTNET_SDK}\",\"rollForward\":\"latestPatch\"}}" > global.json
+          cat global.json
+          dotnet --version
+
+      - name: MAUI iOS 워크로드 설치 (버전 고정)
+        run: |
+          dotnet workload install maui-ios --version ${WORKLOAD_SET}
+          dotnet workload list
 
       - name: 빌드 (서명 없음)
         run: >
           dotnet build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64 -p:IosOnly=true
           -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false
-          -p:ValidateXcodeVersion=false
 
       - name: IPA 만들기
         run: |
