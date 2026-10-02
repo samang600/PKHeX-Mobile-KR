@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-15   # Xcode 버전이 맞지 않으면 macos-latest 또는 macos-26 으로 바꿔 보세요
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Xcode 선택 (설치된 것 중 최신)
         run: |
@@ -24,7 +24,7 @@ jobs:
           sudo xcode-select -s "$XC"
           xcodebuild -version
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -33,7 +33,7 @@ jobs:
 
       - name: 빌드 (서명 없음)
         run: >
-          dotnet build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64
+          dotnet build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64 -p:IosOnly=true
           -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false
 
       - name: IPA 만들기
@@ -46,7 +46,7 @@ jobs:
           ls -la *.ipa
 
       - name: 결과 파일 보관 (Actions 실행 화면에서 받기)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PKHeX_Mobile_iOS_unsigned
           path: "*.ipa"

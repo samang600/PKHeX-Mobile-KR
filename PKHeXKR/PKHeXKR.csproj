@@ -3,6 +3,8 @@
 		<TargetFrameworks>net10.0-android36.0</TargetFrameworks>
 		<!-- iOS는 macOS(Xcode)에서만 빌드 가능 → 맥(GitHub Actions 등)에서만 iOS 대상 추가 -->
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android36.0;net10.0-ios</TargetFrameworks>
+		<!-- GitHub Actions iOS 빌드: -p:IosOnly=true 로 iOS만 (안드로이드 워크로드 없이) -->
+		<TargetFrameworks Condition="'$(IosOnly)' == 'true'">net10.0-ios</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<RootNamespace>PKHeXKR</RootNamespace>
 		<UseMaui>true</UseMaui>
@@ -44,10 +46,10 @@
 		<PackageReference Include="PKHeX.Core" Version="26.8.26" />
 	</ItemGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
-		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.Injection\PKHeX.Core.Injection.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
-		<ProjectReference Include="..\HOMELive\HomeLive.Core\HomeLive.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
-		<ProjectReference Include="..\HOMELive\HomeLive.DeviceExecutor\HomeLive.DeviceExecutor.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier" />
+		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
+		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.Injection\PKHeX.Core.Injection.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
+		<ProjectReference Include="..\HOMELive\HomeLive.Core\HomeLive.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
+		<ProjectReference Include="..\HOMELive\HomeLive.DeviceExecutor\HomeLive.DeviceExecutor.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
 		<Reference Include="SysBot.Base"><HintPath>..\HOMELive\HomeLive.DeviceExecutor\deps\SysBot.Base.dll</HintPath></Reference>
 	</ItemGroup>
 </Project>
