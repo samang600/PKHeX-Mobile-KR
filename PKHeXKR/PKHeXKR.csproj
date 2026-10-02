@@ -24,6 +24,8 @@
 	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
 		<MtouchLink>SdkOnly</MtouchLink>
 		<MtouchInterpreter>-all</MtouchInterpreter>
+		<!-- 빌드 서버의 Xcode가 .NET iOS 요구 버전보다 낮아도 빌드 (새 iOS API를 쓰지 않음) -->
+		<ValidateXcodeVersion>false</ValidateXcodeVersion>
 		<CodesignKey></CodesignKey>
 	</PropertyGroup>
 	<ItemGroup>
