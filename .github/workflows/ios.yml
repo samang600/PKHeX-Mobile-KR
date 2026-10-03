@@ -3,10 +3,11 @@
 # 릴리스를 발행(Publish)하면 자동으로 빌드해서 그 릴리스에 IPA를 첨부합니다.
 #
 # 최신 .NET iOS 도구(27.x)는 Xcode 27이 필요한데, GitHub 맥 서버의 Xcode는 서버마다 26.3~26.5로 다름.
+# (워크로드 세트 버전 표기: 패키지 10.303.1 = CLI 10.0.303.1, 10.201.0 = 10.0.201)
 # → 서버에 있는 Xcode 버전을 보고, 그에 맞는 .NET SDK + 워크로드 세트를 골라 별도 폴더에 설치해서 빌드.
-#   Xcode 26.5 이상 : SDK 10.0.303 + 워크로드 10.303.1 (iOS 26.5)
-#   Xcode 26.4      : SDK 10.0.204 + 워크로드 10.204.1 (iOS 26.4)
-#   Xcode 26.2~26.3 : SDK 10.0.201 + 워크로드 10.201.0 (iOS 26.2)
+#   Xcode 26.5 이상 : SDK 10.0.303 + 워크로드 10.0.303.1 (iOS 26.5)
+#   Xcode 26.4      : SDK 10.0.204 + 워크로드 10.0.204.1 (iOS 26.4)
+#   Xcode 26.2~26.3 : SDK 10.0.201 + 워크로드 10.0.201 (iOS 26.2)
 #   (MAUI 10.0.90·CommunityToolkit 15는 iOS 26.0 이상이면 됨)
 name: iOS 빌드
 
@@ -25,9 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v8)
+      - name: 설정 확인 (iOS 빌드 설정 v9)
         run: |
-          echo "=== iOS 빌드 설정 v8 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "=== iOS 빌드 설정 v9 (Xcode 맞춤 .NET 별도 설치) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
 
       - name: Xcode 선택과 맞는 .NET 버전 결정
@@ -39,9 +40,9 @@ jobs:
           XV=$(xcodebuild -version | head -1 | awk '{print $2}')
           echo "선택: $XC (Xcode $XV)"
           MAJ=$(echo "$XV" | cut -d. -f1); MIN=$(echo "$XV" | cut -d. -f2); MIN=${MIN:-0}
-          if [ "$MAJ" -ge 27 ] || { [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 5 ]; }; then SDK=10.0.303; WS=10.303.1
-          elif [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 4 ]; then SDK=10.0.204; WS=10.204.1
-          else SDK=10.0.201; WS=10.201.0; fi
+          if [ "$MAJ" -ge 27 ] || { [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 5 ]; }; then SDK=10.0.303; WS=10.0.303.1
+          elif [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 4 ]; then SDK=10.0.204; WS=10.0.204.1
+          else SDK=10.0.201; WS=10.0.201; fi
           echo "사용: .NET SDK $SDK + 워크로드 세트 $WS"
           echo "PIN_SDK=$SDK" >> $GITHUB_ENV
           echo "PIN_WS=$WS" >> $GITHUB_ENV
