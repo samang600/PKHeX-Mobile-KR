@@ -5,9 +5,10 @@
 # 최신 .NET iOS 도구(27.x)는 Xcode 27이 필요한데, GitHub 맥 서버의 Xcode는 서버마다 26.3~26.5로 다름.
 # (워크로드 세트 버전 표기: 패키지 10.303.1 = CLI 10.0.303.1, 10.201.0 = 10.0.201)
 # → 서버에 있는 Xcode 버전을 보고, 그에 맞는 .NET SDK + 워크로드 세트를 골라 별도 폴더에 설치해서 빌드.
-#   Xcode 26.5 이상 : SDK 10.0.303 + 워크로드 10.0.303.1 (iOS 26.5)
-#   Xcode 26.4      : SDK 10.0.204 + 워크로드 10.0.204.1 (iOS 26.4)
-#   Xcode 26.2~26.3 : SDK 10.0.201 + 워크로드 10.0.201 (iOS 26.2)
+#   Xcode 26.5 이상 : SDK 10.0.303 + 워크로드 10.0.303.1 → net10.0-ios26.5
+#   Xcode 26.4      : SDK 10.0.204 + 워크로드 10.0.204.1 → net10.0-ios26.4
+#   Xcode 26.2~26.3 : SDK 10.0.201 + 워크로드 10.0.201   → net10.0-ios26.2
+#   워크로드에는 여러 iOS 버전 도구가 함께 깔리므로(27.0 미리보기 포함), 빌드할 iOS 버전을 명시해서 고름.
 #   (MAUI 10.0.90·CommunityToolkit 15는 iOS 26.0 이상이면 됨)
 name: iOS 빌드
 
@@ -26,9 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v9)
+      - name: 설정 확인 (iOS 빌드 설정 v10)
         run: |
-          echo "=== iOS 빌드 설정 v9 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "=== iOS 빌드 설정 v10 (Xcode 맞춤 .NET 별도 설치) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
 
       - name: Xcode 선택과 맞는 .NET 버전 결정
@@ -40,10 +41,12 @@ jobs:
           XV=$(xcodebuild -version | head -1 | awk '{print $2}')
           echo "선택: $XC (Xcode $XV)"
           MAJ=$(echo "$XV" | cut -d. -f1); MIN=$(echo "$XV" | cut -d. -f2); MIN=${MIN:-0}
-          if [ "$MAJ" -ge 27 ] || { [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 5 ]; }; then SDK=10.0.303; WS=10.0.303.1
-          elif [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 4 ]; then SDK=10.0.204; WS=10.0.204.1
-          else SDK=10.0.201; WS=10.0.201; fi
-          echo "사용: .NET SDK $SDK + 워크로드 세트 $WS"
+          if [ "$MAJ" -ge 27 ] || { [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 5 ]; }; then SDK=10.0.303; WS=10.0.303.1; IOSV=26.5
+          elif [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 4 ]; then SDK=10.0.204; WS=10.0.204.1; IOSV=26.4
+          else SDK=10.0.201; WS=10.0.201; IOSV=26.2; fi
+          echo "사용: .NET SDK $SDK + 워크로드 세트 $WS + iOS $IOSV (net10.0-ios$IOSV)"
+          echo "PIN_IOSV=$IOSV" >> $GITHUB_ENV
+          echo "IOS_TFM=net10.0-ios$IOSV" >> $GITHUB_ENV
           echo "PIN_SDK=$SDK" >> $GITHUB_ENV
           echo "PIN_WS=$WS" >> $GITHUB_ENV
 
@@ -63,17 +66,20 @@ jobs:
           "$DN" workload --version
           "$DN" workload list
           echo "설치된 iOS 도구:"; ls "$HOME/dotnet-pinned/packs" | grep -i "Microsoft.iOS.Sdk" || true
-          # Xcode 27용 iOS 도구가 섞여 들어갔으면 여기서 바로 멈춤 (원인 파악용)
-          if ls "$HOME/dotnet-pinned/packs" | grep -q "Microsoft.iOS.Sdk.net10.0_27"; then echo "::error::iOS 27 도구가 설치됨 (워크로드 버전 고정 실패)"; exit 1; fi
+          # 워크로드에는 여러 iOS 버전 도구가 함께 들어 있음(27.0 미리보기 포함, 정상).
+          # 빌드는 아래에서 net10.0-ios$PIN_IOSV 로 버전을 명시해 그 도구만 쓰게 함 → 그 도구가 있는지만 확인
+          if ! ls "$HOME/dotnet-pinned/packs" | grep -qx "Microsoft.iOS.Sdk.net10.0_${PIN_IOSV}"; then echo "::error::iOS ${PIN_IOSV} 도구가 없음"; exit 1; fi
+          echo "빌드에 쓸 iOS 도구: Microsoft.iOS.Sdk.net10.0_${PIN_IOSV}"
 
       - name: 빌드 (서명 없음)
         run: >
-          "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f net10.0-ios -r ios-arm64 -p:IosOnly=true
+          "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f "$IOS_TFM" -r ios-arm64 -p:IosOnly=true -p:IosTfm="$IOS_TFM"
           -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false
 
       - name: IPA 만들기
         run: |
-          APP=$(find PKHeXKR/bin/Release/net10.0-ios/ios-arm64 -maxdepth 1 -name "*.app" | head -1)
+          APP=$(find PKHeXKR/bin/Release -path "*ios-arm64/*.app" -maxdepth 4 -name "*.app" -type d | head -1)
+          [ -z "$APP" ] && { echo "::error::.app을 찾지 못함"; find PKHeXKR/bin -maxdepth 4 -type d; exit 1; }
           echo "앱: $APP"
           mkdir -p Payload && cp -R "$APP" Payload/
           VER=$(grep -o '<ApplicationDisplayVersion>[^<]*' PKHeXKR/PKHeXKR.csproj | sed 's/.*>//')

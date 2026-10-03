@@ -3,8 +3,9 @@
 		<TargetFrameworks>net10.0-android36.0</TargetFrameworks>
 		<!-- iOS는 macOS(Xcode)에서만 빌드 가능 → 맥(GitHub Actions 등)에서만 iOS 대상 추가 -->
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android36.0;net10.0-ios</TargetFrameworks>
-		<!-- GitHub Actions 맥 서버(또는 -p:IosOnly=true)에서는 iOS만 빌드 → 안드로이드 워크로드 불필요 -->
-		<TargetFrameworks Condition="'$(IosOnly)' == 'true' Or ('$(GITHUB_ACTIONS)' == 'true' And $([MSBuild]::IsOSPlatform('osx')))">net10.0-ios</TargetFrameworks>
+		<!-- GitHub Actions 맥 서버(또는 -p:IosOnly=true)에서는 iOS만 빌드. IosTfm으로 iOS 버전을 명시(예: net10.0-ios26.5) -->
+		<IosTfm Condition="'$(IosTfm)' == ''">net10.0-ios</IosTfm>
+		<TargetFrameworks Condition="'$(IosOnly)' == 'true' Or ('$(GITHUB_ACTIONS)' == 'true' And $([MSBuild]::IsOSPlatform('osx')))">$(IosTfm)</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<RootNamespace>PKHeXKR</RootNamespace>
 		<UseMaui>true</UseMaui>
@@ -48,10 +49,10 @@
 		<PackageReference Include="PKHeX.Core" Version="26.8.26" />
 	</ItemGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
-		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.Injection\PKHeX.Core.Injection.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
-		<ProjectReference Include="..\HOMELive\HomeLive.Core\HomeLive.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
-		<ProjectReference Include="..\HOMELive\HomeLive.DeviceExecutor\HomeLive.DeviceExecutor.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly" />
+		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
+		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.Injection\PKHeX.Core.Injection.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
+		<ProjectReference Include="..\HOMELive\HomeLive.Core\HomeLive.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
+		<ProjectReference Include="..\HOMELive\HomeLive.DeviceExecutor\HomeLive.DeviceExecutor.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
 		<Reference Include="SysBot.Base"><HintPath>..\HOMELive\HomeLive.DeviceExecutor\deps\SysBot.Base.dll</HintPath></Reference>
 	</ItemGroup>
 </Project>
