@@ -27,9 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v11)
+      - name: 설정 확인 (iOS 빌드 설정 v12)
         run: |
-          echo "=== iOS 빌드 설정 v11 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "=== iOS 빌드 설정 v12 (Xcode 맞춤 .NET 별도 설치) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
 
       - name: Xcode 선택과 맞는 .NET 버전 결정
@@ -42,6 +42,7 @@ jobs:
             DEVELOPER_DIR="$X/Contents/Developer" xcrun --sdk iphoneos --show-sdk-path >/dev/null 2>&1 || { echo "  제외 $X: iOS SDK 없음"; return 1; }
             DEVELOPER_DIR="$X/Contents/Developer" xcrun -find actool >/dev/null 2>&1 || { echo "  제외 $X: actool 없음"; return 1; }
             DEVELOPER_DIR="$X/Contents/Developer" xcrun -find ibtool >/dev/null 2>&1 || { echo "  제외 $X: ibtool 없음"; return 1; }
+            DEVELOPER_DIR="$X/Contents/Developer" xcrun -sdk "$X/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" -find clang >/dev/null 2>&1 || { echo "  제외 $X: clang 없음"; return 1; }
             return 0
           }
           XC=""
@@ -52,6 +53,16 @@ jobs:
           [ -z "$XC" ] && { echo "::error::쓸 수 있는 Xcode 26.x가 없습니다"; exit 1; }
           sudo xcode-select -s "$XC"
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> $GITHUB_ENV
+          export DEVELOPER_DIR="$XC/Contents/Developer"
+          sudo xcodebuild -license accept >/dev/null 2>&1 || true
+          sudo xcodebuild -runFirstLaunch >/dev/null 2>&1 || true
+          MSDK="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+          for T in clang clang++ ld ar strip dsymutil lipo actool ibtool codesign_allocate; do
+            xcrun -sdk "$MSDK" -find $T >/dev/null 2>&1 || true
+            xcrun --sdk macosx -find $T >/dev/null 2>&1 || true
+            xcrun --sdk iphoneos -find $T >/dev/null 2>&1 || true
+          done
+          echo "clang: $(xcrun -sdk "$MSDK" -find clang)"
           XV=$(xcodebuild -version | head -1 | awk '{print $2}')
           echo "선택: $XC (Xcode $XV)"; xcrun --sdk iphoneos --show-sdk-version
           MAJ=$(echo "$XV" | cut -d. -f1); MIN=$(echo "$XV" | cut -d. -f2); MIN=${MIN:-0}
@@ -86,9 +97,14 @@ jobs:
           echo "빌드에 쓸 iOS 도구: Microsoft.iOS.Sdk.net10.0_${PIN_IOSV}"
 
       - name: 빌드 (서명 없음)
-        run: >
-          "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f "$IOS_TFM" -r ios-arm64 -p:IosOnly=true -p:IosTfm="$IOS_TFM"
-          -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false
+        run: |
+          B() { "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f "$IOS_TFM" -r ios-arm64 -p:IosOnly=true -p:IosTfm="$IOS_TFM" \
+                -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false "$@"; }
+          B && exit 0
+          echo "::warning::빌드 실패 → 한 번 더 시도 (이미 끝난 단계는 건너뜀)"
+          B && exit 0
+          echo "::warning::다시 실패 → 동시 작업을 1개로 줄여 마지막 시도"
+          B -m:1 -p:BuildInParallel=false
 
       - name: IPA 만들기
         run: |
