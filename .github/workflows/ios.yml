@@ -27,28 +27,42 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v10)
+      - name: 설정 확인 (iOS 빌드 설정 v11)
         run: |
-          echo "=== iOS 빌드 설정 v10 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "=== iOS 빌드 설정 v11 (Xcode 맞춤 .NET 별도 설치) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
 
       - name: Xcode 선택과 맞는 .NET 버전 결정
         run: |
           echo "설치된 Xcode:"; ls -d /Applications/Xcode*.app
-          XC=$(ls -d /Applications/Xcode_26*.app | grep -v -i beta | sort -V | tail -1)
-          [ -z "$XC" ] && XC=$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -1)
+          # 서버에 따라 일부 Xcode는 구성 요소(MacOSX SDK, iOS SDK, actool 등)가 빠져 있음 → 실제로 쓸 수 있는지 검사해서 고름
+          ok() {
+            local X="$1"
+            [ -d "$X/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" ] || { echo "  제외 $X: MacOSX SDK 없음"; return 1; }
+            DEVELOPER_DIR="$X/Contents/Developer" xcrun --sdk iphoneos --show-sdk-path >/dev/null 2>&1 || { echo "  제외 $X: iOS SDK 없음"; return 1; }
+            DEVELOPER_DIR="$X/Contents/Developer" xcrun -find actool >/dev/null 2>&1 || { echo "  제외 $X: actool 없음"; return 1; }
+            DEVELOPER_DIR="$X/Contents/Developer" xcrun -find ibtool >/dev/null 2>&1 || { echo "  제외 $X: ibtool 없음"; return 1; }
+            return 0
+          }
+          XC=""
+          # 1순위: 26.5 (빌드 도구가 맞춰진 버전) → 2순위: 그 밖의 26.x 최신순
+          for X in $(ls -d /Applications/Xcode_26.5*.app 2>/dev/null | grep -v -i beta | sort -Vr) $(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -Vr); do
+            if ok "$X"; then XC="$X"; break; fi
+          done
+          [ -z "$XC" ] && { echo "::error::쓸 수 있는 Xcode 26.x가 없습니다"; exit 1; }
           sudo xcode-select -s "$XC"
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> $GITHUB_ENV
           XV=$(xcodebuild -version | head -1 | awk '{print $2}')
-          echo "선택: $XC (Xcode $XV)"
+          echo "선택: $XC (Xcode $XV)"; xcrun --sdk iphoneos --show-sdk-version
           MAJ=$(echo "$XV" | cut -d. -f1); MIN=$(echo "$XV" | cut -d. -f2); MIN=${MIN:-0}
           if [ "$MAJ" -ge 27 ] || { [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 5 ]; }; then SDK=10.0.303; WS=10.0.303.1; IOSV=26.5
           elif [ "$MAJ" -eq 26 ] && [ "$MIN" -ge 4 ]; then SDK=10.0.204; WS=10.0.204.1; IOSV=26.4
           else SDK=10.0.201; WS=10.0.201; IOSV=26.2; fi
           echo "사용: .NET SDK $SDK + 워크로드 세트 $WS + iOS $IOSV (net10.0-ios$IOSV)"
-          echo "PIN_IOSV=$IOSV" >> $GITHUB_ENV
-          echo "IOS_TFM=net10.0-ios$IOSV" >> $GITHUB_ENV
           echo "PIN_SDK=$SDK" >> $GITHUB_ENV
           echo "PIN_WS=$WS" >> $GITHUB_ENV
+          echo "PIN_IOSV=$IOSV" >> $GITHUB_ENV
+          echo "IOS_TFM=net10.0-ios$IOSV" >> $GITHUB_ENV
 
       - name: .NET SDK 설치 (별도 폴더, 버전 고정)
         run: |
