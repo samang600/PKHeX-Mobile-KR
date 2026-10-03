@@ -27,9 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v12)
+      - name: 설정 확인 (iOS 빌드 설정 v13)
         run: |
-          echo "=== iOS 빌드 설정 v12 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "=== iOS 빌드 설정 v13 (Xcode 맞춤 .NET 별도 설치) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
 
       - name: Xcode 선택과 맞는 .NET 버전 결정
@@ -57,7 +57,7 @@ jobs:
           sudo xcodebuild -license accept >/dev/null 2>&1 || true
           sudo xcodebuild -runFirstLaunch >/dev/null 2>&1 || true
           MSDK="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-          for T in clang clang++ ld ar strip dsymutil lipo actool ibtool codesign_allocate; do
+          for T in clang clang++ ld ar strip dsymutil lipo actool ibtool codesign_allocate mdimport ditto plutil; do
             xcrun -sdk "$MSDK" -find $T >/dev/null 2>&1 || true
             xcrun --sdk macosx -find $T >/dev/null 2>&1 || true
             xcrun --sdk iphoneos -find $T >/dev/null 2>&1 || true
@@ -98,8 +98,13 @@ jobs:
 
       - name: 빌드 (서명 없음)
         run: |
+          # 앱 마무리 단계 도구들을 xcrun으로 찾지 않고 경로를 직접 지정 (xcrun 조회가 서버에서 실패함: mdimport 등)
+          STRIP=$(xcrun -find strip)
+          echo "strip: $STRIP / mdimport: $(command -v mdimport) / ditto: $(command -v ditto) / plutil: $(command -v plutil)"
           B() { "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f "$IOS_TFM" -r ios-arm64 -p:IosOnly=true -p:IosTfm="$IOS_TFM" \
-                -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false "$@"; }
+                -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false \
+                -p:MdimportPath=/usr/bin/mdimport -p:DittoPath=/usr/bin/ditto -p:PlutilPath=/usr/bin/plutil -p:StripPath="$STRIP" \
+                -p:NoDSymUtil=true "$@"; }
           B && exit 0
           echo "::warning::빌드 실패 → 한 번 더 시도 (이미 끝난 단계는 건너뜀)"
           B && exit 0
