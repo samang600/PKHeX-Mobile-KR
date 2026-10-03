@@ -29,24 +29,24 @@ public class FtpSheet : Sheet
         hostE.Text = Preferences.Get("ftp_host", ""); portE.Text = Preferences.Get("ftp_port", "5000"); userE.Text = Preferences.Get("ftp_user", ""); passE.Text = Preferences.Get("ftp_pass", "");
         passE.IsPassword = true;
         var connect = T.Pill("연결", primary: true); connect.Clicked += async (_, _) => await Connect();
-        var up = T.Pill("상위 폴더"); up.Clicked += async (_, _) => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/'))]; } await Refresh(); };
-        var dbi = T.Pill("백업 폴더"); dbi.Clicked += async (_, _) => { cwd = DbiBackup; await Refresh(); };
+        var up = T.Pill("상위 폴더"); up.Clicked += async (_, _) => await Safe(async () => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/'))]; } await Refresh(); });
+        var dbi = T.Pill("백업 폴더"); dbi.Clicked += async (_, _) => await Safe(async () => { cwd = DbiBackup; await Refresh(); });
         var here = T.Pill("이곳을 백업 폴더로"); here.Clicked += (_, _) => { Preferences.Set("ftp_backup", cwd); pathE.Text = cwd; Note.Show("백업 폴더로 지정했습니다"); };
         var off = T.Pill("연결 해제"); off.Clicked += (_, _) => { Drop(); list.Children.Clear(); status.Text = "연결을 해제했습니다"; pathL.Text = ""; };
         pathE.Text = DbiBackup;
         pathE.Completed += (_, _) => { var v = (pathE.Text ?? "").Trim(); if (v.Length == 0) v = "/backup/saves"; if (!v.StartsWith('/')) v = "/" + v.Replace("sdmc:/", ""); Preferences.Set("ftp_backup", v.TrimEnd('/')); pathE.Text = DbiBackup; };
-        var root = T.Pill("맨 위"); root.Clicked += async (_, _) => { cwd = "/"; await Refresh(); };
-        var jksv = T.Pill("JKSV"); jksv.Clicked += async (_, _) => { cwd = "/JKSV"; await Refresh(); };
-        var ckpt = T.Pill("Checkpoint"); ckpt.Clicked += async (_, _) => { cwd = "/switch/Checkpoint/saves"; await Refresh(); };
-        var mk = T.Pill("새 폴더"); mk.Clicked += async (_, _) => { if (client?.IsConnected == true) await NewFolder(); };
-        pasteBtn = T.Pill("붙여넣기", primary: true); pasteBtn.Clicked += async (_, _) => await Paste(); UpdatePaste();
+        var root = T.Pill("맨 위"); root.Clicked += async (_, _) => await Safe(async () => { cwd = "/"; await Refresh(); });
+        var jksv = T.Pill("JKSV"); jksv.Clicked += async (_, _) => await Safe(async () => { cwd = "/JKSV"; await Refresh(); });
+        var ckpt = T.Pill("Checkpoint"); ckpt.Clicked += async (_, _) => await Safe(async () => { cwd = "/switch/Checkpoint/saves"; await Refresh(); });
+        var mk = T.Pill("새 폴더"); mk.Clicked += async (_, _) => await Safe(NewFolder);
+        pasteBtn = T.Pill("붙여넣기", primary: true); pasteBtn.Clicked += async (_, _) => await Safe(async () => { await Paste(); }); UpdatePaste();
         var hint = T.L("스위치 DBI에서 'Run FTP server'를 켜면 화면에 IP와 포트가 나옵니다(기본 5000). 휴대폰과 스위치가 같은 와이파이에 있어야 합니다.\n• 세이브 폴더가 보이면: 파일을 눌러 바로 열고, 편집 후 같은 자리에 덮어쓸 수 있습니다.\n• SD 카드만 보이면: 스위치 DBI → Browse saves → 게임 → Backup 후, 'DBI 백업 폴더'에서 파일을 열어 편집·덮어쓰기 → 스위치 DBI에서 그 백업으로 복원(Restore).", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap; status.LineBreakMode = LineBreakMode.WordWrap; pathL.LineBreakMode = LineBreakMode.WordWrap;
         var form = T.Cols(2, 6); form.Add(T.Field("IP", hostE), 0); form.Add(T.Field("포트", portE), 1);
         var form2 = T.Cols(2, 6); form2.Add(T.Field("사용자", userE), 0); form2.Add(T.Field("비밀번호", passE), 1);
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, form, form2, connect,
             new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { up, root, dbi, jksv, ckpt, here, mk, pasteBtn, off } } }, T.Field("백업 폴더 경로 (SD 카드 기준, sdmc:/ = /)", pathE), status, pathL, list } } });
-        if (client?.IsConnected == true) _ = Refresh();
+        if (client?.IsConnected == true) _ = Safe(Refresh);
     }
 
     private async Task Connect()
@@ -153,6 +153,7 @@ public class FtpSheet : Sheet
     {
         list.Children.Clear();
         if (client?.IsConnected != true) { status.Text = "연결되어 있지 않습니다"; return; }
+        await client.GetWorkingDirectory().WaitAsync(TimeSpan.FromSeconds(10));   // 살아 있는지 확인
         pathL.Text = "위치: " + cwd;
         try
         {
@@ -180,7 +181,7 @@ public class FtpSheet : Sheet
                 }));
             }
         }
-        catch (Exception ex) { status.Text = "목록 오류: " + ex.Message; }
+        catch (Exception ex) when (!IsNet(ex)) { status.Text = "목록 오류: " + ex.Message; }
     }
 
     /// <summary>목록이 비었을 때 원인 확인: 방법별 결과와 서버 응답을 그대로 보여줌.</summary>
@@ -201,18 +202,18 @@ public class FtpSheet : Sheet
     }
 
     private View RowM(Item it, string text, string sub, Func<Task> tap) => Row(text, sub, tap, () => ItemMenu(it));
-    private static View Row(string text, string sub, Func<Task> tap, Func<Task> menu = null)
+    private View Row(string text, string sub, Func<Task> tap, Func<Task> menu = null)
     {
         var t1 = T.L(text, 14, bold: true); t1.LineBreakMode = LineBreakMode.WordWrap;
         var v = new VerticalStackLayout { Spacing = 1, Padding = new Thickness(10, 8), Children = { t1, T.L(sub, 11, sub: true) } };
         var b = new Border { Content = v, StrokeThickness = 0, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
         b.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F9FAFB"), Color.FromArgb("#22262F"));
-        var g = new TapGestureRecognizer(); g.Tapped += async (_, _) => await tap(); b.GestureRecognizers.Add(g);
+        var g = new TapGestureRecognizer(); g.Tapped += async (_, _) => await Safe(tap); b.GestureRecognizers.Add(g);
         if (menu == null) return b;
         // 꾹 누르기 = 메뉴, 오른쪽 ⋯ 버튼도 같은 메뉴
-        b.Behaviors.Add(new CommunityToolkit.Maui.Behaviors.TouchBehavior { LongPressDuration = 500, LongPressCommand = new Command(async () => await menu()) });
+        b.Behaviors.Add(new CommunityToolkit.Maui.Behaviors.TouchBehavior { LongPressDuration = 500, LongPressCommand = new Command(async () => await Safe(menu)) });
         var more = new Button { Text = "⋯", FontSize = 16, Padding = 0, WidthRequest = 36, HeightRequest = 36, BackgroundColor = Colors.Transparent, BorderWidth = 0, TextColor = T.Accent, VerticalOptions = LayoutOptions.Center };
-        more.Clicked += async (_, _) => await menu();
+        more.Clicked += async (_, _) => await Safe(menu);
         var row = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 2 };
         row.Add(b, 0); row.Add(more, 1);
         return row;
@@ -261,7 +262,8 @@ public class FtpSheet : Sheet
                     else if (orig != null && bytes.Length != orig.Length && !await page.DisplayAlertAsync("크기 다름", $"원본 {orig.Length:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 크기가 다릅니다. 다른 게임이나 파일일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
                     status.Text = "올리는 중…";
                     var r = await Put(bytes, path);
-                    if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")"; break; }
+                    if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")"; Note.Show("업로드 실패: " + name); break; }
+                    Note.Show($"업로드 완료: {name} ({bytes.Length:N0}바이트)");
                     status.Text = zip || path.StartsWith(DbiBackup, StringComparison.OrdinalIgnoreCase)
                         ? "백업에 덮어썼습니다. 이제 스위치에서 이 백업으로 복원(DBI: Browse saves → Backups → Restore / JKSV·Checkpoint: Restore)하세요."
                         : "덮어썼습니다. 게임을 실행해 확인하세요 (문제가 있으면 백업 목록의 '스위치FTP 원본'으로 되돌리세요).";
@@ -274,6 +276,31 @@ public class FtpSheet : Sheet
 
     // ===== 탐색기 기능: 새 폴더, 복사·잘라내기·붙여넣기·이름 바꾸기·삭제 =====
     private static (string Path, string Name, bool Dir, bool Cut)? clip;
+    private static readonly SemaphoreSlim opLock = new(1, 1);
+    private static bool IsNet(Exception ex) => ex is TimeoutException or IOException or System.Net.Sockets.SocketException or ObjectDisposedException or FluentFTP.Exceptions.FtpException || ex.InnerException is { } inner && IsNet(inner);
+
+    /// <summary>
+    /// 스위치와 주고받는 작업은 모두 여기로: 한 번에 하나만(겹치면 무시), 30초 넘으면 끊긴 것으로 보고 정리.
+    /// 연결이 끊긴 상태에서 폴더를 눌러도 화면이 멈추거나 앱이 꺼지지 않게 함.
+    /// </summary>
+    private async Task Safe(Func<Task> op)
+    {
+        if (!await opLock.WaitAsync(0)) { status.Text = "이전 작업이 끝나기를 기다리는 중입니다…"; return; }
+        try
+        {
+            if (client == null || !client.IsConnected) { status.Text = "연결되어 있지 않습니다. '연결'을 눌러 주세요"; return; }
+            await op().WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        catch (Exception ex) when (IsNet(ex)) { Lost(ex is TimeoutException ? "스위치가 응답하지 않습니다 (연결이 끊긴 것 같습니다). 다시 연결해 주세요" : "연결이 끊겼습니다. 다시 연결해 주세요 (" + ex.Message + ")"); }
+        catch (Exception ex) { status.Text = "오류: " + ex.Message; }
+        finally { opLock.Release(); }
+    }
+    private void Lost(string msg)
+    {
+        var c = client; client = null;
+        status.Text = msg; Note.Show("FTP 연결이 끊겼습니다");
+        if (c != null) _ = Task.Run(() => { try { c.Dispose(); } catch { } });
+    }
     private Button pasteBtn;
     private static string Join(string dir, string name) => dir.TrimEnd('/') + "/" + name;
 
@@ -286,9 +313,9 @@ public class FtpSheet : Sheet
             bool ok = false;
             try { ok = await client.CreateDirectory(Join(cwd, name.Trim())); } catch { }
             if (!ok) { await client.SetWorkingDirectory(cwd); ok = await client.CreateDirectory(name.Trim()); }
-            status.Text = ok ? "폴더를 만들었습니다" : "폴더를 만들지 못했습니다";
+            status.Text = ok ? "폴더를 만들었습니다" : "폴더를 만들지 못했습니다"; Note.Show(ok ? $"폴더 만들기 완료: {name.Trim()}" : "폴더를 만들지 못했습니다");
         }
-        catch (Exception ex) { status.Text = "폴더 만들기 오류: " + ex.Message; }
+        catch (Exception ex) when (!IsNet(ex)) { status.Text = "폴더 만들기 오류: " + ex.Message; }
         await Refresh();
     }
 
@@ -335,9 +362,9 @@ public class FtpSheet : Sheet
             if (c.Cut) { await Rename(c.Path, dest); clip = null; }
             else if (c.Dir) await CopyDir(c.Path, dest);
             else { var b = await Get(c.Path); await Put(b, dest); }
-            UpdatePaste(); status.Text = "붙여넣었습니다";
+            UpdatePaste(); status.Text = "붙여넣었습니다"; Note.Show($"붙여넣기 완료: {c.Name}");
         }
-        catch (Exception ex) { status.Text = "붙여넣기 오류: " + ex.Message; }
+        catch (Exception ex) when (!IsNet(ex)) { status.Text = "붙여넣기 오류: " + ex.Message; }
         await Refresh();
     }
 

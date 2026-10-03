@@ -569,7 +569,8 @@ public class MainPage : ContentPage
                     for (int i = 0; i < set.Count; i++)
                     {
                         int b = start + i / sav.BoxSlotCount; if (b >= sav.BoxCount) break;
-                        var p2 = EntityFormat.GetFromBytes(set.GetSlot(i).ToArray());
+                        var raw = set.Data.Span.Slice(i * set.SlotSize, set.SlotSize).ToArray();   // set.GetSlot(i)는 PKHeX 쪽 범위 검사 오류로 쓰지 않음
+                        PKM p2; try { p2 = set.SlotSize == sav.SIZE_BOXSLOT ? sav.GetDecryptedPKM(raw) : EntityFormat.GetFromBytes(raw); } catch { p2 = null; }
                         if (p2 == null) continue;
                         if (p2.Species == 0) continue;
                         var c = EntityConverter.ConvertToType(p2, sav.PKMType, out _) ?? p2;

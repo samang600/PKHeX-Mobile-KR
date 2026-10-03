@@ -352,7 +352,8 @@ public class StatsSection : Section
             ivE[i].HorizontalTextAlignment = evE[i].HorizontalTextAlignment = TextAlignment.Center;
             foreach (var l in new[] { baseL[i], statL[i] }) { l.HorizontalTextAlignment = TextAlignment.Center; l.VerticalTextAlignment = TextAlignment.Center; l.HorizontalOptions = LayoutOptions.Fill; l.VerticalOptions = LayoutOptions.Center; }
             // ± : 최대가 아니면 최대로, 최대면 0으로 (개체값 V ↔ Z, 노력치 최대 ↔ 0)
-            var ivPm = Pm(() => ivE[k].Text = (GetIV(k) >= Pk.MaxIV ? 0 : Pk.MaxIV).ToString());
+            // 개체값 버튼: 그 밖의 값 → V(최대), V → U(최대-1), U → Z(0), Z → V
+            var ivPm = Pm(() => { int m = Pk.MaxIV, v = GetIV(k); ivE[k].Text = (v == m ? m - 1 : v == m - 1 ? 0 : m).ToString(); });
             var evPm = Pm(() => { int cap = EvCap(k); evE[k].Text = (GetEV(k) >= cap && cap > 0 ? 0 : cap).ToString(); });
             var nameL = T.L(Names[i], 14, bold: true); nameL.VerticalOptions = LayoutOptions.Center;
             g.Add(nameL, 0, i + 1); g.Add(baseL[i], 1, i + 1); g.Add(Cell(ivE[i], ivPm), 2, i + 1); g.Add(Cell(evE[i], evPm), 3, i + 1); g.Add(statL[i], 4, i + 1);
@@ -369,7 +370,14 @@ public class StatsSection : Section
         var hpTap = new TapGestureRecognizer(); hpTap.Tapped += (_, _) => PickHiddenPower(); hpType.GestureRecognizers.Add(hpTap);
         var htAll = new Button { Text = "전부", FontSize = 10, Padding = new Thickness(4, 0), HeightRequest = 26, CornerRadius = 13, BorderWidth = 1, BorderColor = T.Accent, TextColor = T.Accent, VerticalOptions = LayoutOptions.Center };
         htAll.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24"));
-        htAll.Clicked += (_, _) => Changed(() => { if (Pk is IHyperTrain h) for (int i = 0; i < 6; i++) SetHT(h, i, GetIV(i) < 31); Reload(); });   // 개체값 31은 자동 제외
+        htAll.Clicked += (_, _) => Changed(() =>
+        {
+            if (Pk is not IHyperTrain h) return;
+            var want = Enumerable.Range(0, 6).Where(i => GetIV(i) < 31).ToList();   // 개체값 31은 자동 제외
+            bool allOn = want.Count > 0 && want.All(i => GetHT(h, i));
+            for (int i = 0; i < 6; i++) SetHT(h, i, !allOn && GetIV(i) < 31);   // 이미 전부 켜져 있으면 모두 해제
+            Reload();
+        });
         g.Add(htAll, 5, 7); htAllBtn = htAll;
 
         var rnd = Small("IV 무작위"); rnd.Clicked += (_, _) => Changed(() =>
@@ -389,7 +397,9 @@ public class StatsSection : Section
             Reload();
         });
         var ev0 = Small("EV 0"); ev0.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetEV(i, 0); Reload(); });
-        var buttons = T.Cols(3, 6); buttons.Add(rnd, 0); buttons.Add(evR, 1); buttons.Add(ev0, 2);
+        var v6 = Small("6V"); v6.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetIV(i, Pk.MaxIV); Reload(); });
+        foreach (var bb in new[] { rnd, v6, evR, ev0 }) { bb.FontSize = 12; bb.Padding = new Thickness(2, 0); }
+        var buttons = T.Cols(4, 4); buttons.Add(rnd, 0); buttons.Add(v6, 1); buttons.Add(evR, 2); buttons.Add(ev0, 3);
 
         // 크기: 키·몸무게·배율 한 줄, 각 칸 옆에 작은 최대/최소
         hE = Num(v => Changed(() => { if (Pk is IScaledSize z) z.HeightScalar = (byte)Math.Min(v, 255); UpdateSize(); }), 255);

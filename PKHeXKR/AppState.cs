@@ -390,6 +390,8 @@ public static class AppState
         if (species == 0) return null;
         var s = shiny ? "s" : "";
         var withForm = $"b_{species}_{form}{s}";
+        if (SpriteIndex.Names.Contains($"b_{species}_{form}_0{s}")) withForm = $"b_{species}_{form}_0{s}";   // 마휘핑: 크림_장식 (장식 정보가 없으면 첫 장식)
+        if (SpriteIndex.Names.Contains(withForm)) return withForm + ".png";
         if (form > 0 && SpriteIndex.Names.Contains(withForm)) return withForm + ".png";
         var baseName = $"b_{species}{s}";
         if (SpriteIndex.Names.Contains(baseName)) return baseName + ".png";
@@ -399,7 +401,17 @@ public static class AppState
         if (SpriteIndex.Names.Contains($"a_{species}")) return $"a_{species}.png";
         return shiny ? Sprite(species, form, false) : null;
     }
-    public static string Sprite(PKM p) => p.Species == 0 ? null : p.IsEgg ? "b_0.png" : Sprite(p.Species, p.Form, p.IsShiny);
+    public static string Sprite(PKM p)
+    {
+        if (p.Species == 0) return null;
+        if (p.IsEgg) return "b_0.png";
+        if (p.Species == (ushort)PKHeX.Core.Species.Alcremie && p is IFormArgument fa)   // 마휘핑: 크림(폼)과 장식(폼 인수)별 아이콘
+        {
+            var n = $"b_869_{p.Form}_{Math.Min(fa.FormArgument, 6u)}{(p.IsShiny ? "s" : "")}";
+            if (SpriteIndex.Names.Contains(n)) return n + ".png";
+        }
+        return Sprite(p.Species, p.Form, p.IsShiny);
+    }
     public static string ItemSprite(int item) => item > 0 && SpriteIndex.Names.Contains($"bitem_{item}") ? $"bitem_{item}.png" : null;
     public static string BallSprite(int ball) => ball > 0 ? $"ball{ball}.png" : null;
 

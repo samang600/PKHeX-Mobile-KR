@@ -1,4 +1,4 @@
-# PKHeX 모바일 (v1.4.1)
+# PKHeX 모바일 (v1.4.2)
 
 UI를 새로 설계한 안드로이드용 PKHeX. 이미지 에셋만 PKHeXMAUI에서 가져옴.
 
