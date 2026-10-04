@@ -150,7 +150,7 @@ public class MainSection : Section
         Content = Stack(
             T.Card(Stack(Two(T.Field("포켓몬", sv), formRow), formArgRow, T.Field("닉네임", nick), nickRow)),
             T.Card(Stack(Two(T.Field("레벨", LevelRow()), T.Field("성별", genderBtn)), Two(natureRow, statNatureRow), Two(abilityRow, T.Field("지닌 물건", iv)))),
-            T.Card(Stack(shinyRow, eggRow, Two(T.Field("친밀도", friend), T.Field("언어", lv)))), gameCard);
+            T.Card(Stack(Two(shinyRow, eggRow), Two(T.Field("친밀도", friend), T.Field("언어", lv)))), gameCard);
     }
 
     private static List<ComboItem> TeraList(bool withNone)

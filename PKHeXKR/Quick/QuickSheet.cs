@@ -246,6 +246,8 @@ public class QuickSheet : Sheet
             PKM p;
             try { p = e.ConvertToPKM(sav, crit); } catch { return null; }
             p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
+            if (e is MysteryGift mg && AppState.DistributionDate(mg, p.Language) is { } dd)   // 배포 개체: 실제 배포 기간 시작일 (합법이 유지될 때만)
+            { var t = p.Clone(); t.MetDate = dd; t.RefreshChecksum(); if (AppState.IsLegal(t) || !AppState.IsLegal(p)) p = t; }
             EncCond.ApplyMark(p);
             if (o.Ball > 0) p.Ball = (byte)o.Ball;
             if (o.Level > 0 && o.Level >= p.MetLevel) p.CurrentLevel = (byte)o.Level;

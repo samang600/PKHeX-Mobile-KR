@@ -273,6 +273,19 @@ public static class QuickParse
         var s = GameInfo.Strings;
         // 성별
         if (t is "암" or "암컷" or "♀" or "여" or "f" or "female") { o.Gender = 1; return true; }
+        if (t is "아내" or "와이프" or "마누라")   // 재미: 그 게임에 나오는 무작위 암컷 포켓몬
+        {
+            var cands = new List<ushort>();
+            for (ushort wsp = 1; wsp <= sav.MaxSpeciesID; wsp++)
+            {
+                if (!sav.Personal.IsSpeciesInGame(wsp)) continue;
+                var wpi = sav.Personal.GetFormEntry(wsp, 0);
+                if (wpi.Genderless || wpi.OnlyMale) continue;
+                cands.Add(wsp);
+            }
+            if (cands.Count > 0 && o.Species == 0) { o.Species = cands[Random.Shared.Next(cands.Count)]; o.Notes.Add($"아내: {GameInfo.Strings.Species[o.Species]} 💕"); }
+            o.Gender = 1; return true;
+        }
         if (t is "수" or "수컷" or "♂" or "남" or "m♂" or "male") { o.Gender = 0; return true; }
         // 이로치·우두머리
         if (t is "우두로치" or "색우두" or "우두이로치" or "알파이로치") { o.Alpha = 1; o.Shiny = Math.Max(o.Shiny, 1); return true; }

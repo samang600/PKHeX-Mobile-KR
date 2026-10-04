@@ -336,10 +336,23 @@ public class BoxPanel : ContentView
     /// <summary>한 번에 비우기: 현재 박스 또는 모든 박스.</summary>
     private async Task ClearBoxes()
     {
-        var what = await Page().DisplayActionSheetAsync("비우기", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
+        var sav = AppState.Sav;
+        string cur = $"현재 박스 ({AppState.BoxName(AppState.Box)})", all = "모든 박스", curBad = "현재 박스의 불법 포켓몬만", allBad = "모든 박스의 불법 포켓몬만";
+        var what = await Page().DisplayActionSheetAsync("비우기", "취소", null, cur, all, curBad, allBad);
         if (what == null || what == "취소") return;
+        if (what == curBad || what == allBad)
+        {
+            int from = what == curBad ? AppState.Box : 0, to = what == curBad ? AppState.Box + 1 : sav.BoxCount;
+            var bad = new List<(int, int)>();
+            for (int b = from; b < to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if (p.Species != 0 && !AppState.IsLegal(p)) bad.Add((b, i)); }
+            if (bad.Count == 0) { Note.Show("불법 포켓몬이 없습니다"); return; }
+            if (!await Page().DisplayAlertAsync("불법 포켓몬 비우기", $"불법으로 판정된 {bad.Count}마리를 지웁니다. 되돌릴 수 없습니다.", "지우기", "취소")) return;
+            foreach (var (b, i) in bad) sav.SetBoxSlotAtIndex(sav.BlankPKM, b, i);
+            AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show($"불법 포켓몬 {bad.Count}마리를 지웠습니다");
+            return;
+        }
         if (!await Page().DisplayAlertAsync("비우기", $"{what}의 포켓몬을 모두 지웁니다. 되돌릴 수 없습니다.", "비우기", "취소")) return;
-        if (what.StartsWith("현재")) AppState.Sav.ClearBoxes(AppState.Box, AppState.Box + 1); else AppState.Sav.ClearBoxes();
+        if (what == cur) sav.ClearBoxes(AppState.Box, AppState.Box + 1); else sav.ClearBoxes();
         AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show("비웠습니다");
     }
 

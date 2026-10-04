@@ -378,7 +378,7 @@ public class MainPage : ContentPage
 
     private Task Menu()
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)";
+        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)", mgift = "이상한 소포 받기함";
         const string dexFill = "세이브 도감 일괄 등록";
         const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
         const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
@@ -389,7 +389,7 @@ public class MainPage : ContentPage
             ("파일", [("📂", open), ("🕘", recent), ("⭐", favs), ("💾", export), ("🧬", exportPk), ("📤", sharePk), ("📦", boxOne), ("⇄", showdown)]),
             ("게임 · 트레이너", [("🎮", game), ("👤", trainer), ("🤝", autoOT)]),
             ("인스턴스", [("🗂", inst), ("📋", copyPk), ("📥", pastePk)]),
-            ("도구", [("✍", quick), ("📶", ftp), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
+            ("도구", [("✍", quick), ("📶", ftp), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
             ("설정", [("⚠", AppState.HaX ? haxOff : haxOn), ("⚙", settings), ("ⓘ", about)]),
         };
         SheetHost.Show(new MenuSheet(groups, k => Dispatcher.Dispatch(async () => await RunMenu(k))));
@@ -398,7 +398,7 @@ public class MainPage : ContentPage
 
     private async Task RunMenu(string pick)
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)";
+        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)", mgift = "이상한 소포 받기함";
         const string dexFill = "세이브 도감 일괄 등록";
         const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
         const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
@@ -411,6 +411,7 @@ public class MainPage : ContentPage
             case favs: SheetHost.Show(new FavoritesSheet()); break;
             case quick: SheetHost.Show(new QuickSheet()); break;
             case ftp: SheetHost.Show(new FtpSheet()); break;
+            case mgift: SheetHost.Show(new MysteryGiftSheet()); break;
             case sharePk: if (AppState.Pk.Species == 0) { Note.Show("공유할 포켓몬이 없습니다"); break; } await ShareUtil.ShareBytes(ShareUtil.Stored(AppState.Pk), AppState.Pk.FileName, AppState.Pk.FileName); break;
             case dex: SheetHost.Show(new LivingDexSheet()); break;
             case dexFill: await DexFill.Run(this); break;

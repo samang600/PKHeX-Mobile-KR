@@ -172,6 +172,32 @@ public class SettingsSheet : Sheet
 // ======================= 리빙덱스 채우기 =======================
 public class LivingDexSheet : Sheet
 {
+    /// <summary>우두머리 조우(진화 전 포켓몬 포함)로 합법 개체 만들기. 없으면 null.</summary>
+    private static PKM DexAlpha(SaveFile sav, ushort species, byte form, bool shiny)
+    {
+        try
+        {
+            var b = sav.BlankPKM; b.Species = species; b.Form = form; b.SetGender(b.GetSaneGender());
+            var encs = EncounterMovesetGenerator.GenerateEncounters(b, sav, ReadOnlyMemory<ushort>.Empty, GameUtil.GetVersionsWithinRange(b, b.Context).ToArray())
+                .Where(e => e is IAlphaReadOnly { IsAlpha: true } && e.Context == sav.Context).OrderBy(e => e.Species == species ? 0 : 1).Take(6).ToList();
+            foreach (var e in encs)
+                foreach (var wantShiny in shiny ? new[] { true, false } : new[] { false })
+                {
+                    var crit = EncounterCriteria.Unrestricted with { Shiny = wantShiny ? Shiny.Always : Shiny.Random };
+                    for (int t = 0; t < 3; t++)
+                    {
+                        PKM p; try { p = e.ConvertToPKM(sav, crit); } catch { break; }
+                        p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
+                        if (wantShiny && !p.IsShiny) continue;
+                        if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
+                        if (p.Species == species && p is IAlpha { IsAlpha: true } && new LegalityAnalysis(p).Valid) return p;
+                    }
+                }
+        }
+        catch { }
+        return null;
+    }
+
     private CancellationTokenSource cts;
     public LivingDexSheet() : base("리빙덱스 채우기", 0.8)
     {
@@ -180,6 +206,8 @@ public class LivingDexSheet : Sheet
         var shinyRow = Sw("이로치로 만들기 (불가능하면 일반 색)", false, out var shiny);
         var formRow = Sw("모든 폼 포함", false, out var forms);
         var skipRow = Sw("이미 박스에 있는 포켓몬 건너뛰기", true, out var skip);
+        bool alphaGame = sav is SAV8LA or SAV9ZA;
+        var alphaRow = Sw("우두머리로 만들기 (우두머리 조우가 없으면 일반)", false, out var alpha); alphaRow.IsVisible = alphaGame;
         var status = T.L("", 13, sub: true); status.LineBreakMode = LineBreakMode.WordWrap;
         var bar = new ProgressBar { ProgressColor = T.Accent, IsVisible = false };
         var dFrom = T.Input(placeholder: "예: 2025-10-16"); var dTo = T.Input(placeholder: "예: 2026-09-30");
@@ -191,7 +219,7 @@ public class LivingDexSheet : Sheet
         go.Clicked += async (_, _) =>
         {
             go.IsEnabled = false; stop.IsVisible = true; bar.IsVisible = true; cts = new CancellationTokenSource(); var tok = cts.Token;
-            bool sh = shiny.IsToggled, fm = forms.IsToggled, sk = skip.IsToggled; int startBox = AppState.Box;
+            bool sh = shiny.IsToggled, fm = forms.IsToggled, sk = skip.IsToggled, al = alphaGame && alpha.IsToggled; int startBox = AppState.Box; int alphaMade = 0;
             DateOnly? from = DateOnly.TryParse(dFrom.Text, out var df) ? df : null, to = DateOnly.TryParse(dTo.Text, out var dt) ? dt : null;
             if (from != null && to == null) to = from; if (to != null && from == null) from = to;
             if (from > to) (from, to) = (to, from);
@@ -222,7 +250,8 @@ public class LivingDexSheet : Sheet
                     if (box >= sav.BoxCount) break;
                     var (s, f) = targets[i];
                     PKM pk = null;
-                    try
+                    if (al) { pk = DexAlpha(sav, s, f, sh); if (pk != null) alphaMade++; }   // 우두머리 조우(진화 전 포함)로 만들기
+                    if (pk == null) try
                     {
                         var blank = sav.BlankPKM; blank.Species = s; blank.Form = f; blank.SetGender(blank.GetSaneGender());
                         // 빈 개체의 전체 세트(레벨 1·개체값 0·특성 없음)를 그대로 쓰면 ALM이 실패 → 종·폼 줄만 사용
@@ -257,12 +286,12 @@ public class LivingDexSheet : Sheet
                 return (made, legal, fail, targets.Count, box >= sav.BoxCount);
             });
             AppState.NotifyBox();
-            status.Text = $"넣음 {result.made}마리 (합법 {result.legal}) · 실패 {result.fail} · 대상 {result.Item4}{(result.Item5 ? " · 박스가 가득 차서 멈춤" : "")}{(cts.IsCancellationRequested ? " · 중지함" : "")}";
+            status.Text = $"넣음 {result.made}마리 (합법 {result.legal}{(alphaGame && alpha.IsToggled ? $", 우두머리 {alphaMade}" : "")}) · 실패 {result.fail} · 대상 {result.Item4}{(result.Item5 ? " · 박스가 가득 차서 멈춤" : "")}{(cts.IsCancellationRequested ? " · 중지함" : "")}";
             go.IsEnabled = true; stop.IsVisible = false;
         };
         var hint = T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, dateRow, ots, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, alphaRow, dateRow, ots, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
     }
 }
 
@@ -580,5 +609,112 @@ public static class Cosmetics
         if (done.Count == 0) return null;
         sav.State.Edited = true;
         return string.Join(", ", done.Distinct());
+    }
+}
+
+// ======================= 이상한 소포 받기함 =======================
+/// <summary>세이브의 이상한 소포(배포 카드) 받기함: 카드 보기·넣기(파일/배포 목록)·내보내기·비우기, 받은 기록 초기화. PKHeX 지원: 4~7세대·레츠고.</summary>
+public class MysteryGiftSheet : Sheet
+{
+    private readonly VerticalStackLayout list = new() { Spacing = 4 };
+    private readonly Label status = T.L("", 13, sub: true);
+    public static bool Supported(SaveFile s) => s is IMysteryGiftStorageProvider;
+
+    public MysteryGiftSheet() : base("이상한 소포 받기함")
+    {
+        status.LineBreakMode = LineBreakMode.WordWrap;
+        var hint = T.L("카드를 누르면 넣기(파일·배포 목록)·내보내기·비우기를 할 수 있습니다. 바꾼 뒤에는 세이브 내보내기로 저장하세요. 소드실드·SV·Z-A 등 8세대 이후는 PKHeX가 받기함 편집을 지원하지 않습니다.", 12, sub: true);
+        hint.LineBreakMode = LineBreakMode.WordWrap;
+        var clearFlags = T.Pill("받은 기록 모두 지우기");
+        clearFlags.IsVisible = AppState.Sav is IMysteryGiftFlags;
+        clearFlags.Clicked += async (_, _) =>
+        {
+            if (AppState.Sav is not IMysteryGiftFlags f) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("받은 기록", "이 세이브의 '이미 받은 배포' 기록을 모두 지웁니다. 같은 배포를 다시 받을 수 있게 됩니다.", "지우기", "취소")) return;
+            f.ClearReceivedFlags(); AppState.Sav.State.Edited = true; Note.Show("받은 기록을 지웠습니다");
+        };
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, clearFlags, status, list } } });
+        Fill();
+    }
+
+    private static IMysteryGiftStorage Store => (AppState.Sav as IMysteryGiftStorageProvider)?.MysteryGiftStorage;
+
+    private void Fill()
+    {
+        list.Children.Clear();
+        var st = Store;
+        if (st == null) { status.Text = "이 게임은 이상한 소포 받기함 편집을 지원하지 않습니다"; return; }
+        int used = 0;
+        for (int i = 0; i < st.GiftCountMax; i++)
+        {
+            DataMysteryGift g; try { g = st.GetMysteryGift(i); } catch { continue; }
+            int k = i;
+            bool empty = g == null || g.IsEmpty;
+            if (!empty) used++;
+            var title = empty ? "(비어 있음)" : $"{g.CardTitle}".Trim();
+            var sub = empty ? $"{k + 1}번 칸" : $"{k + 1}번 칸 · 카드 {g.CardID} · {(g.IsEntity ? GameInfo.Strings.Species[g.Species] : g.IsItem ? "도구" : "기타")}";
+            var t1 = T.L(title.Length == 0 ? "(제목 없음)" : title, 14, bold: !empty); t1.LineBreakMode = LineBreakMode.WordWrap;
+            var img = new Image { WidthRequest = 40, HeightRequest = 34, Source = !empty && g.IsEntity ? AppState.Sprite(g.Species, g.Form, g.IsShiny) : null };
+            var row = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8, Padding = new Thickness(8, 6) };
+            row.Add(img, 0); row.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, T.L(sub, 11, sub: true) } }, 1);
+            var b = new Border { Content = row, StrokeThickness = 0, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
+            b.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F9FAFB"), Color.FromArgb("#22262F"));
+            var tap = new TapGestureRecognizer(); tap.Tapped += async (_, _) => await OnSlot(k, g, empty); b.GestureRecognizers.Add(tap);
+            list.Children.Add(b);
+        }
+        status.Text = $"{used}/{st.GiftCountMax}칸 사용 중";
+    }
+
+    private static IEnumerable<DataMysteryGift> Database(SaveFile s) => s switch
+    {
+        SAV4 => EncounterEvent.MGDB_G4, SAV5 => EncounterEvent.MGDB_G5, SAV6 => EncounterEvent.MGDB_G6,
+        SAV7b => EncounterEvent.MGDB_G7GG, SAV7 => EncounterEvent.MGDB_G7, _ => [],
+    };
+
+    private async Task OnSlot(int index, DataMysteryGift cur, bool empty)
+    {
+        var page = Application.Current.Windows[0].Page; var st = Store; var sav = AppState.Sav;
+        const string file = "카드 파일 넣기", db = "배포 목록에서 넣기", export = "파일로 내보내기", clear = "비우기";
+        var pick = empty ? await page.DisplayActionSheetAsync($"{index + 1}번 칸", "취소", null, db, file)
+                         : await page.DisplayActionSheetAsync(cur.CardTitle, "취소", clear, db, file, export);
+        try
+        {
+            switch (pick)
+            {
+                case file:
+                    var f = await FilePicker.PickAsync(); if (f == null) return;
+                    byte[] data; await using (var s = await f.OpenReadAsync()) { using var ms = new MemoryStream(); await s.CopyToAsync(ms); data = ms.ToArray(); }
+                    var g = MysteryGift.GetMysteryGift(data, Path.GetExtension(f.FileName));
+                    if (g == null) { Note.Show("배포 카드 파일이 아닙니다"); return; }
+                    Put(index, g); break;
+                case db:
+                    var all = Database(sav).Where(x => cur == null || x.GetType() == cur.GetType()).Reverse().ToList();
+                    if (all.Count == 0) { Note.Show("이 게임에 맞는 배포 목록이 없습니다"); return; }
+                    var items = all.Select((x, i) => new ComboItem($"{x.CardID} · {x.CardTitle} · {(x.IsEntity ? GameInfo.Strings.Species[x.Species] : x.IsItem ? "도구" : "기타")}", i)).ToList();
+                    SheetHost.Show(new PickerSheet("배포 카드 (최신순)", items, -1, c => Put(index, all[c.Value]),
+                        c => all[c.Value].IsEntity ? AppState.Sprite(all[c.Value].Species, all[c.Value].Form, all[c.Value].IsShiny) : null));
+                    break;
+                case export:
+                    await using (var ms = new MemoryStream(cur.Write().ToArray()))
+                    { var r = await CommunityToolkit.Maui.Storage.FileSaver.Default.SaveAsync($"{cur.CardID:0000} - {cur.CardTitle}.{cur.Extension}", ms, CancellationToken.None); Note.Show(r.IsSuccessful ? "저장했습니다" : "취소했습니다"); }
+                    break;
+                case clear:
+                    var blank = (DataMysteryGift)Activator.CreateInstance(cur.GetType());
+                    st.SetMysteryGift(index, blank); sav.State.Edited = true; Fill(); Note.Show("칸을 비웠습니다"); break;
+            }
+        }
+        catch (Exception ex) { status.Text = "오류: " + ex.Message; }
+    }
+
+    private void Put(int index, DataMysteryGift g)
+    {
+        try
+        {
+            var st = Store; var cur = st.GetMysteryGift(index);
+            if (cur != null && cur.GetType() != g.GetType()) { Note.Show($"이 칸에는 {cur.GetType().Name} 형식만 넣을 수 있습니다 (고른 카드: {g.GetType().Name})"); return; }
+            st.SetMysteryGift(index, (DataMysteryGift)g.Clone()); AppState.Sav.State.Edited = true;
+            Fill(); Note.Show($"{index + 1}번 칸에 넣었습니다: {g.CardTitle}");
+        }
+        catch (Exception ex) { Note.Show("넣지 못했습니다: " + ex.Message); }
     }
 }

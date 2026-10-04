@@ -280,6 +280,22 @@ public static class AppState
     /// <summary>배포 카드의 배포 기간 중 개체 언어 지역에 맞는 첫 날짜.</summary>
     public static DateOnly? DistributionDate(MysteryGift g, int lang)
     {
+        // 레츠고·8~9세대 배포: PKHeX가 합법성 검사에 쓰는 배포 기간(서버 날짜) 데이터의 시작일
+        {
+            DistributionWindow w = default; bool ok = false;
+            try
+            {
+                if (g is WB7 g7b) ok = g7b.GetDistributionWindow(out w);
+                else if (g is WC8 g8) ok = g8.GetDistributionWindow(out w);
+                else if (g is WA8 g8a) ok = g8a.GetDistributionWindow(out w);
+                else if (g is WB8 g8b) ok = g8b.GetDistributionWindow(out w);
+                else if (g is WC9 g9) ok = g9.GetDistributionWindow(out w);
+                else if (g is WA9 g9a) ok = g9a.GetDistributionWindow(out w);
+                else if (g.Generation >= 8) return null;
+            }
+            catch { return null; }
+            if (g is WB7 or WC8 or WA8 or WB8 or WC9 or WA9) return ok ? w.Start.AddDays(w.GenerateDaysAfterStart) : null;
+        }
         if (g.Generation is < 5 or > 7) return null;
         var tid = g.Generation >= 7 ? (g.ID32 % 1000000).ToString("000000") : g.TID16.ToString("00000");
         var key = $"{g.GetType().Name}|{g.CardID}|{GameInfo.GetStrings("en").Species[g.Species]}|{tid}";
@@ -412,7 +428,16 @@ public static class AppState
         }
         return Sprite(p.Species, p.Form, p.IsShiny);
     }
-    public static string ItemSprite(int item) => item > 0 && SpriteIndex.Names.Contains($"bitem_{item}") ? $"bitem_{item}.png" : null;
+    public static string ItemSprite(int item)
+    {
+        if (item <= 0) return null;
+        bool art = Sav is SAV9SV or SAV9ZA;   // SV·Z-A는 아트워크 도구 이미지(새 도구 포함), 그 외는 기존 도구 이미지 우선
+        string a = $"aitem_{item}", b = $"bitem_{item}";
+        if (art && SpriteIndex.Names.Contains(a)) return a + ".png";
+        if (SpriteIndex.Names.Contains(b)) return b + ".png";
+        if (SpriteIndex.Names.Contains(a)) return a + ".png";
+        return null;
+    }
     public static string BallSprite(int ball) => ball > 0 ? $"ball{ball}.png" : null;
 
     /// <summary>PKHaX 모드: 기술·특성·도구 등을 제한 없이 고르고, 합법성 검사를 하지 않음.</summary>

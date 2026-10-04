@@ -15,8 +15,8 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<ApplicationTitle>PKHeX 모바일</ApplicationTitle>
 		<ApplicationId>com.pkhexkr.mobile</ApplicationId>
-		<ApplicationDisplayVersion>1.4.2</ApplicationDisplayVersion>
-		<ApplicationVersion>46</ApplicationVersion>
+		<ApplicationDisplayVersion>1.4.3</ApplicationDisplayVersion>
+		<ApplicationVersion>47</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>
