@@ -68,6 +68,7 @@ public static class EvoUtil
         var e = p.Clone();
         e.Species = species; if (form >= 0) e.Form = (byte)form;
         if (!e.IsNicknamed) e.ClearNickname();
+        if (e is IScaledSizeValue sz) { sz.ResetHeight(); sz.ResetWeight(); }   // PLA 등: 실제 키·몸무게는 종족값 기준이라 진화체로 다시 계산
         // 모으령→타부자고(코인 999개)처럼 진화에 폼 인수가 필요한 경우 최솟값으로
         if (e is IFormArgument fa) { try { var min = FormArgumentUtil.GetFormArgumentMinEvolution(species, p.Species); if (fa.FormArgument < min) fa.FormArgument = min; } catch { } }
         if (e.Context != EntityContext.Gen9a) { try { e.RefreshAbility(e.AbilityNumber >> 1); } catch { } }

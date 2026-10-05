@@ -104,12 +104,13 @@ public class LiveHexSheet : Sheet
     public LiveHexSheet() : base("라이브헥스", 0.75)
     {
         bool sw = RamOffsets.IsSwitchTitle(AppState.Sav);
-        ip.Text = Preferences.Get("live_ip", ""); port.Text = Preferences.Get("live_port", sw ? "6000" : "8000");
+        // 스위치·3DS는 IP·포트를 따로 기억 (3DS NTR 기본 포트 8000)
+        ip.Text = Preferences.Get(sw ? "live_ip" : "live_ip_3ds", ""); port.Text = Preferences.Get(sw ? "live_port" : "live_port_3ds", sw ? "6000" : "8000");
         readOnChange.IsToggled = Preferences.Get("live_read_on_change", true);
         readOnChange.Toggled += (_, e) => Preferences.Set("live_read_on_change", e.Value);
         connect.Clicked += async (_, _) => await Toggle();
         var readBox = T.Pill("현재 박스 읽어오기"); readBox.Clicked += (_, _) => { if (!AppState.LiveConnected) return; BoxPanel.ReadLiveBox(); AppState.NotifyBox(); Note.Show("게임에서 박스를 읽었습니다"); };
-        var hint = T.L((sw ? "스위치: sys-botbase가 실행 중이어야 합니다 (기본 포트 6000)." : "3DS: NTR/Luma3DS 등의 원격 메모리 기능이 필요합니다.") + "\n라이브헥스는 동시에 1개만 연결됩니다. 여러 인스턴스를 쓰는 경우 연결한 인스턴스에서만 게임과 주고받습니다.", 12, sub: true);
+        var hint = T.L((sw ? "스위치: sys-botbase가 실행 중이어야 합니다 (기본 포트 6000)." : "3DS: Luma3DS에서 BootNTR Selector로 NTR을 켠 뒤 게임을 실행하고, 3DS IP와 포트 8000으로 연결합니다. 지원: XY v1.5, ORAS v1.4, 썬문 v1.2, 울트라썬문 v1.2 (게임을 최신 패치로). Old 3DS·2DS는 연결이 느리거나 불안정할 수 있습니다.") + "\n라이브헥스는 동시에 1개만 연결됩니다. 여러 인스턴스를 쓰는 경우 연결한 인스턴스에서만 게임과 주고받습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 };
         g.Add(T.L("박스를 넘길 때 게임에서 읽기", 14), 0); g.Add(readOnChange, 1);
@@ -132,14 +133,18 @@ public class LiveHexSheet : Sheet
         var page = Application.Current.Windows[0].Page;
         var sav = AppState.Sav;
         if (AppState.LiveConnected) { try { AppState.Remote.com.Disconnect(); } catch { } Update(); return; }
-        Preferences.Set("live_ip", ip.Text ?? ""); Preferences.Set("live_port", port.Text ?? "");
+        bool sw0 = RamOffsets.IsSwitchTitle(sav);
+        Preferences.Set(sw0 ? "live_ip" : "live_ip_3ds", ip.Text ?? ""); Preferences.Set(sw0 ? "live_port" : "live_port_3ds", port.Text ?? "");
         try
         {
             var versions = RamOffsets.GetValidVersions(sav);
             if (versions.Length == 0) { await page.DisplayAlertAsync("라이브헥스", "현재 세이브의 게임은 라이브헥스를 지원하지 않습니다.", "확인"); return; }
             ICommunicator com = RamOffsets.IsSwitchTitle(sav) ? new SysBotMini() : new NTRClient();
-            com.IP = ip.Text?.Trim() ?? ""; com.Port = int.TryParse(port.Text, out var p) ? p : 6000;
-            await Task.Run(() => com.Connect());
+            com.IP = ip.Text?.Trim() ?? ""; com.Port = int.TryParse(port.Text, out var p) ? p : (sw0 ? 6000 : 8000);
+            var conn = Task.Run(() => com.Connect());
+            if (await Task.WhenAny(conn, Task.Delay(15000)) != conn) { try { com.Disconnect(); } catch { } await page.DisplayAlertAsync("연결 실패", sw0 ? "스위치가 응답하지 않습니다. IP와 sys-botbase를 확인하세요." : "3DS가 응답하지 않습니다. BootNTR Selector로 NTR을 켠 뒤 게임을 실행했는지, IP·포트(8000)를 확인하세요.", "확인"); return; }
+            await conn;
+            if (!com.Connected) { await page.DisplayAlertAsync("연결 실패", sw0 ? "연결하지 못했습니다." : "NTR에 연결하지 못했습니다. 3DS에서 BootNTR Selector를 다시 실행해 보세요.", "확인"); return; }
             PokeSysBotMini remote = null;
             if (com is ICommunicatorNX nx)
             {
@@ -149,10 +154,24 @@ public class LiveHexSheet : Sheet
             }
             else
             {
+                PokeSysBotMini emptyOk = null;
                 foreach (var v in versions.Reverse())
                 {
-                    try { var r = new PokeSysBotMini(v, com); var d = sav.GetDecryptedPKM(r.ReadSlot(0, 0).ToArray()); if (d.ChecksumValid && d.Species <= d.MaxSpeciesID) { remote = r; break; } } catch { }
+                    try
+                    {
+                        var r = new PokeSysBotMini(v, com);
+                        bool anyMon = false, allOk = true;
+                        for (int i = 0; i < 6 && allOk; i++)
+                        {
+                            var d = sav.GetDecryptedPKM(r.ReadSlot(0, i).ToArray());
+                            if (!d.ChecksumValid || d.Species > d.MaxSpeciesID) allOk = false; else if (d.Species != 0) anyMon = true;
+                        }
+                        if (allOk && anyMon) { remote = r; break; }
+                        if (allOk) emptyOk ??= r;   // 박스 1 앞쪽이 비어 있으면 일단 후보
+                    }
+                    catch { }
                 }
+                remote ??= emptyOk;
             }
             if (remote == null) { com.Disconnect(); await page.DisplayAlertAsync("라이브헥스", "게임 버전을 확인하지 못했습니다.", "확인"); return; }
             AppState.Remote = remote; AppState.LiveSav = AppState.Sav;

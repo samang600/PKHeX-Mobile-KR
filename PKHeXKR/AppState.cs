@@ -208,8 +208,7 @@ public static class AppState
     {
         Sav = i.Sav; Src = i.Src; Pk = i.Pk; Dirty = i.Dirty; Box = i.Box; PartyMode = i.PartyMode; Source = i.Source;
         undo.Clear(); foreach (var a in i.Undo) undo.Push(a); redo.Clear(); foreach (var a in i.Redo) redo.Push(a);
-        ParseSettings.InitFromSaveFileData(Sav);
-        ParseSettings.Settings.HOMETransfer.HOMETransferTrackerNotPresent = TrackerSeverity(Sav);
+        ApplyParse();   // 세이브 주인 대조·핸들러 검사 끔 등 합법성 옵션을 이 세이브에도 적용 (예전엔 빠져서 불러오면 어버이 관련 불법이 뜸)
         TrainerSettings.Clear(); TrainerSettings.Register(Sav);
         SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke(); HistoryChanged?.Invoke();
     }
@@ -278,6 +277,36 @@ public static class AppState
         catch { }
     }
     /// <summary>배포 카드의 배포 기간 중 개체 언어 지역에 맞는 첫 날짜.</summary>
+    /// <summary>
+    /// 배포 기간 정보가 없는 시리얼 코드 배포(예: 색이 다른 무한다이노 ID 221118, 신비한 포켓몬 2022 ID 220909)는
+    /// 카드의 트레이너 ID가 배포 날짜(YYMMDD)인 경우가 많음 → 게임 발매일 이후·오늘 이전의 올바른 날짜면 사용.
+    /// </summary>
+    private static DateOnly? IdDate(MysteryGift g)
+    {
+        try
+        {
+            var id = (g.ID32 % 1_000_000).ToString("000000");
+            if (!DateOnly.TryParseExact(id, "yyMMdd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d)) return null;
+            var min = g switch { WB7 => new DateOnly(2018, 11, 16), WC8 => new DateOnly(2019, 11, 15), WB8 => new DateOnly(2021, 11, 19), WA8 => new DateOnly(2022, 1, 28), WC9 => new DateOnly(2022, 11, 18), WA9 => new DateOnly(2025, 10, 16), _ => new DateOnly(2000, 1, 1) };
+            return d >= min && d <= DateOnly.FromDateTime(DateTime.Today) ? d : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>개체가 배포 카드에서 왔으면 만난 날짜를 배포 날짜로 (합법이 유지될 때만).</summary>
+    public static void FixEventDate(PKM p)
+    {
+        try
+        {
+            if (p.Species == 0 || p.Format < 5) return;
+            if (new LegalityAnalysis(p).EncounterMatch is not MysteryGift mg) return;
+            if (DistributionDate(mg, p.Language) is not { } d || p.MetDate == d) return;
+            var t = p.Clone(); t.MetDate = d; t.RefreshChecksum();
+            if (IsLegal(t) || !IsLegal(p)) { p.MetDate = d; p.RefreshChecksum(); }
+        }
+        catch { }
+    }
+
     public static DateOnly? DistributionDate(MysteryGift g, int lang)
     {
         // 레츠고·8~9세대 배포: PKHeX가 합법성 검사에 쓰는 배포 기간(서버 날짜) 데이터의 시작일
@@ -294,7 +323,7 @@ public static class AppState
                 else if (g.Generation >= 8) return null;
             }
             catch { return null; }
-            if (g is WB7 or WC8 or WA8 or WB8 or WC9 or WA9) return ok ? w.Start.AddDays(w.GenerateDaysAfterStart) : null;
+            if (g is WB7 or WC8 or WA8 or WB8 or WC9 or WA9) return ok ? w.Start.AddDays(w.GenerateDaysAfterStart) : IdDate(g);
         }
         if (g.Generation is < 5 or > 7) return null;
         var tid = g.Generation >= 7 ? (g.ID32 % 1000000).ToString("000000") : g.TID16.ToString("00000");
@@ -396,7 +425,17 @@ public static class AppState
 
     public static string BoxName(int b)
     {
-        try { if (Sav is IBoxDetailName n) { var s = n.GetBoxName(b); if (!string.IsNullOrWhiteSpace(s)) return s; } } catch { }
+        try
+        {
+            if (Sav is IBoxDetailName n)
+            {
+                var s = n.GetBoxName(b);
+                // 빈 세이브·4세대 일부는 박스 이름이 초기화되지 않아(0xFFFF 등) 깨진 글자로 보임 → 기본 이름
+                bool broken = s.Any(c => c is '\uFFFF' or '\uFFFD' || char.IsControl(c) || char.IsSurrogate(c) || c is >= '\uE000' and <= '\uF8FF');
+                if (!string.IsNullOrWhiteSpace(s) && !broken) return s;
+            }
+        }
+        catch { }
         return $"박스 {b + 1}";
     }
 
@@ -502,6 +541,24 @@ public static class AppState
     }
 
     /// <summary>쓰레기 바이트 지우기 (이름은 그대로).</summary>
+    /// <summary>
+    /// Z-A: 레벨이 바뀌면 그 레벨까지 배우는 기술의 기술플러스를 맞춤.
+    /// 레벨이 오르면 기존에 켜 둔 것(기술머신 등)은 유지하고 새로 배운 것만 추가, 내려가면 그 레벨 기준으로 다시 맞춤.
+    /// </summary>
+    public static void SyncPlusForLevel(PKM p, int oldLevel)
+    {
+        try
+        {
+            if (p is not PA9 || p is not IPlusRecord pr || p.PersonalInfo is not IPermitPlus pp || p.Species == 0) return;
+            var old = Enumerable.Range(0, pp.PlusCountTotal).Select(pr.GetMovePlusFlag).ToArray();
+            pr.SetPlusFlags(p, pp, PlusRecordApplicatorOption.LegalCurrent);
+            if (p.CurrentLevel >= oldLevel)
+                for (int i = 0; i < old.Length; i++) if (old[i]) pr.SetMovePlusFlag(i, true);
+            p.RefreshChecksum();
+        }
+        catch { }
+    }
+
     public static void ClearNickTrash(PKM p) { try { var n = p.Nickname; p.NicknameTrash.Clear(); p.Nickname = n; } catch { } }
     public static void ClearOTTrash(PKM p) { try { var n = p.OriginalTrainerName; p.OriginalTrainerTrash.Clear(); p.OriginalTrainerName = n; } catch { } }
 
@@ -630,7 +687,7 @@ public static class AppState
                 var v = Sav.Version;
                 int tid = Sav.Generation >= 7 ? (int)(Sav.ID32 % 1_000_000) : Sav.TID16, sid = Sav.Generation >= 7 ? (int)(Sav.ID32 / 1_000_000) : Sav.SID16;
                 SetTrainerFor(v, Sav.OT, Sav.Gender, tid, sid, Sav.Language);
-                ParseSettings.InitFromSaveFileData(Sav);
+                ApplyParse();
                 TrainerSettings.Clear(); TrainerSettings.Register(Sav);
                 SaveChanged?.Invoke();
                 return true;

@@ -145,6 +145,7 @@ public class SettingsSheet : Sheet
         var htf = Tog("'현재 트레이너는 어버이가 될 수 없음' 검사", AppState.HTFlagCheck, v => AppState.HTFlagCheck = v);
         var chkHint = T.L("합법성 검사 항목을 켜고 끕니다. 끈 항목만 문제인 개체는 합법으로 표시됩니다.", 12, sub: true); chkHint.LineBreakMode = LineBreakMode.WordWrap;
         var upd = Tog("업데이트 알림 (GitHub 새 버전 확인)", UpdateCheck.Enabled, v => UpdateCheck.Enabled = v);
+        var keep = Tog("마지막 세이브 그대로 열기 (앱을 끌 때 편집 상태 보존)", LastSession.Enabled, v => { LastSession.Enabled = v; if (!v) LastSession.Clear(); });
         var updNow = T.Pill("지금 업데이트 확인"); updNow.Clicked += async (_, _) => await UpdateCheck.Run(true);
         var bk = new Switch { IsToggled = SaveStore.AutoBackup, OnColor = T.Accent }; bk.Toggled += (_, e) => SaveStore.AutoBackup = e.Value;
         var bkRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 }; bkRow.Add(T.L("자동 백업", 15), 0); bkRow.Add(bk, 1);
@@ -165,7 +166,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, chkHint, upd, updNow, bkRow, bkHint, list } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, chkHint, upd, updNow, keep, bkRow, bkHint, list } } });
     }
 }
 
@@ -180,6 +181,24 @@ public class LivingDexSheet : Sheet
             var b = sav.BlankPKM; b.Species = species; b.Form = form; b.SetGender(b.GetSaneGender());
             var encs = EncounterMovesetGenerator.GenerateEncounters(b, sav, ReadOnlyMemory<ushort>.Empty, GameUtil.GetVersionsWithinRange(b, b.Context).ToArray())
                 .Where(e => e is IAlphaReadOnly { IsAlpha: true } && e.Context == sav.Context).OrderBy(e => e.Species == species ? 0 : 1).Take(6).ToList();
+            if (shiny)   // 이로치: 무작위 생성으로는 거의 안 나옴 → 조우의 시드를 돌려 이로치가 나오는 시드를 찾음 (PLA·Z-A 시드 방식)
+                foreach (var e in encs)
+                {
+                    Seeder sd = null; try { sd = Seeder.For(e, sav); } catch { }
+                    if (sd == null) continue;
+                    ulong seed = (ulong)Random.Shared.NextInt64();
+                    for (int n = 0; n < 300_000; n++, seed = seed * 6364136223846793005UL + 1442695040888963407UL)
+                    {
+                        var p = sd.Template.Clone();
+                        try { if (!sd.Gen(p, seed)) continue; } catch { break; }
+                        if (!p.IsShiny) continue;
+                        try { p = sd.Finish(p) ?? p; } catch { }
+                        p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
+                        if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
+                        if (p.Species == species && p.IsShiny && p is IAlpha { IsAlpha: true } && new LegalityAnalysis(p).Valid) return p;
+                        break;
+                    }
+                }
             foreach (var e in encs)
                 foreach (var wantShiny in shiny ? new[] { true, false } : new[] { false })
                 {
@@ -716,5 +735,44 @@ public class MysteryGiftSheet : Sheet
             Fill(); Note.Show($"{index + 1}번 칸에 넣었습니다: {g.CardTitle}");
         }
         catch (Exception ex) { Note.Show("넣지 못했습니다: " + ex.Message); }
+    }
+}
+
+
+/// <summary>
+/// 마지막 세이브 보존: 앱이 백그라운드로 가거나 꺼질 때 지금 열린 세이브(편집 내용 포함)를 앱 안에 저장하고,
+/// 다음 실행 때 그대로 엽니다. 원본 파일은 건드리지 않음 (내보내기 전까지 원본은 그대로).
+/// </summary>
+public static class LastSession
+{
+    public static bool Enabled { get => Preferences.Get("keep_last", false); set => Preferences.Set("keep_last", value); }
+    private static string Dir => Path.Combine(FileSystem.AppDataDirectory, "last_session");
+    public static void Clear() { try { if (Directory.Exists(Dir)) Directory.Delete(Dir, true); } catch { } }
+    public static void Save()
+    {
+        if (!Enabled) return;
+        try
+        {
+            var sav = AppState.Sav; if (sav == null || string.IsNullOrEmpty(sav.Metadata.FileName)) return;
+            Directory.CreateDirectory(Dir);
+            var data = sav.Write(sav.Metadata.GetSuggestedFlags(sav.Metadata.GetSuggestedExtension())).ToArray();
+            File.WriteAllBytes(Path.Combine(Dir, "save.bin"), data);
+            File.WriteAllText(Path.Combine(Dir, "name.txt"), sav.Metadata.FileName + "\n" + AppState.Box);
+        }
+        catch { }
+    }
+    public static async Task<bool> Restore()
+    {
+        if (!Enabled) return false;
+        try
+        {
+            var f = Path.Combine(Dir, "save.bin"); if (!File.Exists(f)) return false;
+            var lines = File.ReadAllLines(Path.Combine(Dir, "name.txt"));
+            await MainPage.Instance.OpenBytes(File.ReadAllBytes(f), lines[0], remember: false);
+            if (lines.Length > 1 && int.TryParse(lines[1], out var b) && b < AppState.Sav.BoxCount) { AppState.Box = b; AppState.NotifyBox(); }
+            Note.Show("마지막 세이브를 그대로 열었습니다 (내보내기 전까지 원본 파일은 그대로)");
+            return true;
+        }
+        catch { return false; }
     }
 }

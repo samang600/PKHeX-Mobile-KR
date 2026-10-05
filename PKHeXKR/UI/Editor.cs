@@ -94,7 +94,7 @@ public class MainSection : Section
         nick = T.Input(); nick.TextChanged += (_, e) => Changed(() => { Pk.Nickname = e.NewTextValue ?? ""; AppState.ClearNickTrash(Pk); });
         var nickRow = Switch("닉네임 직접 지정", out nickSw);
         nickSw.Toggled += (_, e) => Changed(() => { Pk.IsNicknamed = e.Value; if (!e.Value) { ResetNickname(); Reload(); } });
-        level = Num(v => Changed(() => { Pk.CurrentLevel = (byte)Math.Clamp(v, 1, 100); }), 100);
+        level = Num(v => Changed(() => { int old = Pk.CurrentLevel; Pk.CurrentLevel = (byte)Math.Clamp(v, 1, 100); if (old != Pk.CurrentLevel) AppState.SyncPlusForLevel(Pk, old); }), 100);
         friend = Num(v => Changed(() => { Pk.CurrentFriendship = (byte)v; }), 255);
         genderBtn = T.Pill("♂"); genderBtn.HeightRequest = 44;
         genderBtn.Clicked += (_, _) => Changed(() => CycleGender());
@@ -145,7 +145,7 @@ public class MainSection : Section
         var plusBtns = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap, Children = { plusCur, plusTm, plusNone } };
         foreach (var b in plusBtns.Children.OfType<View>()) b.Margin = new Thickness(0, 0, 6, 6);
         plusRow = new VerticalStackLayout { Spacing = 6, Children = { T.L("기술플러스 (레전즈 Z-A)", 13, sub: true), plusState, plusBtns } };
-        gameCard = T.Card(Stack(T.L("게임 전용", 13, sub: true), dmaxRow, gmaxRow, teraRow, alphaRow, plusRow));
+        gameCard = T.Card(Stack(T.L("게임 전용", 13, sub: true), alphaRow, plusRow));   // 다이맥스·테라스탈은 능력치 탭으로
 
         Content = Stack(
             T.Card(Stack(Two(T.Field("포켓몬", sv), formRow), formArgRow, T.Field("닉네임", nick), nickRow)),
@@ -153,7 +153,7 @@ public class MainSection : Section
             T.Card(Stack(Two(shinyRow, eggRow), Two(T.Field("친밀도", friend), T.Field("언어", lv)))), gameCard);
     }
 
-    private static List<ComboItem> TeraList(bool withNone)
+    internal static List<ComboItem> TeraList(bool withNone)
     {
         var t = GameInfo.Strings.types; var l = new List<ComboItem>();
         for (int i = 0; i < 18 && i < t.Length; i++) l.Add(new ComboItem(t[i], i));
@@ -161,7 +161,7 @@ public class MainSection : Section
         if (withNone) l.Insert(0, new ComboItem("없음 (원래 타입)", TeraTypeUtil.OverrideNone));
         return l;
     }
-    private static string TeraName(int v) => v == TeraTypeUtil.OverrideNone ? "없음 (원래 타입)" : v == TeraTypeUtil.Stellar ? "스텔라" : v < GameInfo.Strings.types.Length ? GameInfo.Strings.types[v] : v.ToString();
+    internal static string TeraName(int v) => v == TeraTypeUtil.OverrideNone ? "없음 (원래 타입)" : v == TeraTypeUtil.Stellar ? "스텔라" : v < GameInfo.Strings.types.Length ? GameInfo.Strings.types[v] : v.ToString();
     private void SetPlus(PlusRecordApplicatorOption opt)
     {
         if (Pk is PA9 z && z.PersonalInfo is IPermitPlus pp) { z.SetPlusFlags(pp, opt); Reload(); }
@@ -181,6 +181,10 @@ public class MainSection : Section
     private int AbilityIndex() => Pk.AbilityNumber switch { 1 => 0, 2 => 1, 4 => 2, _ => 0 };
 
     private void SetSpecies(ushort sp)
+    {
+        try { SetSpeciesCore(sp); } finally { if (Pk is IScaledSizeValue sz && Pk.Species != 0) { sz.ResetHeight(); sz.ResetWeight(); } }
+    }
+    private void SetSpeciesCore(ushort sp)
     {
         var prev = Pk.Species;
         if (Pk.Species == 0)   // 빈 칸에서 시작: 세이브 트레이너로 새 개체
@@ -258,7 +262,7 @@ public class MainSection : Section
     private View LevelRow()
     {
         var max = T.Pill("100", size: 12); max.WidthRequest = 50; max.Padding = 0; max.HeightRequest = 36;
-        max.Clicked += (_, _) => Changed(() => { Pk.CurrentLevel = 100; Reload(); });
+        max.Clicked += (_, _) => Changed(() => { int old = Pk.CurrentLevel; Pk.CurrentLevel = 100; AppState.SyncPlusForLevel(Pk, old); Reload(); });
         var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 4 };
         g.Add(level, 0); g.Add(max, 1);
         return g;
@@ -285,7 +289,7 @@ public class MainSection : Section
         teraRow.IsVisible = pk is ITeraType; if (pk is ITeraType t) { tera.Text = TeraName((int)t.TeraTypeOriginal); teraOv.Text = TeraName((int)t.TeraTypeOverride); }
         alphaRow.IsVisible = pk is IAlpha; if (pk is IAlpha a) alpha.IsToggled = a.IsAlpha;
         plusRow.IsVisible = pk is PA9; if (pk is IPlusRecord pr) plusState.Text = pr.GetMovePlusFlagAny() ? "기술플러스 기록 있음" : "기술플러스 기록 없음";
-        gameCard.IsVisible = pk.Species != 0 && (dmaxRow.IsVisible || gmaxRow.IsVisible || teraRow.IsVisible || alphaRow.IsVisible || plusRow.IsVisible);
+        gameCard.IsVisible = pk.Species != 0 && (alphaRow.IsVisible || plusRow.IsVisible);
         nick.Text = pk.Nickname; nickSw.IsToggled = pk.IsNicknamed;
         level.Text = pk.CurrentLevel.ToString(); friend.Text = pk.CurrentFriendship.ToString();
         genderBtn.Text = pk.Gender switch { 0 => "♂ 수컷", 1 => "♀ 암컷", _ => "— 무성" };
@@ -328,14 +332,17 @@ public class StatsSection : Section
         b.Clicked += (_, _) => click(); return b;
     }
     private static Grid Cell(View entry, View btn) { var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 2, VerticalOptions = LayoutOptions.Center }; g.Add(entry, 0); g.Add(btn, 1); return g; }
-    private int EvCap(int k) { int others = Enumerable.Range(0, 6).Where(j => j != k).Sum(GetEV); return Pk.Format < 3 ? Pk.MaxEV : Math.Max(0, Math.Min(252, 510 - others)); }
+    private Label evHead;
+    private Button evRndBtn, ev0Btn;
+    private bool AV => Pk is IAwakened;   // 레츠고: 노력치 대신 각성치(AV, 0~200) → CP
+    private int EvCap(int k) { if (AV) return 200; int others = Enumerable.Range(0, 6).Where(j => j != k).Sum(GetEV); return Pk.Format < 3 ? Pk.MaxEV : Math.Max(0, Math.Min(252, 510 - others)); }
 
     public StatsSection()
     {
         var g = new Grid { ColumnSpacing = 6, RowSpacing = 6, ColumnDefinitions = { new(GridLength.Auto), new(new GridLength(0.9, GridUnitType.Star)), new(new GridLength(1.5, GridUnitType.Star)), new(new GridLength(1.6, GridUnitType.Star)), new(new GridLength(0.9, GridUnitType.Star)), new(GridLength.Auto) } };
         string[] head = ["", "종족값", "개체값", "노력치", "능력치", "특훈"];
         g.RowDefinitions.Add(new(GridLength.Auto));
-        for (int c = 0; c < 6; c++) { var h = T.L(head[c], 12, sub: true); h.HorizontalTextAlignment = TextAlignment.Center; h.HorizontalOptions = LayoutOptions.Fill; g.Add(h, c, 0); }
+        for (int c = 0; c < 6; c++) { var h = T.L(head[c], 12, sub: true); h.HorizontalTextAlignment = TextAlignment.Center; h.HorizontalOptions = LayoutOptions.Fill; g.Add(h, c, 0); if (c == 3) evHead = h; }
         for (int i = 0; i < 6; i++)
         {
             int k = i;
@@ -393,10 +400,12 @@ public class StatsSection : Section
         {
             for (int i = 0; i < 6; i++) SetEV(i, 0);
             if (Pk.Format < 3) { for (int i = 0; i < 6; i++) SetEV(i, Random.Shared.Next(Pk.MaxEV + 1)); }
+            else if (AV) { for (int i = 0; i < 6; i++) SetEV(i, Random.Shared.Next(201)); }
             else { int left = 510; foreach (var i in Enumerable.Range(0, 6).OrderBy(_ => Random.Shared.Next())) { int v = Random.Shared.Next(Math.Min(252, left) + 1); SetEV(i, v); left -= v; } }
             Reload();
         });
         var ev0 = Small("EV 0"); ev0.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetEV(i, 0); Reload(); });
+        evRndBtn = evR; ev0Btn = ev0;
         var v6 = Small("6V"); v6.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetIV(i, Pk.MaxIV); Reload(); });
         foreach (var bb in new[] { rnd, v6, evR, ev0 }) { bb.FontSize = 12; bb.Padding = new Thickness(2, 0); }
         var buttons = T.Cols(4, 4); buttons.Add(rnd, 0); buttons.Add(v6, 1); buttons.Add(evR, 2); buttons.Add(ev0, 3);
@@ -422,8 +431,21 @@ public class StatsSection : Section
         });
         sizeCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("크기 (0~255)", 13, sub: true), sizeRow, sizeInfo, rnd2,
             Wrap(T.L("크기는 조우마다 정해진 방식이 있어 임의로 바꾸면 불법이 될 수 있습니다 (예: Z-A 우두머리 배율 255 고정, 시드와 연결된 값).", 11, sub: true)) } });
-        Content = Stack(T.Card(g), buttons, sizeCard);
+        // 다이맥스 레벨·거다이맥스 (소드실드), 테라스탈 타입 (SV)
+        dmaxE = Num(v => Changed(() => { if (Pk is IDynamaxLevel d) d.DynamaxLevel = (byte)Math.Min(v, 10); }), 10); dmaxE.HorizontalTextAlignment = TextAlignment.Center;
+        var dTiny = new Button { Text = "최대", FontSize = 9, Padding = 0, WidthRequest = 34, HeightRequest = 22, CornerRadius = 6, BorderWidth = 1, BorderColor = T.Accent, TextColor = T.Accent, VerticalOptions = LayoutOptions.Center };
+        dTiny.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); dTiny.Clicked += (_, _) => dmaxE.Text = "10";
+        gmaxSw = new Switch { OnColor = T.Accent, VerticalOptions = LayoutOptions.Center }; gmaxSw.Toggled += (_, e) => Changed(() => { if (Pk is IGigantamax gg) gg.CanGigantamax = e.Value; });
+        var gmaxBox = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.End, Children = { new Image { Source = "ov_dyna.png", WidthRequest = 18, HeightRequest = 18, VerticalOptions = LayoutOptions.Center }, T.L("거다이맥스", 13), gmaxSw } };
+        dmaxField = T.Field("다이맥스 레벨 (0~10)", Cell(dmaxE, dTiny));
+        dynRow = T.Cols(2, 8); dynRow.Add(dmaxField, 0); dynRow.Add(gmaxBox, 1); gmaxCell = gmaxBox;
+        (var tv, teraL) = T.Chooser(() => { if (Pk is ITeraType t) Pick("테라스탈 타입", MainSection.TeraList(false), (int)t.TeraTypeOriginal, c => Changed(() => { t.TeraTypeOriginal = (MoveType)c.Value; Reload(); })); });
+        (var tov, teraOvL) = T.Chooser(() => { if (Pk is ITeraType t) Pick("테라스탈 타입 덮어쓰기", MainSection.TeraList(true), (int)t.TeraTypeOverride, c => Changed(() => { t.TeraTypeOverride = (MoveType)c.Value; Reload(); })); });
+        teraRow2 = Two(T.Field("테라스탈 타입", tv), T.Field("덮어쓰기(변경)", tov));
+        battleCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("다이맥스 · 테라스탈", 13, sub: true), dynRow, teraRow2 } });
+        Content = Stack(T.Card(g), buttons, battleCard, sizeCard);
     }
+    private Entry dmaxE; private Switch gmaxSw; private View dmaxField, gmaxCell, teraRow2, battleCard; private Grid dynRow; private Label teraL, teraOvL;
     private readonly Entry hE, wE, sE;
     private readonly View sizeCard, sRow;
     private Button htAllBtn;
@@ -463,8 +485,22 @@ public class StatsSection : Section
 
     private int GetIV(int i) => i switch { 0 => Pk.IV_HP, 1 => Pk.IV_ATK, 2 => Pk.IV_DEF, 3 => Pk.IV_SPA, 4 => Pk.IV_SPD, _ => Pk.IV_SPE };
     private void SetIV(int i, int v) { switch (i) { case 0: Pk.IV_HP = v; break; case 1: Pk.IV_ATK = v; break; case 2: Pk.IV_DEF = v; break; case 3: Pk.IV_SPA = v; break; case 4: Pk.IV_SPD = v; break; default: Pk.IV_SPE = v; break; } }
-    private int GetEV(int i) => i switch { 0 => Pk.EV_HP, 1 => Pk.EV_ATK, 2 => Pk.EV_DEF, 3 => Pk.EV_SPA, 4 => Pk.EV_SPD, _ => Pk.EV_SPE };
-    private void SetEV(int i, int v) { switch (i) { case 0: Pk.EV_HP = v; break; case 1: Pk.EV_ATK = v; break; case 2: Pk.EV_DEF = v; break; case 3: Pk.EV_SPA = v; break; case 4: Pk.EV_SPD = v; break; default: Pk.EV_SPE = v; break; } }
+    private int GetEV(int i)
+    {
+        if (Pk is IAwakened a) return i switch { 0 => a.AV_HP, 1 => a.AV_ATK, 2 => a.AV_DEF, 3 => a.AV_SPA, 4 => a.AV_SPD, _ => a.AV_SPE };
+        return i switch { 0 => Pk.EV_HP, 1 => Pk.EV_ATK, 2 => Pk.EV_DEF, 3 => Pk.EV_SPA, 4 => Pk.EV_SPD, _ => Pk.EV_SPE };
+    }
+    private void SetEV(int i, int v)
+    {
+        if (Pk is IAwakened a)
+        {
+            byte b = (byte)Math.Clamp(v, 0, 200);
+            switch (i) { case 0: a.AV_HP = b; break; case 1: a.AV_ATK = b; break; case 2: a.AV_DEF = b; break; case 3: a.AV_SPA = b; break; case 4: a.AV_SPD = b; break; default: a.AV_SPE = b; break; }
+            if (Pk is PB7 pb) pb.ResetCalculatedValues();   // 능력치·CP 다시 계산 (CP는 레벨·개체값·각성치로 정해짐 → 항상 합법)
+            return;
+        }
+        switch (i) { case 0: Pk.EV_HP = v; break; case 1: Pk.EV_ATK = v; break; case 2: Pk.EV_DEF = v; break; case 3: Pk.EV_SPA = v; break; case 4: Pk.EV_SPD = v; break; default: Pk.EV_SPE = v; break; }
+    }
 
     private void Recalc()
     {
@@ -482,7 +518,8 @@ public class StatsSection : Section
             if (statL[i].TextColor == null) T.Text(statL[i]);
         }
         int evSum = Enumerable.Range(0, 6).Sum(GetEV);
-        evTotal.Text = Pk.Format < 3 ? $"{evSum}" : $"{evSum}/510"; evTotal.TextColor = Pk.Format < 3 ? null : evSum > 510 ? T.Bad : evSum == 510 ? T.Good : null; if (evTotal.TextColor == null) T.Text(evTotal);
+        if (Pk is PB7 pb7) { evTotal.Text = $"CP {pb7.Stat_CP}"; T.Text(evTotal); }   // 레츠고: 각성치 합계 대신 CP
+        else { evTotal.Text = Pk.Format < 3 ? $"{evSum}" : $"{evSum}/510"; evTotal.TextColor = Pk.Format < 3 ? null : evSum > 510 ? T.Bad : evSum == 510 ? T.Good : null; if (evTotal.TextColor == null) T.Text(evTotal); }
         baseTotal.Text = bs.Sum().ToString(); T.Text(baseTotal);
         try { Span<int> ivs = stackalloc int[6]; Pk.GetIVs(ivs); var ht = HiddenPower.GetType(ivs, Pk.Context); hpType.Text = Pk.Format >= 2 ? $"잠재 {GameInfo.Strings.types[ht + 1]}" : ""; } catch { hpType.Text = ""; }
     }
@@ -495,6 +532,13 @@ public class StatsSection : Section
             htC[i].IsVisible = pk is IHyperTrain; if (pk is IHyperTrain h) htC[i].IsChecked = GetHT(h, i);
         }
         if (htAllBtn != null) htAllBtn.IsVisible = pk is IHyperTrain;
+        bool av = pk is IAwakened;
+        if (evHead != null) evHead.Text = av ? "각성치" : "노력치";
+        if (evRndBtn != null) { evRndBtn.Text = av ? "AV 무작위" : "EV 무작위"; ev0Btn.Text = av ? "AV 0" : "EV 0"; }
+        dmaxField.IsVisible = pk is IDynamaxLevel; if (pk is IDynamaxLevel dl) dmaxE.Text = dl.DynamaxLevel.ToString();
+        gmaxCell.IsVisible = pk is IGigantamax; if (pk is IGigantamax gx) gmaxSw.IsToggled = gx.CanGigantamax;
+        teraRow2.IsVisible = pk is ITeraType; if (pk is ITeraType tt) { teraL.Text = MainSection.TeraName((int)tt.TeraTypeOriginal); teraOvL.Text = MainSection.TeraName((int)tt.TeraTypeOverride); }
+        battleCard.IsVisible = pk.Species != 0 && (pk is IDynamaxLevel || pk is IGigantamax || pk is ITeraType);
         Recalc();
         sizeCard.IsVisible = pk.Species != 0 && pk is IScaledSize;
         if (pk is IScaledSize z) { hE.Text = z.HeightScalar.ToString(); wE.Text = z.WeightScalar.ToString(); }
@@ -966,7 +1010,7 @@ public class MiscSection : Section
         gvCard = FoldCard("노력 레벨 (레전즈 아르세우스)", Stack(gg, gmax), "misc_gv");
         avCard = FoldCard("각성치 AV (레츠고)", Stack(ag, amax), "misc_av");
 
-        Content = Stack(friendCard, RibbonSection.SharedMem ?? new ContentView(), pkrsCard, contestCard, medalCard, leafCard, gvCard, avCard);
+        Content = Stack(friendCard, RibbonSection.SharedMem ?? new ContentView(), pkrsCard, contestCard, medalCard, leafCard, gvCard);   // 레츠고 각성치(CP)는 능력치 탭
     }
 
     private void SetContest(int i, byte v) { if (Pk is not IContestStats c) return; switch (i) { case 0: c.ContestCool = v; break; case 1: c.ContestBeauty = v; break; case 2: c.ContestCute = v; break; case 3: c.ContestSmart = v; break; case 4: c.ContestTough = v; break; default: c.ContestSheen = v; break; } }

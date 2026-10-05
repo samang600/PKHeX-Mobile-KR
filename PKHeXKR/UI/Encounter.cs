@@ -228,11 +228,13 @@ public class EncounterSheet : Sheet
         {
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 10, Padding = new Thickness(4, 6) };
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
+            var aIco = new Image { Source = "ov_alpha.png", WidthRequest = 16, HeightRequest = 16, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End }; aIco.SetBinding(IsVisibleProperty, "Alpha");
+            var imgBox = new Grid { Children = { img, aIco } };
             var t1 = T.L("", 15, bold: true); t1.SetBinding(Label.TextProperty, "Title");
             var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, "Detail"); t2.LineBreakMode = LineBreakMode.WordWrap;
             var t3 = T.L("", 11, sub: true); t3.SetBinding(Label.TextProperty, "Info"); t3.SetBinding(IsVisibleProperty, "HasInfo"); t3.LineBreakMode = LineBreakMode.WordWrap;
             var ball = new Image { WidthRequest = 22, HeightRequest = 22 }; ball.SetBinding(Image.SourceProperty, "Ball");
-            g.Add(img, 0); g.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, t2, t3 }, VerticalOptions = LayoutOptions.Center }, 1); g.Add(ball, 2);
+            g.Add(imgBox, 0); g.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, t2, t3 }, VerticalOptions = LayoutOptions.Center }, 1); g.Add(ball, 2);
             var tap = new TapGestureRecognizer(); tap.SetBinding(TapGestureRecognizer.CommandParameterProperty, ".");
             tap.Tapped += async (_, e) => { if (e.Parameter is Row r) await Choose(r); };
             g.GestureRecognizers.Add(tap);
@@ -424,7 +426,7 @@ public class EncounterSheet : Sheet
     private CancellationTokenSource cts;
     private bool generating;
 
-    public record Row(IEncounterInfo Enc, string Sprite, string Title, string Detail, string Ball, string Info = "") { public bool HasInfo => Info.Length > 0; }
+    public record Row(IEncounterInfo Enc, string Sprite, string Title, string Detail, string Ball, string Info = "") { public bool HasInfo => Info.Length > 0; public bool Alpha => Enc is IAlphaReadOnly { IsAlpha: true }; }
 
     private static string Kind(IEncounterInfo e) => e.GetType().Name switch
     {
@@ -818,7 +820,7 @@ public sealed class Seeder
 /// <summary>여러 개 결과: 포켓몬 아이콘 + 크게 성별·성격·특성, 작게 시드·개체값.</summary>
 public class EncResultSheet : Sheet
 {
-    public record Item(int Index, string Sprite, string Main, string Sub, bool Shiny);
+    public record Item(int Index, string Sprite, string Main, string Sub, bool Shiny, bool Alpha = false);
     public EncResultSheet(string title, List<(PKM Pk, string Seed)> list, Action<int> pick) : base(title)
     {
         var s = GameInfo.Strings;
@@ -829,7 +831,7 @@ public class EncResultSheet : Sheet
             var main = string.Join("  ·  ", new[] { p.Gender switch { 0 => "♂", 1 => "♀", _ => "무성" }, p.Format >= 3 ? s.natures[(int)p.Nature] : "", Ab(p) }.Where(t => t.Length > 0));
             var shiny = p.IsShiny ? (p.ShinyXor == 0 ? "■ " : "★ ") : "";
             var sub = $"{(x.Seed.Length > 0 ? x.Seed + " · " : "")}IV {p.IV_HP}/{p.IV_ATK}/{p.IV_DEF}/{p.IV_SPA}/{p.IV_SPD}/{p.IV_SPE}{(p is IScaledSize3 z ? $" · 배율 {z.Scale}" : "")}";
-            return new Item(i, AppState.Sprite(p), shiny + main, sub, p.IsShiny);
+            return new Item(i, AppState.Sprite(p), shiny + main, sub, p.IsShiny, p is IAlpha { IsAlpha: true });
         }).ToList();
         var cv = new CollectionView { SelectionMode = SelectionMode.None, ItemsSource = items };
         cv.ItemTemplate = new DataTemplate(() =>
@@ -838,7 +840,8 @@ public class EncResultSheet : Sheet
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
             var t1 = T.L("", 16, bold: true); t1.SetBinding(Label.TextProperty, "Main");
             var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, "Sub");
-            g.Add(img, 0); g.Add(new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center, Children = { t1, t2 } }, 1);
+            var aIco = new Image { Source = "ov_alpha.png", WidthRequest = 16, HeightRequest = 16, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End }; aIco.SetBinding(IsVisibleProperty, "Alpha");
+            g.Add(new Grid { Children = { img, aIco } }, 0); g.Add(new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center, Children = { t1, t2 } }, 1);
             var tap = new TapGestureRecognizer(); tap.Tapped += (_, _) => { if (g.BindingContext is Item it) { Close(); pick(it.Index); } }; g.GestureRecognizers.Add(tap);
             return g;
         });

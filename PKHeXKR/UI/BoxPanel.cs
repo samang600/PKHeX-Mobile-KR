@@ -86,14 +86,18 @@ public class BoxPanel : ContentView
         star.SetBinding(IsVisibleProperty, "Shiny");
         var bad = new BoxView { WidthRequest = 8, HeightRequest = 8, CornerRadius = 4, Color = T.Bad, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start, Margin = 4 };
         bad.SetBinding(IsVisibleProperty, "Illegal");
-        var item = new Image { WidthRequest = 16, HeightRequest = 16, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.End, Margin = 2 };
+        var item = new Image { WidthRequest = 16, HeightRequest = 16, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.End, Margin = new Thickness(2, 2, 4, 8) };
         item.SetBinding(Image.SourceProperty, "Item");
-        var alpha = new Label { Text = "Ⓐ", FontSize = 11, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#DC2626"), HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) };
+        var alpha = new Image { Source = "ov_alpha.png", WidthRequest = 14, HeightRequest = 14, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(6, 0, 0, 6) };
         alpha.SetBinding(IsVisibleProperty, "Alpha");
         var check = new Label { Text = "✓", FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.White, BackgroundColor = T.Good, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.End, Padding = new Thickness(3, 0), Margin = 2 };
         check.SetBinding(IsVisibleProperty, "Checked");
         g.SetBinding(OpacityProperty, "Dim");
-        g.Add(bg); g.Add(img); g.Add(star); g.Add(bad); g.Add(item); g.Add(alpha); g.Add(check);
+        var tera = new BoxView { HeightRequest = 4, CornerRadius = 2, HorizontalOptions = LayoutOptions.Fill, VerticalOptions = LayoutOptions.End, Margin = new Thickness(7, 0, 7, 4) };   // 칸 아래쪽 가운데, 거의 전체 폭
+        tera.SetBinding(BoxView.ColorProperty, "Tera"); tera.SetBinding(IsVisibleProperty, "HasTera");
+        var gmax = new Image { Source = "ov_dyna.png", WidthRequest = 14, HeightRequest = 14, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(6, 0, 0, 6) };
+        gmax.SetBinding(IsVisibleProperty, "Gmax");
+        g.Add(bg); g.Add(img); g.Add(tera); g.Add(star); g.Add(bad); g.Add(item); g.Add(alpha); g.Add(gmax); g.Add(check);
         // 누르기 = 메뉴, 꾹 누르기 = 옮기기
         var touch = new TouchBehavior
         {
@@ -105,7 +109,23 @@ public class BoxPanel : ContentView
         return g;
     }
 
-    public record Slot(int Index, PKM Pk, string Sprite, bool Shiny, bool Illegal, string Item, Color Stroke, double Dim = 1, bool Checked = false) { public bool Alpha => Pk is IAlpha { IsAlpha: true }; }
+    public record Slot(int Index, PKM Pk, string Sprite, bool Shiny, bool Illegal, string Item, Color Stroke, double Dim = 1, bool Checked = false)
+    {
+        public bool Alpha => Pk is IAlpha { IsAlpha: true };
+        public bool Gmax => Pk.Species != 0 && Pk is IGigantamax { CanGigantamax: true };   // 소드실드 거다이맥스
+        public bool HasTera => Pk.Species != 0 && Pk is ITeraType;                          // SV 테라스탈 타입 줄
+        public Color Tera => Pk is ITeraType t ? TeraColor((int)t.TeraType) : Colors.Transparent;
+    }
+    /// <summary>타입 색 (원본 PKHeX처럼 칸 아래 가로줄). 99 = 스텔라.</summary>
+    public static Color TeraColor(int type) => type switch
+    {
+        0 => Color.FromArgb("#9FA19F"), 1 => Color.FromArgb("#FF8000"), 2 => Color.FromArgb("#81B9EF"), 3 => Color.FromArgb("#9141CB"),
+        4 => Color.FromArgb("#915121"), 5 => Color.FromArgb("#AFA981"), 6 => Color.FromArgb("#91A119"), 7 => Color.FromArgb("#704170"),
+        8 => Color.FromArgb("#60A1B8"), 9 => Color.FromArgb("#E62829"), 10 => Color.FromArgb("#2980EF"), 11 => Color.FromArgb("#3FA129"),
+        12 => Color.FromArgb("#FAC000"), 13 => Color.FromArgb("#EF4179"), 14 => Color.FromArgb("#3DCEF3"), 15 => Color.FromArgb("#5060E1"),
+        16 => Color.FromArgb("#624D4E"), 17 => Color.FromArgb("#EF70EF"),
+        _ => Color.FromArgb("#40B5A5"),   // 스텔라
+    };
 
     public void Toggle(bool? force = null)
     {

@@ -22,11 +22,17 @@ public class QuickSheet : Sheet
         makeBtn.Clicked += async (_, _) => await Make();
         stopBtn.Clicked += (_, _) => cts?.Cancel(); stopBtn.IsVisible = false;
         var dictBtn = T.Pill("내 사전"); dictBtn.Clicked += (_, _) => SheetHost.Show(new UserDictSheet());
+        var clearBtn = T.Pill("지우기"); clearBtn.Clicked += async (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(input.Text)) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("지우기", "입력한 내용을 모두 지울까요?", "지우기", "취소")) return;
+            input.Text = ""; lastText = ""; preview.Children.Clear(); status.Text = "";
+        };
         var frame = new Border { Content = input, StrokeThickness = 1, Padding = 6, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
         frame.SetAppThemeColor(Border.StrokeProperty, Color.FromArgb("#D1D5DB"), Color.FromArgb("#374151"));
         var hint = T.L("한 줄에 한 마리(괄호 안에 '/'로 적어도 됨: 에써르 (수/ 작증/ 럽볼)). 포켓몬·성별(암/수)·이로치(이로치·우두로치·별·네모)·볼(럽볼·렙볼·프볼…)·크기(가장작게·L·가장크게)·증표(작증·큰증·카레)·성격·숨특·6V·A0·Lv50·x3 등을 순서 상관없이 적으세요. '어버이: 이름 TID' 줄은 아래 전체에 적용되고, 적지 않은 값은 게임에서 자연스럽게 나오는 값으로 채웁니다. 한 마리면 편집기로, 여러 마리면 현재 박스부터 빈 칸에 넣습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, frame, new HorizontalStackLayout { Spacing = 8, Children = { parseBtn, makeBtn, dictBtn, stopBtn } }, status, preview } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, frame, new HorizontalStackLayout { Spacing = 8, Children = { parseBtn, makeBtn, dictBtn, clearBtn, stopBtn } }, status, preview } } });
     }
 
     private List<OrderSpec> Parse() { lastText = input.Text ?? ""; return QuickParse.Parse(lastText, AppState.Sav, UserDict.Load()); }
@@ -266,6 +272,19 @@ public class QuickSheet : Sheet
     private static PKM Finish(OrderSpec o, PKM p, SaveFile sav)
     {
         { var t = p.Clone(); AppState.ClearNickTrash(t); AppState.ClearOTTrash(t); t.RefreshChecksum(); if (!AppState.IsLegal(p) || AppState.IsLegal(t)) p = t; }   // 쓰레기 바이트 지우기
+        if (o.EV.Any(v => v >= 0))   // 노력치 (한 능력치 252, 합계 510 한도)
+        {
+            int sum = 0;
+            for (int i = 0; i < 6; i++)
+            {
+                int v = Math.Max(0, o.EV[i]);
+                if (p.Format >= 3) { v = Math.Min(v, 252); if (sum + v > 510) v = Math.Max(0, 510 - sum); }
+                sum += v;
+                switch (i) { case 0: p.EV_HP = v; break; case 1: p.EV_ATK = v; break; case 2: p.EV_DEF = v; break; case 3: p.EV_SPA = v; break; case 4: p.EV_SPD = v; break; default: p.EV_SPE = v; break; }
+            }
+            p.ResetPartyStats(); p.RefreshChecksum();
+        }
+        AppState.FixEventDate(p);   // 배포 개체: 만든 방식(조우·자동 합법화)과 관계없이 배포 날짜로
         if (p is PA9 { IsAlpha: true } z && z.EV_HP + z.EV_ATK + z.EV_DEF + z.EV_SPA + z.EV_SPD + z.EV_SPE == 0) { z.EV_HP = 252; z.ResetPartyStats(); }
         bool giftOT = o.Event && p.FatefulEncounter && !string.IsNullOrEmpty(p.OriginalTrainerName) && p.OriginalTrainerName != sav.OT;
         if (giftOT) o.Notes.Add($"배포 어버이 {p.OriginalTrainerName} {p.DisplayTID}를 그대로 사용");

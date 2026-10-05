@@ -32,8 +32,11 @@ public class TrainerSheet : Sheet
         var hint = T.L("7세대 이후 게임은 TID 6자리·SID 4자리, 그 이전 게임은 TID·SID 각 5자리(최대 65535)로 들어갑니다. 게임마다 따로 저장되며, 이 게임의 새 세이브와 자동 합법화(ALM)가 이 정보를 씁니다. 라이브헥스로 연결하면 게임 속 트레이너 정보로 자동 갱신됩니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         var two = T.Cols(2); two.Add(T.Field("TID", tid), 0); two.Add(T.Field("SID", sid), 1);
+        var rTid = T.Pill("무작위 TID", size: 12); rTid.Clicked += (_, _) => tid.Text = Random.Shared.Next(g7 ? 1_000_000 : 65536).ToString(g7 ? "000000" : "0");
+        var rSid = T.Pill("무작위 SID", size: 12); rSid.Clicked += (_, _) => sid.Text = Random.Shared.Next(g7 ? 4295 : 65536).ToString(g7 ? "0000" : "0");
+        var rRow = T.Cols(2); rRow.Add(rTid, 0); rRow.Add(rSid, 1);
         var name = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 10 }; name.Add(T.Field("이름", ot), 0); name.Add(T.Field("성별", g), 1);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { name, two, T.Field("언어", lv), applyRow, hint, save } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { name, two, rRow, T.Field("언어", lv), applyRow, hint, save } } });
     }
 }
 

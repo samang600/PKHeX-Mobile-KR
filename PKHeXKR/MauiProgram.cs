@@ -17,5 +17,11 @@ public class App : Application
         try { Environment.CurrentDirectory = FileSystem.AppDataDirectory; } catch { }   // SysBot.Base 로그(logs/) 쓰기 위치
         AppState.InitLanguage();
     }
-    protected override Window CreateWindow(IActivationState activationState) => new(new MainPage()) { Title = "PKHeX 모바일" };
+    protected override Window CreateWindow(IActivationState activationState)
+    {
+        var w = new Window(new MainPage()) { Title = "PKHeX 모바일" };
+        w.Stopped += (_, _) => LastSession.Save();       // 백그라운드로 갈 때
+        w.Destroying += (_, _) => LastSession.Save();    // 꺼질 때
+        return w;
+    }
 }

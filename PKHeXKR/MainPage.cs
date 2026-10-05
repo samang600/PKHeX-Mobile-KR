@@ -19,6 +19,9 @@ public class MainPage : ContentPage
     private readonly Image shinyIcon = new() { Source = "rare_icon.png", WidthRequest = 16, HeightRequest = 16 }, ballIcon = new() { WidthRequest = 26, HeightRequest = 26 }, itemIcon = new() { WidthRequest = 22, HeightRequest = 22 };
     private readonly Label natureLabel = new() { FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#4F46E5"), TextDecorations = TextDecorations.Underline, VerticalOptions = LayoutOptions.Center, Padding = new Thickness(4, 0) };
     private readonly Label mintLabel = new() { FontSize = 13, VerticalOptions = LayoutOptions.Center, TextColor = Color.FromArgb("#6B7280"), Padding = new Thickness(0, 0, 4, 0) };   // (민트 성격)
+    private readonly Image alphaIcon = new() { Source = "ov_alpha.png", WidthRequest = 20, HeightRequest = 20, VerticalOptions = LayoutOptions.Center, IsVisible = false };
+    private readonly Image gmaxIcon = new() { Source = "ov_dyna.png", WidthRequest = 20, HeightRequest = 20, VerticalOptions = LayoutOptions.Center, IsVisible = false };
+    private readonly BoxView teraBar = new() { HeightRequest = 4, CornerRadius = 2, WidthRequest = 60, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.End, Margin = new Thickness(0, 0, 0, 0), IsVisible = false };
     private readonly Label alphaLabel = new() { Text = "Ⓐ", FontSize = 20, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#DC2626"), VerticalOptions = LayoutOptions.Center, IsVisible = false };
     private readonly Label genderLabel = new() { FontSize = 20, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center, Padding = new Thickness(4, 0) };
     private readonly Button legalBtn = new() { FontSize = 12, CornerRadius = 14, HeightRequest = 28, Padding = new Thickness(10, 0), TextColor = Colors.White, VerticalOptions = LayoutOptions.Start, HorizontalOptions = LayoutOptions.End };   // 우측 상단
@@ -71,7 +74,7 @@ public class MainPage : ContentPage
             var p0 = AppState.Pk; if (p0.Species == 0 || p0.Format < 3) return;
             SheetHost.Show(new PickerSheet("성격", AppState.NatureItems(), (int)p0.Nature, c => Quick(p => { p.Nature = (Nature)c.Value; if (p.Format < 8) p.StatAlignment = p.Nature; }, p => $"성격을 {GameInfo.Strings.natures[(int)p.Nature]}(으)로 바꿨습니다")));
         });
-        var icons = new HorizontalStackLayout { Spacing = 8, Children = { alphaLabel, genderLabel, natureLabel, mintLabel, ballIcon, itemIcon, shinyIcon } };
+        var icons = new HorizontalStackLayout { Spacing = 8, Children = { genderLabel, natureLabel, mintLabel, ballIcon, itemIcon } };   // 이로치는 그림 오른쪽 위, 우두머리·거다이맥스는 이름 옆
         Tap(mintLabel, () => SheetHost.Show(new PickerSheet("민트 (능력 성격)", AppState.NatureItems(), (int)AppState.Pk.StatAlignment,
             c => Quick(p => p.StatAlignment = (Nature)c.Value, p => $"민트 성격을 {GameInfo.Strings.natures[(int)p.StatAlignment]}(으)로 바꿨습니다"))));
         // 요약 카드: 그림 = 이로치 전환, 성별 기호 = 성별 전환, 볼 = 볼 변경
@@ -93,11 +96,15 @@ public class MainPage : ContentPage
         });
         var sumGrid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 10 };
         sumGrid.Add(sprite, 0);
+        shinyIcon.HorizontalOptions = LayoutOptions.End; shinyIcon.VerticalOptions = LayoutOptions.Start; shinyIcon.Margin = new Thickness(0, 2, 0, 0);
+        sumGrid.Add(shinyIcon, 0);   // 이로치: 그림 오른쪽 위 (정보가 길어도 잘리지 않게)
+        sumGrid.Add(teraBar, 0);     // SV 테라스탈 타입: 그림 아래 가로줄 (박스 칸과 같은 표시)
         // 요약 카드 왼쪽 위 작은 마법봉: 자동 합법화
         var wand = new Button { Text = "🪄", FontSize = 13, Padding = 0, WidthRequest = 24, HeightRequest = 24, CornerRadius = 0, BorderWidth = 0, BackgroundColor = Colors.Transparent, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start };
         wand.Clicked += async (_, _) => { if (await DisplayAlertAsync("자동 합법화", "이 포켓몬을 자동 합법화하시겠습니까?", "합법화", "취소")) await Legalize(); };
         sumGrid.Add(wand, 0);
-        sumGrid.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { name, info, icons } }, 1);
+        var nameRow = new HorizontalStackLayout { Spacing = 6, Children = { name, alphaIcon, gmaxIcon } };
+        sumGrid.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { nameRow, info, icons } }, 1);
         sumGrid.Add(legalBtn, 2);
         var summary = T.Card(sumGrid, 10);
 
@@ -160,6 +167,7 @@ public class MainPage : ContentPage
         foreach (var s in sections) s.Reload();
         UpdateSummary(); UpdateLive();
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), async () => await UpdateCheck.Run(false));
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(600), async () => await LastSession.Restore());   // 설정: 마지막 세이브 그대로 열기
         AppState.LiveLost += () => MainThread.BeginInvokeOnMainThread(() => { UpdateLive(); Note.Show("라이브헥스 연결이 끊어졌습니다"); });
     }
 
@@ -286,19 +294,22 @@ public class MainPage : ContentPage
         if (pk.Species == 0)
         {
             sprite.Source = null; name.Text = "편집할 포켓몬이 없습니다"; info.FormattedText = null; info.Text = "박스에서 고르거나, 인카운터·쇼다운으로 만들어 보세요";
-            shinyIcon.IsVisible = false; ballIcon.Source = itemIcon.Source = null; genderLabel.Text = ""; legalBtn.IsVisible = false; return;
+            shinyIcon.IsVisible = alphaIcon.IsVisible = gmaxIcon.IsVisible = teraBar.IsVisible = false; ballIcon.Source = itemIcon.Source = null; genderLabel.Text = ""; legalBtn.IsVisible = false; return;
         }
         sprite.Source = AppState.Sprite(pk);
         var sp = AppState.SpeciesName(pk);   // 개체 언어 기준
         name.Text = (pk.IsNicknamed ? $"{pk.Nickname} ({sp})" : sp);
-        alphaLabel.IsVisible = pk is IAlpha { IsAlpha: true };
+        alphaLabel.IsVisible = false;
+        alphaIcon.IsVisible = pk is IAlpha { IsAlpha: true };
+        gmaxIcon.IsVisible = pk is IGigantamax { CanGigantamax: true };
+        teraBar.IsVisible = pk is ITeraType; if (pk is ITeraType tt) teraBar.Color = BoxPanel.TeraColor((int)tt.TeraType);
         genderLabel.Text = pk.Gender switch { 0 => "♂", 1 => "♀", _ => "–" };
         natureLabel.Text = pk.Format >= 3 ? GameInfo.Strings.natures[(int)pk.Nature] : ""; natureLabel.IsVisible = pk.Format >= 3;
         mintLabel.IsVisible = pk.Format >= 8; if (pk.Format >= 8) mintLabel.Text = $"({GameInfo.Strings.natures[(int)pk.StatAlignment]})";
         genderLabel.TextColor = pk.Gender switch { 0 => Color.FromArgb("#2563EB"), 1 => Color.FromArgb("#DB2777"), _ => Colors.Gray };
         {
             var lvSpan = new Span { Text = $"Lv.{pk.CurrentLevel}", TextDecorations = TextDecorations.Underline };
-            var lvTap = new TapGestureRecognizer(); lvTap.Tapped += (_, _) => { if (AppState.Pk.CurrentLevel < 100) Quick(p => { p.CurrentLevel = 100; p.ResetPartyStats(); }, p => "레벨 100으로 바꿨습니다"); };
+            var lvTap = new TapGestureRecognizer(); lvTap.Tapped += (_, _) => { if (AppState.Pk.CurrentLevel < 100) Quick(p => { int old = p.CurrentLevel; p.CurrentLevel = 100; p.ResetPartyStats(); AppState.SyncPlusForLevel(p, old); }, p => "레벨 100으로 바꿨습니다"); };
             lvSpan.GestureRecognizers.Add(lvTap);
             var lgSpan = new Span { Text = AppState.LangName(pk.Language), TextDecorations = TextDecorations.Underline };
             var lgTap = new TapGestureRecognizer(); lgTap.Tapped += (_, _) => SheetHost.Show(new PickerSheet("언어", AppState.Src.Languages, AppState.Pk.Language, c => Quick(p => p.Language = c.Value, p => $"언어를 {AppState.LangName(p.Language)}(으)로 바꿨습니다")));

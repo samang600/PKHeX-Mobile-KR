@@ -15,6 +15,7 @@ public sealed class OrderSpec
     public int Mark = -1;
     public int FlawlessIVs = -1;            // 6V/5V…
     public int[] ExactIV = [-1, -1, -1, -1, -1, -1];
+    public int[] EV = [-1, -1, -1, -1, -1, -1];   // 노력치 (H A B C D S)
     public int Level = -1, Count = 1;
     public string OT; public int TID = -1, SID = -1, OTGender = -1;
     public bool Event;                      // "배포" → 배포에서만 찾음
@@ -38,7 +39,8 @@ public sealed class OrderSpec
         if (SizeText.Length > 0) p.Add(SizeText);
         if (Mark >= 0) { var n = "Ribbon" + ((RibbonIndex)Mark); p.Add(s.Ribbons.GetNameSafe(n, out var k) ? k : ((RibbonIndex)Mark).ToString()); }
         if (FlawlessIVs > 0) p.Add($"{FlawlessIVs}V");
-        var ex = string.Join(" ", ExactIV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (ex.Length > 0) p.Add(ex);
+        var ex = string.Join(" ", ExactIV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (ex.Length > 0) p.Add("개체값 " + ex);
+        var evs = string.Join(" ", EV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (evs.Length > 0) p.Add("노력치 " + evs);
         if (Level > 0) p.Add($"Lv{Level}");
         if (OT != null || TID >= 0) p.Add($"어버이 {OT ?? "-"}{(TID >= 0 ? $" {TID}" : "")}{(SID >= 0 ? $"/{SID}" : "")}");
         if (Count > 1) p.Add($"×{Count}");
@@ -182,6 +184,7 @@ public static class QuickParse
             if (allSpec.ScaleMin >= 0) { o.ScaleMin = allSpec.ScaleMin; o.ScaleMax = allSpec.ScaleMax; o.SizeText = allSpec.SizeText; }
             if (allSpec.Mark >= 0) o.Mark = allSpec.Mark;
             if (allSpec.FlawlessIVs >= 0) o.FlawlessIVs = allSpec.FlawlessIVs;
+            for (int k = 0; k < 6; k++) { if (allSpec.EV[k] >= 0) o.EV[k] = allSpec.EV[k]; if (allSpec.ExactIV[k] >= 0) o.ExactIV[k] = allSpec.ExactIV[k]; }
             if (allSpec.Level > 0) o.Level = allSpec.Level;
             if (allSpec.Event) o.Event = true;
             if (allSpec.OT != null) o.OT = allSpec.OT; if (allSpec.TID >= 0) o.TID = allSpec.TID; if (allSpec.SID >= 0) o.SID = allSpec.SID;
@@ -317,7 +320,19 @@ public static class QuickParse
             if (s.Ribbons.GetNameSafe("Ribbon" + r, out var kn) && (Norm(kn) == t || Norm(kn).Replace("의", "") == t)) { o.Mark = (int)r; return true; }
         // 개체값·레벨·개수
         var mv = Regex.Match(t, @"^([0-6])v$"); if (mv.Success) { o.FlawlessIVs = int.Parse(mv.Groups[1].Value); return true; }
-        var ms = Regex.Match(t, @"^([habcds])(\d{1,2})$"); if (ms.Success) { o.ExactIV["habcds".IndexOf(ms.Groups[1].Value)] = Math.Min(31, int.Parse(ms.Groups[2].Value)); return true; }
+        // 개체값·노력치 구문: 'a0'·'s31' = 개체값, 'as252'·'h4'·'b252' = 노력치 (글자 여러 개, 32 이상, 또는 4)
+        var ms = Regex.Match(t, @"^([habcds]+)(\d{1,3})$");
+        if (ms.Success)
+        {
+            var letters = ms.Groups[1].Value; int val = int.Parse(ms.Groups[2].Value);
+            bool ev = letters.Length > 1 || val > 31 || val == 4;
+            foreach (var ch in letters.Distinct())
+            {
+                int idx = "habcds".IndexOf(ch);
+                if (ev) o.EV[idx] = Math.Min(252, val); else o.ExactIV[idx] = Math.Min(31, val);
+            }
+            return true;
+        }
         var ml = Regex.Match(t, @"^(?:lv\.?|레벨)(\d{1,3})$|^(\d{1,3})(?:렙|레벨|lv)$"); if (ml.Success) { o.Level = Math.Clamp(int.Parse(ml.Groups[1].Success ? ml.Groups[1].Value : ml.Groups[2].Value), 1, 100); return true; }
         var mc = Regex.Match(t, @"^(?:x|×)(\d{1,2})$|^(\d{1,2})(?:마리|개)$"); if (mc.Success) { o.Count = Math.Clamp(int.Parse(mc.Groups[1].Success ? mc.Groups[1].Value : mc.Groups[2].Value), 1, 30); return true; }
         if (t is "숨특" or "숨겨진특성" or "드림특성" or "숨") { o.Ability = 2; return true; }
