@@ -167,6 +167,7 @@ public class MainPage : ContentPage
         foreach (var s in sections) s.Reload();
         UpdateSummary(); UpdateLive();
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), async () => await UpdateCheck.Run(false));
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(5), () => Task.Run(async () => { var m = await EventData.Run(false); if (m != null) MainThread.BeginInvokeOnMainThread(() => Note.Show(m)); }));   // 배포 데이터 자동 업데이트 (하루 한 번)
         Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(600), async () => await LastSession.Restore());   // 설정: 마지막 세이브 그대로 열기
         AppState.LiveLost += () => MainThread.BeginInvokeOnMainThread(() => { UpdateLive(); Note.Show("라이브헥스 연결이 끊어졌습니다"); });
     }
@@ -354,6 +355,8 @@ public class MainPage : ContentPage
             bool movesReset = false;
             var result = await Task.Run(() =>
             {
+                var c0 = pk.Clone();   // 홈 트래커가 있는데 키≠배율이면 HOME처럼 키만 맞춰도 합법인지 먼저 확인
+                if (AppState.SyncHomeScale(c0) && new LegalityAnalysis(c0).Valid) return c0;
                 var r = AppState.Sav.Legalize(pk);
                 if (new LegalityAnalysis(r).Valid) return r;
                 var c = pk.Clone(); c.SetMoveset();   // 불가능한 기술 때문이면 추천 기술로 다시 시도
@@ -556,15 +559,23 @@ public class MainPage : ContentPage
     /// <summary>바이트로 열기 (파일 선택·다른 앱에서 공유/열기·최근 목록 공통).</summary>
     public async Task OpenBytes(byte[] data, string fileName, bool remember = true)
     {
-        if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))   // DBI 등 압축 세이브: 안의 세이브 파일(main 등)을 꺼내 엶
+        string memName = fileName;
+        var zm = System.Text.RegularExpressions.Regex.Match(fileName, @"^(.+) \((.+\.zip)\)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (zm.Success) fileName = zm.Groups[1].Value;   // 최근 목록의 "main (xxx.zip)" → 세이브 이름은 main
+        else if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))   // DBI 등 압축 세이브: 안의 세이브 파일(main 등)을 꺼내 엶
         {
             if (ZipSave.Extract(data) is not { } z) { await DisplayAlertAsync("열기 실패", "zip 안에서 세이브 파일을 찾지 못했습니다", "확인"); return; }
+            if (!SwitchFrlg.Enabled && SwitchFrlg.IsSwitchZip(data)) Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(1.5), () => Note.Show("스위치판 FRLG 세이브입니다 · 설정의 '스위치판 FRLG 기준 검사'를 켜면 FRLG 단독 기준으로 합법성을 봅니다"));
+            memName = $"{System.IO.Path.GetFileName(z.Entry)} ({System.IO.Path.GetFileName(fileName)})";   // 게임마다 main이라 최근 목록에서 서로 덮어쓰지 않게 zip 이름을 붙임
             data = z.Data; fileName = System.IO.Path.GetFileName(z.Entry);
         }
         try
         {
+            var orig = data.ToArray();   // PKHeX가 스위치 세이브(main)를 읽을 때 바이트를 제자리에서 복호화함 → 원본 사본을 보관해야 최근 목록·백업이 다시 열림
             var obj = FileUtil.GetSupportedFile(data, System.IO.Path.GetExtension(fileName), AppState.Sav);
-            if (remember && obj is SaveFile) SaveStore.Remember(data, fileName);
+            if (obj == null && SaveStore.TryRepair(orig) is { } fixedData)   // 1.4.4 이하에서 복호화된 채 보관된 최근·백업 사본 복구
+            { orig = fixedData; data = fixedData.ToArray(); obj = FileUtil.GetSupportedFile(data, System.IO.Path.GetExtension(fileName), AppState.Sav); }
+            if (remember && obj is SaveFile) SaveStore.Remember(orig, memName);
             switch (obj)
             {
                 case SaveFile s:
