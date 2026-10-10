@@ -413,7 +413,7 @@ public class StatsSection : Section
         // 크기: 키·몸무게·배율 한 줄, 각 칸 옆에 작은 최대/최소
         hE = Num(v => Changed(() => { if (Pk is IScaledSize z) z.HeightScalar = (byte)Math.Min(v, 255); UpdateSize(); }), 255);
         wE = Num(v => Changed(() => { if (Pk is IScaledSize z) z.WeightScalar = (byte)Math.Min(v, 255); UpdateSize(); }), 255);
-        sE = Num(v => Changed(() => { if (Pk is IScaledSize3 z) z.Scale = (byte)Math.Min(v, 255); UpdateSize(); }), 255);
+        sE = Num(v => Changed(() => { if (Pk is IScaledSize3 z) z.Scale = (byte)Math.Min(v, 255); if (AppState.SyncHomeScale(Pk) && Pk is IScaledSize zz) { hE.Text = zz.HeightScalar.ToString(); wE.Text = zz.WeightScalar.ToString(); } UpdateSize(); }), 255);   // 홈 트래커가 있으면 키(·Z-A 몸무게)도 배율과 같이
         static Button Tiny(string t, Action a) { var b = new Button { Text = t, FontSize = 9, Padding = 0, WidthRequest = 30, HeightRequest = 20, CornerRadius = 6, BorderWidth = 1, BorderColor = T.Accent, TextColor = T.Accent }; b.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); b.Clicked += (_, _) => a(); return b; }
         View SizeField(string label, Entry e)
         {
@@ -427,6 +427,7 @@ public class StatsSection : Section
         {
             if (Pk is IScaledSize z) { z.HeightScalar = (byte)Random.Shared.Next(256); z.WeightScalar = (byte)Random.Shared.Next(256); }
             if (Pk is IScaledSize3 z3) z3.Scale = (byte)Random.Shared.Next(256);
+            AppState.SyncHomeScale(Pk);
             Reload();
         });
         sizeCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("크기 (0~255)", 13, sub: true), sizeRow, sizeInfo, rnd2,
@@ -785,7 +786,7 @@ public class OTSection : Section
             Note.Show(before && !after ? "지웠습니다 — 이 개체는 쓰레기 바이트가 필요해 불법이 됐습니다. 실행 취소로 되돌리세요" : "어버이·닉네임·현재 트레이너 이름의 쓰레기 바이트를 지웠습니다");
         });
         htCard = T.Card(Stack(T.L("현재 트레이너 (교환받은 경우)", 13, sub: true), Two(T.Field("이름", ht), T.Field("성별", htG))));
-        trackE = T.Input(); trackE.MaxLength = 16; trackE.TextChanged += (_, e) => Changed(() => { if (Pk is IHomeTrack h && ulong.TryParse(e.NewTextValue, System.Globalization.NumberStyles.HexNumber, null, out var v)) h.Tracker = v; });
+        trackE = T.Input(); trackE.MaxLength = 16; trackE.TextChanged += (_, e) => Changed(() => { if (Pk is IHomeTrack h && ulong.TryParse(e.NewTextValue, System.Globalization.NumberStyles.HexNumber, null, out var v) && h.Tracker != v) { h.Tracker = v; if (AppState.SyncHomeScale(Pk)) Note.Show("홈 트래커에 맞춰 키를 배율과 같게 맞췄습니다 (HOME과 같은 방식)"); } });
         var trackClr = T.Pill("홈 트래커 비우기"); trackClr.Clicked += (_, _) => Changed(() => { if (Pk is IHomeTrack h) h.Tracker = 0; Reload(); });
         trackRow = new VerticalStackLayout { Spacing = 8, Children = { T.Field("홈 트래커 (16진수)", trackE), trackClr } };
         ecRow = T.Card(Stack(Two(T.Field("암호화 상수 (16진수)", ec), T.Field("PID (16진수)", pid)), reroll, trackRow));

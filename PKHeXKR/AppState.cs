@@ -48,7 +48,7 @@ public static class AppState
     private static PKM GetSlot(bool party, int box, int index) => party ? (index < Sav.PartyCount ? Sav.GetPartySlotAtIndex(index) : Sav.BlankPKM) : Sav.GetBoxSlotAtIndex(box, index);
     private static void SetSlotRaw(bool party, int box, int index, PKM p)
     {
-        if (!party) { Sav.SetBoxSlotAtIndex(p, box, index); return; }
+        if (!party) { Sav.SetBoxSlotAtIndex(p, box, index); LiveSync(box, index); return; }
         if (p.Species == 0) { if (index < Sav.PartyCount) Sav.DeletePartySlot(index); }
         else Sav.SetPartySlotAtIndex(p, Math.Min(index, Sav.PartyCount));
     }    // 편집기 전체 다시 채우기
@@ -63,6 +63,7 @@ public static class AppState
     {
         GameInfo.CurrentLanguage = LangCode;
         GameInfo.Strings = GameInfo.GetStrings(LangCode);
+        EventData.LoadLocal();   // 자동 업데이트로 받아 둔 배포 데이터 등록
         SetSave(NewBlankSave(), notify: false);
         _ = LoadCardWindowsAsync();
     }
@@ -105,6 +106,43 @@ public static class AppState
         Preferences.Set(K("def_tid", v), tid); Preferences.Set(K("def_sid", v), sid); Preferences.Set(K("def_lang", v), lang);
     }
 
+    /// <summary>
+    /// ALM(자동 합법화·리빙덱스 등)이 쓸 게임별 어버이 등록.
+    /// ALM은 만드는 개체의 출신 게임에 등록된 트레이너가 없으면 "ALM"·영어로 만듦 → 모든 게임에 앱의 트레이너를 등록.
+    /// 우선순위: 지금 세이브(같은 게임) → 게임별 트레이너 설정 → 같은 세대 세이브의 트레이너(예: 파이어레드 세이브에서 리프그린 출신) → 기본 트레이너 설정.
+    /// </summary>
+    public static void RegisterTrainers(SaveFile s)
+    {
+        TrainerSettings.Clear();
+        // 1~3세대 세이브는 언어가 0(알 수 없음)으로 읽혀 ALM이 영어로 만듦 → 일본판 형식이면 일본어, 아니면 이 게임의 설정 언어
+        int saveLang = s.Language > 0 ? s.Language : OldGenName.IsJapaneseSave(s) ? (int)LanguageID.Japanese : SafeLang(s.Version);
+        TrainerSettings.Register(s.Language > 0 ? s : new SimpleTrainerInfo(s) { Language = saveLang });
+        foreach (var v in Games.Concat([GameVersion.GN, GameVersion.CXD]).Distinct())
+        {
+            if (v == s.Version) continue;
+            try
+            {
+                var gen = new SimpleTrainerInfo(v).Generation; var ctx = v.Context;
+                bool explicitSet = Preferences.ContainsKey(K("def_ot", v));
+                bool sameGen = !explicitSet && s.Generation == gen && s.Context == ctx && !string.IsNullOrEmpty(s.OT);
+                string ot; byte g; int lang; uint id32;
+                if (sameGen) { ot = s.OT; g = s.Gender; lang = saveLang; id32 = s.ID32; }
+                else
+                {
+                    ot = OTFor(v); g = GenderFor(v); lang = SafeLang(v);
+                    int tid = TIDFor(v), sid = SIDFor(v);
+                    id32 = gen >= 7 ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999999)) : (uint)(Math.Min(tid, 65535) | (Math.Min(sid, 65535) << 16));
+                }
+                if (v is GameVersion.GN or GameVersion.BU) lang = (int)LanguageID.Japanese;
+                var t = gen is 6 or 7
+                    ? new SimpleTrainerInfo(v) { OT = ot, Gender = g, Language = lang, ID32 = id32, ConsoleRegion = 5, Country = 136, Region = 1 }   // 3DS: 한국 본체 (ApplyTrainer와 같게)
+                    : new SimpleTrainerInfo(v) { OT = ot, Gender = g, Language = lang, ID32 = id32 };
+                TrainerSettings.Register(t);
+            }
+            catch { }
+        }
+    }
+
     public static SaveFile NewBlankSave() => NewBlankSave(DefGame);
     public static SaveFile NewBlankSave(GameVersion v)
     {
@@ -142,7 +180,7 @@ public static class AppState
         // ALM(자동 합법화) 설정: 세이브 트레이너 기준, 실패 시 장난 개체(이스터에그) 끔
         APILegality.AllowTrainerOverride = true; APILegality.SetMatchingBalls = true; APILegality.ForceSpecifiedBall = true;
         APILegality.SetAllLegalRibbons = false; APILegality.Timeout = 45; Legalizer.EnableEasterEggs = false;
-        TrainerSettings.Clear(); TrainerSettings.Register(s);
+        RegisterTrainers(s);
         Box = Math.Clamp(s.CurrentBox, 0, Math.Max(0, s.BoxCount - 1));
         PartyMode = false;
         Pk = string.IsNullOrEmpty(s.Metadata.FileName) ? Placeholder(s) : s.BlankPKM; Dirty = false; Source = null; undo.Clear(); redo.Clear(); HistoryChanged?.Invoke();
@@ -160,13 +198,22 @@ public static class AppState
         PkLoaded?.Invoke();
     }
 
+    /// <summary>세이브의 이름은 그대로 두고 ALM 트레이너·합법성 기준만 갱신.</summary>
+    public static void ReapplyTrainerKeepOT()
+    {
+        ClearLegalCache();
+        ParseSettings.InitFromSaveFileData(Sav);
+        if (!HandlerCheck) ParseSettings.ClearActiveTrainer();
+        RegisterTrainers(Sav);
+        SaveChanged?.Invoke();
+    }
     public static void ReapplyTrainer()
     {
         ClearLegalCache();
         ApplyTrainer(Sav);
         ParseSettings.InitFromSaveFileData(Sav);
         if (!HandlerCheck) ParseSettings.ClearActiveTrainer();
-        TrainerSettings.Clear(); TrainerSettings.Register(Sav);
+        RegisterTrainers(Sav);
         SaveChanged?.Invoke();
     }
 
@@ -187,6 +234,7 @@ public static class AppState
     {
         var a = Sav.GetBoxSlotAtIndex(boxA, indexA); var b = Sav.GetBoxSlotAtIndex(boxB, indexB);
         Sav.SetBoxSlotAtIndex(b, boxA, indexA); Sav.SetBoxSlotAtIndex(a, boxB, indexB);
+        if (boxA == Box || boxB == Box) { LiveSync(boxA, indexA); LiveSync(boxB, indexB); }
     }
     /// <summary>요약 카드 등에서 바꾼 값을 편집 탭에도 반영.</summary>
     public static void ReloadEditors() => PkLoaded?.Invoke();
@@ -209,7 +257,7 @@ public static class AppState
         Sav = i.Sav; Src = i.Src; Pk = i.Pk; Dirty = i.Dirty; Box = i.Box; PartyMode = i.PartyMode; Source = i.Source;
         undo.Clear(); foreach (var a in i.Undo) undo.Push(a); redo.Clear(); foreach (var a in i.Redo) redo.Push(a);
         ApplyParse();   // 세이브 주인 대조·핸들러 검사 끔 등 합법성 옵션을 이 세이브에도 적용 (예전엔 빠져서 불러오면 어버이 관련 불법이 뜸)
-        TrainerSettings.Clear(); TrainerSettings.Register(Sav);
+        RegisterTrainers(Sav);
         SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke(); HistoryChanged?.Invoke();
     }
     public static void SaveActive() { if (Instances.Count == 0) Instances.Add(Snapshot()); else Instances[Active] = Snapshot(); }
@@ -323,6 +371,7 @@ public static class AppState
                 else if (g.Generation >= 8) return null;
             }
             catch { return null; }
+            if (!ok && EventData.NewWindow(g) is { } nw) { w = nw; ok = true; }   // 자동 업데이트로 받은 최신 배포 기간
             if (g is WB7 or WC8 or WA8 or WB8 or WC9 or WA9) return ok ? w.Start.AddDays(w.GenerateDaysAfterStart) : IdDate(g);
         }
         if (g.Generation is < 5 or > 7) return null;
@@ -399,17 +448,7 @@ public static class AppState
         else
         {
             Sav.SetBoxSlotAtIndex(p, Box, index);
-            if (LiveConnected)   // 라이브헥스: 게임에도 바로 기록
-            {
-                try
-                {
-                    var q = p.Clone(); q.ResetPartyStats();
-                    var data = new byte[Sav.SIZE_PARTY];
-                    q.WriteEncryptedDataParty(data);
-                    lock (LiveLock) Remote.SendSlot(data, Box, index);
-                }
-                catch { MarkLiveLost(); }
-            }
+            LiveSync(Box, index);   // 라이브헥스: 게임에도 바로 기록
         }
         Dirty = false; Source = (PartyMode, Box, index);
         BoxChanged?.Invoke();
@@ -419,8 +458,59 @@ public static class AppState
     {
         Push(new SlotAct(PartyMode, Box, index, GetSlot(PartyMode, Box, index).Clone(), Sav.BlankPKM));
         if (PartyMode) { if (index < Sav.PartyCount) Sav.DeletePartySlot(index); }
-        else Sav.SetBoxSlotAtIndex(Sav.BlankPKM, Box, index);
+        else { Sav.SetBoxSlotAtIndex(Sav.BlankPKM, Box, index); LiveSync(Box, index); }
         BoxChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// 라이브헥스: 세이브의 박스 칸을 게임 메모리에 그대로 기록.
+    /// 게임마다 메모리의 칸 크기가 다름 → 박스 형식(3DS·PLA·3세대: 보관 크기) / 파티 형식(스위치 대부분)을 ALM 라이브헥스와 같은 규칙으로 고름.
+    /// (이전: 항상 파티 크기로 써서, 칸이 더 작은 게임(스위치판 FRLG 80바이트, 3DS 232바이트 등)은 다음 칸 앞부분을 덮어써 불량알이 생김)
+    /// </summary>
+    public static byte[] LiveSlotBytes(PKM p)
+    {
+        var v = Remote.Version;
+        var q = p.Clone();
+        try { Sav.AdaptToSaveFile(q); } catch { }
+        bool za = v >= PKHeX.Core.Injection.LiveHeXVersion.ZA_v101 && v <= PKHeX.Core.Injection.LiveHeXVersion.ZA_v202;
+        byte[] data;
+        if (PKHeX.Core.Injection.RamOffsets.WriteBoxData(v)) { data = new byte[Sav.SIZE_STORED]; q.WriteEncryptedDataStored(data); }
+        else
+        {
+            q.ResetPartyStats();
+            data = new byte[za ? 345 : Sav.SIZE_PARTY];
+            q.WriteEncryptedDataParty(data);
+            if (za && q.Species != 0) data[344] = 1;
+        }
+        return data;
+    }
+    public static void LiveSync(int box, int index)
+    {
+        if (!LiveConnected) return;
+        try
+        {
+            var data = LiveSlotBytes(Sav.GetBoxSlotAtIndex(box, index));
+            var expect = PKHeX.Core.Injection.RamOffsets.GetSlotSize(Remote.Version);
+            if (data.Length > expect && !(Remote.Version >= PKHeX.Core.Injection.LiveHeXVersion.ZA_v101 && Remote.Version <= PKHeX.Core.Injection.LiveHeXVersion.ZA_v202)) data = data[..expect];   // 칸 크기를 넘겨 다음 칸을 덮어쓰지 않게
+            lock (LiveLock) Remote.SendSlot(data, box, index);
+        }
+        catch { MarkLiveLost(); }
+    }
+
+    /// <summary>
+    /// 불량알(손상된 개체): 데이터는 있는데 체크섬이 맞지 않거나 게임이 불량알로 표시한 칸.
+    /// PKHeX는 종 번호 0(빈 칸)처럼 읽는 경우가 많아 앱에서 보이지 않았음.
+    /// </summary>
+    public static bool IsBadEgg(PKM p)
+    {
+        try
+        {
+            if (p is PK3 { FlagIsBadEgg: true }) return true;
+            if (p.Format is < 3 or > 5 || p.ChecksumValid) return false;   // 빈 칸이 0으로 채워지는 3~5세대만 (다른 세대는 빈 칸 형식이 달라 오판 방지)
+            var b = new byte[p.SIZE_STORED]; p.WriteDecryptedDataStored(b);
+            return b.AsSpan().ContainsAnyExcept((byte)0);
+        }
+        catch { return false; }
     }
 
     public static string BoxName(int b)
@@ -501,13 +591,20 @@ public static class AppState
     /// <summary>끈 검사 항목만 불법 사유이면 합법으로 봄.</summary>
     public static bool EffectiveValid(LegalityAnalysis la)
     {
+        if (SwitchFrlg.Enabled && EntityOf(la) is { } sw && SwitchFrlg.Problem(sw, la) != null) return false;   // 설정: 스위치판 FRLG 기준
         if (la.Valid) return true;
         var bad = la.Results.Where(r => r.Judgement == Severity.Invalid).ToList();
         if (!HTFlagCheck) bad = bad.Where(r => r.Result != LegalityCheckResultCode.TransferHandlerFlagRequired).ToList();
         if (bad.Count == 0) return true;
         // 리본만 문제: 진화 전 포켓몬이 받을 수 있는 리본이면 허용 (예: BDSP 리본을 단 이브이 → BDSP에 없는 님피아로 진화)
         if (bad.All(r => r.Identifier == CheckIdentifier.Ribbon) && RibbonOkViaPreEvo(la)) return true;
+        // 배포 기간 밖: 자동 업데이트로 받은 새 배포 카드는 앱의 PKHeX.Core에 기간 정보가 없음 → 받아 둔 최신 기간표로 판단
+        if (bad.All(r => r.Result == LegalityCheckResultCode.DateOutsideDistributionWindow) && la.EncounterMatch is MysteryGift g && EntityOf(la) is { } ent && EventData.DateOkByNewWindow(g, ent)) return true;
         return false;
+    }
+    private static PKM EntityOf(LegalityAnalysis la)
+    {
+        try { return typeof(LegalityAnalysis).GetField("Entity", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)?.GetValue(la) as PKM; } catch { return null; }
     }
     private static bool RibbonOkViaPreEvo(LegalityAnalysis la)
     {
@@ -642,6 +739,21 @@ public static class AppState
         }
     }
 
+    /// <summary>
+    /// HOME에 올렸다 받은 것처럼 크기 맞추기: HOME은 배율(Scale)을 키(HeightScalar)에 복사함 (Z-A 출신은 몸무게까지).
+    /// 홈 트래커가 있으면 PKHeX는 키 = 배율을 요구 → 트래커를 직접 넣었거나 배율을 바꾼 경우 자동으로 맞춤.
+    /// </summary>
+    public static bool SyncHomeScale(PKM p)
+    {
+        if (p is not IHomeTrack { HasTracker: true } || p is not IScaledSize3 s3 || p is not IScaledSize s2) return false;
+        bool za = false; try { za = p.Version == GameVersion.ZA; } catch { }
+        bool changed = false;
+        if (s2.HeightScalar != s3.Scale) { s2.HeightScalar = s3.Scale; changed = true; }
+        if (za && s2.WeightScalar != s3.Scale) { s2.WeightScalar = s3.Scale; changed = true; }
+        if (changed) { try { if (p is PA8 a) { a.ResetHeight(); a.ResetWeight(); } } catch { } p.RefreshChecksum(); }
+        return changed;
+    }
+
     public static LegalityAnalysis Analyze(PKM p, out bool trackerWaived)
     {
         trackerWaived = false;
@@ -688,7 +800,7 @@ public static class AppState
                 int tid = Sav.Generation >= 7 ? (int)(Sav.ID32 % 1_000_000) : Sav.TID16, sid = Sav.Generation >= 7 ? (int)(Sav.ID32 / 1_000_000) : Sav.SID16;
                 SetTrainerFor(v, Sav.OT, Sav.Gender, tid, sid, Sav.Language);
                 ApplyParse();
-                TrainerSettings.Clear(); TrainerSettings.Register(Sav);
+                RegisterTrainers(Sav);
                 SaveChanged?.Invoke();
                 return true;
             }

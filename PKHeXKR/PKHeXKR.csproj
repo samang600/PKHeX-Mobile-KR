@@ -15,8 +15,11 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<ApplicationTitle>PKHeX 모바일</ApplicationTitle>
 		<ApplicationId>com.pkhexkr.mobile</ApplicationId>
-		<ApplicationDisplayVersion>1.4.4</ApplicationDisplayVersion>
-		<ApplicationVersion>52</ApplicationVersion>
+		<!-- 별도 설치판(구버전과 동시 설치): dotnet build ... -p:SideBySide=true → 패키지명·앱 이름만 다르게 -->
+		<ApplicationId Condition="'$(SideBySide)' == 'true'">com.pkhexkr.mobile.side</ApplicationId>
+		<ApplicationTitle Condition="'$(SideBySide)' == 'true'">PKHeX 모바일 (별도)</ApplicationTitle>
+		<ApplicationDisplayVersion>1.4.6</ApplicationDisplayVersion>
+		<ApplicationVersion>54</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>

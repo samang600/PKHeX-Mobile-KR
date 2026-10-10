@@ -52,6 +52,28 @@ public static class SaveStore
     {
         try { File.WriteAllBytes(Path.Combine(BackupDir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{tag}__{Safe(name)}"), data); Trim(BackupDir, 30); } catch { }
     }
+    /// <summary>
+    /// 1.4.4 이하 버그로 복호화된 채 저장된 스위치 세이브(SV·소드실드·Z-A 등 main) 복구.
+    /// PKHeX는 main을 읽으며 고정 XOR 패드로 제자리 복호화함 → 같은 패드를 한 번 더 씌우면 원본과 똑같아짐 (끝의 SHA-256 해시로 확인).
+    /// </summary>
+    public static byte[] TryRepair(byte[] data)
+    {
+        try
+        {
+            if (data == null || data.Length < 0x1000 || SwishCrypto.GetIsHashValid(data)) return null;
+            var c = data.ToArray();
+            SwishCrypto.CryptStaticXorpadBytes(c.AsSpan(0, c.Length - 0x20));
+            return SwishCrypto.GetIsHashValid(c) ? c : null;
+        }
+        catch { return null; }
+    }
+    /// <summary>보관된 사본 읽기: 복호화된 채 저장된 파일이면 복구해서 파일도 고쳐 둠.</summary>
+    public static byte[] ReadStored(string path)
+    {
+        var b = File.ReadAllBytes(path);
+        if (TryRepair(b) is { } f) { try { File.WriteAllBytes(path, f); } catch { } return f; }
+        return b;
+    }
     private static void Trim(string dir, int keep) { foreach (var f in Directory.GetFiles(dir).OrderByDescending(x => x).Skip(keep)) File.Delete(f); }
     public static List<(string Path, string Name, string When)> List(string dir) => Directory.GetFiles(dir).OrderByDescending(x => x).Select(f =>
     {
@@ -111,8 +133,8 @@ public class SaveListSheet : Sheet
             {
                 var page = Application.Current.Windows[0].Page;
                 var pick = await page.DisplayActionSheetAsync(it.Name, "취소", null, "열기", "공유", "삭제");
-                if (pick == "열기") { Close(); await MainPage.Instance.OpenBytes(File.ReadAllBytes(it.Path), it.Name, remember: false); }
-                else if (pick == "공유") await ShareUtil.ShareBytes(File.ReadAllBytes(it.Path), it.Name, it.Name);
+                if (pick == "열기") { Close(); await MainPage.Instance.OpenBytes(SaveStore.ReadStored(it.Path), it.Name, remember: false); }
+                else if (pick == "공유") await ShareUtil.ShareBytes(SaveStore.ReadStored(it.Path), it.Name, it.Name);
                 else if (pick == "삭제") { File.Delete(it.Path); Close(); SheetHost.Show(new SaveListSheet(backup)); }
             };
             cell.GestureRecognizers.Add(t);
@@ -143,10 +165,17 @@ public class SettingsSheet : Sheet
         var trkS = Tog("홈 트래커 없음 검사 (소드실드)", AppState.TrackerCheckSWSH, v => AppState.TrackerCheckSWSH = v);
         var trkO = Tog("홈 트래커 없음 검사 (다른 게임)", AppState.TrackerCheckOther, v => AppState.TrackerCheckOther = v);
         var htf = Tog("'현재 트레이너는 어버이가 될 수 없음' 검사", AppState.HTFlagCheck, v => AppState.HTFlagCheck = v);
+        var swf = Tog("스위치판 FRLG 기준 검사 (FRLG 단독으로 얻을 수 없는 포켓몬 불법)", SwitchFrlg.Enabled, v => SwitchFrlg.Enabled = v);
+        var swfHint = T.L("파이어레드·리프그린 세이브에만 적용. 루비·사파이어·에메랄드·콜로세움/XD 출신, 옛 배포, 배꼽바위·탄생의섬, FRLG에 나오지 않는 호연 포켓몬 등을 불법으로 봅니다. 끄면 GBA판 기준(교환·배포 허용).", 12, sub: true); swfHint.LineBreakMode = LineBreakMode.WordWrap;
         var chkHint = T.L("합법성 검사 항목을 켜고 끕니다. 끈 항목만 문제인 개체는 합법으로 표시됩니다.", 12, sub: true); chkHint.LineBreakMode = LineBreakMode.WordWrap;
         var upd = Tog("업데이트 알림 (GitHub 새 버전 확인)", UpdateCheck.Enabled, v => UpdateCheck.Enabled = v);
         var keep = Tog("마지막 세이브 그대로 열기 (앱을 끌 때 편집 상태 보존)", LastSession.Enabled, v => { LastSession.Enabled = v; if (!v) LastSession.Clear(); });
         var updNow = T.Pill("지금 업데이트 확인"); updNow.Clicked += async (_, _) => await UpdateCheck.Run(true);
+        var mg = Tog("배포 데이터 자동 업데이트 (하루 한 번)", EventData.Enabled, v => EventData.Enabled = v);
+        string MgInfo() => $"앱에 들어 있지 않은 새 배포 카드를 PKHeX 최신 배포 DB에서 받아 합법성 검사·자동 합법화·인카운터 검색에 씁니다. 받은 배포: {EventData.Count}개" + (EventData.LastCheck > DateTime.MinValue ? $" · 마지막 확인 {EventData.LastCheck:yyyy-MM-dd HH:mm}" : "");
+        var mgHint = T.L(MgInfo(), 12, sub: true); mgHint.LineBreakMode = LineBreakMode.WordWrap;
+        var mgNow = T.Pill("배포 데이터 지금 업데이트");
+        mgNow.Clicked += async (_, _) => { mgNow.IsEnabled = false; mgNow.Text = "확인 중…"; var m = await Task.Run(() => EventData.Run(true)); mgNow.Text = "배포 데이터 지금 업데이트"; mgNow.IsEnabled = true; mgHint.Text = MgInfo(); Note.Show(m); };
         var bk = new Switch { IsToggled = SaveStore.AutoBackup, OnColor = T.Accent }; bk.Toggled += (_, e) => SaveStore.AutoBackup = e.Value;
         var bkRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 }; bkRow.Add(T.L("자동 백업", 15), 0); bkRow.Add(bk, 1);
         var bkHint = T.L("켜면 세이브를 열 때 원본을, 내보낼 때 저장본을 앱 안에 보관합니다(최근 30개).", 12, sub: true); bkHint.LineBreakMode = LineBreakMode.WordWrap;
@@ -166,7 +195,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, chkHint, upd, updNow, keep, bkRow, bkHint, list } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list } } });
     }
 }
 
@@ -508,7 +537,7 @@ public static class UiFold
 public static class ZipSave
 {
     private static byte[] Read(System.IO.Compression.ZipArchiveEntry e) { using var r = e.Open(); using var ms = new MemoryStream(); r.CopyTo(ms); return ms.ToArray(); }
-    private static bool IsSave(byte[] b, string name) { try { return FileUtil.GetSupportedFile(b, Path.GetExtension(name), AppState.Sav) is SaveFile; } catch { return false; } }
+    private static bool IsSave(byte[] b, string name) { try { return FileUtil.GetSupportedFile(b.ToArray(), Path.GetExtension(name), AppState.Sav) is SaveFile; } catch { return false; } }   // 사본으로 검사 (읽기만 해도 바이트가 바뀌는 세이브가 있음)
 
     /// <summary>세이브 파일 찾기: 이름이 main인 것 → 없으면 PKHeX가 세이브로 알아보는 가장 큰 파일.</summary>
     public static (string Entry, byte[] Data)? Extract(byte[] zip)

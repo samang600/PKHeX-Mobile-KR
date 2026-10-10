@@ -78,15 +78,17 @@ public class LegalitySheet : Sheet
     {
         var la = AppState.Analyze(AppState.Pk, out var waived);
         bool ev = AppState.EffectiveValid(la);
-        var badge = T.L(la.Valid ? (waived ? "✔ 합법 (리본용 홈 트래커 생략 허용)" : "✔ 합법") : ev ? "✔ 합법 (끈 검사 항목만 해당)" : "✖ 불법", 20, bold: true);
+        var swp = SwitchFrlg.Problem(AppState.Pk, la);
+        var badge = T.L(swp != null ? "✖ 불법 (스위치판 FRLG 기준)" : la.Valid ? (waived ? "✔ 합법 (리본용 홈 트래커 생략 허용)" : "✔ 합법") : ev ? "✔ 합법 (끈 검사 항목만 해당)" : "✖ 불법", 20, bold: true);
         badge.LineBreakMode = LineBreakMode.WordWrap;
         badge.TextColor = ev ? T.Good : T.Bad;
         string report;
         try { report = la.Report(AppState.LangCode, true); } catch { report = la.Report(true); }
         if (AppState.LangCode == "ko") report = KoFix.Fix(report);
+        if (swp != null) report = "✖ " + swp + "\n(설정 → '스위치판 FRLG 기준 검사'를 끄면 GBA판 기준)\n\n" + report;
         var body = T.L(report, 13); body.LineBreakMode = LineBreakMode.WordWrap;
         var fix = T.Pill("자동 합법화 (ALM)", primary: true);
-        fix.IsVisible = !la.Valid;
+        fix.IsVisible = !la.Valid || swp != null;
         fix.Clicked += async (_, _) => { Close(); await MainPage.Legalize(); };
         Body.RowDefinitions.Add(new(GridLength.Auto)); Body.RowDefinitions.Add(new(GridLength.Star)); Body.RowDefinitions.Add(new(GridLength.Auto));
         Body.Add(badge, 0, 0); Body.Add(new ScrollView { Content = body }, 0, 1); Body.Add(fix, 0, 2);

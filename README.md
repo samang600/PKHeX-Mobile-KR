@@ -20,11 +20,13 @@
 - 텍스트로 빠른 생성: "빠르모트 암컷 이로치 러브볼 가장작게"처럼 적으면 합법 개체 생성
 - 라이브헥스(스위치 sys-botbase), HOME Live, 자동 어버이작
 - 스위치 세이브 무선 FTP (DBI 등)
+- 배포 데이터 자동 업데이트 (PKHeX 최신 배포 DB에서 새 카드만 받아 합법성 검사에 반영)
 - 박스 검색·정렬·여러 칸 선택·즐겨찾기·리빙덱스 채우기
 
 ## 빌드
 - 안드로이드: .NET 10 SDK + MAUI 안드로이드 워크로드
   `dotnet build PKHeXKR/PKHeXKR.csproj -f net10.0-android36.0 -c Release`
+  (구버전과 함께 설치하는 별도 설치판: 끝에 `-p:SideBySide=true`)
 - iOS: macOS + Xcode 필요. 저장소의 **Actions → iOS 빌드**로 서명 없는 IPA를 만들 수 있습니다.
 
 폴더 구성: `PKHeXKR`(앱), `PKHeX-Plugins`(ALM·라이브헥스 라이브러리), `HOMELive`(HOME Live 라이브러리)

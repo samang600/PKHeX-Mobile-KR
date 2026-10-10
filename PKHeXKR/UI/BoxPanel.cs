@@ -163,7 +163,7 @@ public class BoxPanel : ContentView
     {
         var sav = AppState.Sav;
         var slots = AppState.CurrentSlots();
-        int filled = slots.Count(p => p.Species != 0);
+        int filled = slots.Count(p => p.Species != 0 || AppState.IsBadEgg(p));
         title.Text = AppState.PartyMode ? $"파티  ·  {filled}/6" : $"{AppState.BoxName(AppState.Box)}  ·  {filled}/{slots.Length}";
         modeBtn.Text = AppState.PartyMode ? "박스" : "파티";
         arrow.Text = Expanded ? "▾" : "▸";
@@ -184,6 +184,7 @@ public class BoxPanel : ContentView
             bool fm = BoxFilter.Active && BoxFilter.Match(p);
             var stroke = sel ? T.Good : isMoving ? T.Warn : pickMode || moving != null ? T.Accent.WithAlpha(0.4f) : fm ? T.Good : current ? T.Accent : Colors.Transparent;
             double dim = BoxFilter.Active && !fm ? 0.3 : 1;
+            if (AppState.IsBadEgg(p)) return new Slot(i, p, "b_0.png", false, true, null, stroke, dim, sel);   // 불량알: 알 그림 + 불법 표시
             return new Slot(i, p, AppState.Sprite(p), p.Species != 0 && p.IsShiny, p.Species != 0 && !AppState.IsLegal(p), AppState.ItemSprite(p.HeldItem), stroke, dim, sel);
         }).ToList();
     }
@@ -197,6 +198,7 @@ public class BoxPanel : ContentView
         if (AppState.PartyMode) { Note.Show("파티에서는 옮기기를 지원하지 않습니다"); return; }
         if (moving is { } m && m.Box == AppState.Box && m.Index == s.Index) { moving = null; Refresh(); Note.Show("옮기기를 취소했습니다"); return; }
         if (s.Pk.Species == 0) return;
+        if (AppState.IsBadEgg(s.Pk)) { Note.Show("불량알은 옮길 수 없습니다 (삭제하거나 덮어쓰세요)"); return; }
         try { HapticFeedback.Default.Perform(HapticFeedbackType.LongPress); } catch { }
         moving = (AppState.Box, s.Index);
         Refresh();
@@ -226,6 +228,16 @@ public class BoxPanel : ContentView
             pickMode = false;
             AppState.WriteSlot(s.Index, AppState.Pk.Clone());
             Note.Show($"{where}에 저장했습니다");
+            return;
+        }
+        if (AppState.IsBadEgg(s.Pk))   // 불량알: 데이터가 손상돼 게임에서도 불량알로 보이는 칸
+        {
+            const string bdel = "삭제 (빈 칸으로)", bover = "편집 중인 포켓몬으로 덮어쓰기";
+            var bp = AppState.Pk.Species == 0
+                ? await Page().DisplayActionSheetAsync($"{where} · 불량알 (손상된 데이터)", "취소", null, bdel)
+                : await Page().DisplayActionSheetAsync($"{where} · 불량알 (손상된 데이터)", "취소", null, bdel, bover);
+            if (bp == bdel) { AppState.DeleteSlot(s.Index); Note.Show(AppState.LiveConnected ? "불량알을 지웠습니다 (게임에도 반영)" : "불량알을 지웠습니다"); }
+            else if (bp == bover) { AppState.WriteSlot(s.Index, AppState.Pk.Clone()); Note.Show($"{where}에 덮어썼습니다"); }
             return;
         }
         if (s.Pk.Species == 0)
@@ -364,7 +376,7 @@ public class BoxPanel : ContentView
         {
             int from = what == curBad ? AppState.Box : 0, to = what == curBad ? AppState.Box + 1 : sav.BoxCount;
             var bad = new List<(int, int)>();
-            for (int b = from; b < to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if (p.Species != 0 && !AppState.IsLegal(p)) bad.Add((b, i)); }
+            for (int b = from; b < to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if ((p.Species != 0 && !AppState.IsLegal(p)) || AppState.IsBadEgg(p)) bad.Add((b, i)); }
             if (bad.Count == 0) { Note.Show("불법 포켓몬이 없습니다"); return; }
             if (!await Page().DisplayAlertAsync("불법 포켓몬 비우기", $"불법으로 판정된 {bad.Count}마리를 지웁니다. 되돌릴 수 없습니다.", "지우기", "취소")) return;
             foreach (var (b, i) in bad) sav.SetBoxSlotAtIndex(sav.BlankPKM, b, i);

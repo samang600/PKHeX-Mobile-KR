@@ -25,9 +25,11 @@ public class TrainerSheet : Sheet
         {
             var name = string.IsNullOrWhiteSpace(ot.Text) ? "PKHeX" : ot.Text.Trim();
             int t = int.TryParse(tid.Text, out var t0) ? Math.Clamp(t0, 0, g7 ? 999999 : 65535) : 0, sd = int.TryParse(sid.Text, out var s0) ? Math.Clamp(s0, 0, g7 ? 4294 : 65535) : 0;
+            if (AppState.Sav.Generation <= 3 && OldGenName.HasJapanese(name)) lang = (int)LanguageID.Japanese;   // 1~3세대: 일본어 이름은 일본어 개체·세이브에서만 저장됨
             AppState.SetTrainerFor(ver, name, gender, t, sd, lang);   // 이 게임 전용으로 저장
-            if (apply.IsToggled) AppState.ReapplyTrainer();
-            Close(); Note.Show("트레이너 정보를 저장했습니다");
+            Close();
+            if (apply.IsToggled) MainThread.BeginInvokeOnMainThread(async () => Note.Show(await OldGenName.ApplyChecked() ?? "트레이너 정보를 저장했습니다"));
+            else Note.Show("트레이너 정보를 저장했습니다");
         };
         var hint = T.L("7세대 이후 게임은 TID 6자리·SID 4자리, 그 이전 게임은 TID·SID 각 5자리(최대 65535)로 들어갑니다. 게임마다 따로 저장되며, 이 게임의 새 세이브와 자동 합법화(ALM)가 이 정보를 씁니다. 라이브헥스로 연결하면 게임 속 트레이너 정보로 자동 갱신됩니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
@@ -225,10 +227,17 @@ public class PlayerSheet : Sheet
             {
                 int.TryParse(tidE.Text, out var t); int.TryParse(sidE.Text, out var sd);
                 if (six) { t = Math.Clamp(t, 0, 999999); sd = Math.Clamp(sd, 0, 4294); } else { t = Math.Clamp(t, 0, 65535); sd = Math.Clamp(sd, 0, 65535); }
-                AppState.SetTrainerFor(sav.Version, string.IsNullOrWhiteSpace(otE.Text) ? sav.OT : otE.Text.Trim(), gender, t, sd, lang);
-                AppState.ReapplyTrainer();   // 세이브 트레이너 + ALM 트레이너 + 게임별 저장값 갱신
+                var nm = string.IsNullOrWhiteSpace(otE.Text) ? sav.OT : otE.Text.Trim();
+                if (OldGenName.IsOld(sav) && OldGenName.HasJapanese(nm)) lang = (int)LanguageID.Japanese;
+                AppState.SetTrainerFor(sav.Version, nm, gender, t, sd, lang);
                 if (hasTime) { try { if (int.TryParse(hh.Text, out var h)) sav.PlayedHours = Math.Clamp(h, 0, 999); if (int.TryParse(mm.Text, out var m2)) sav.PlayedMinutes = Math.Clamp(m2, 0, 59); if (int.TryParse(ss.Text, out var s2)) sav.PlayedSeconds = Math.Clamp(s2, 0, 59); } catch { } }
-                status.Text = "트레이너 정보를 세이브에 적용했습니다 (세이브 내보내기로 저장하세요)";
+                Dispatcher.Dispatch(async () =>   // 세이브 트레이너 + ALM 트레이너 + 게임별 저장값 갱신 (1~3세대 글자 체계 확인 포함)
+                {
+                    var msg = await OldGenName.ApplyChecked();
+                    if (AppState.Sav != sav) { Close(); Note.Show(msg); return; }   // 세이브가 새로 만들어졌으면 시트 닫기
+                    otE.Text = sav.OT;
+                    status.Text = msg ?? "트레이너 정보를 세이브에 적용했습니다 (세이브 내보내기로 저장하세요)";
+                });
             }
             catch (Exception ex) { status.Text = "적용 실패: " + ex.Message; }
         };

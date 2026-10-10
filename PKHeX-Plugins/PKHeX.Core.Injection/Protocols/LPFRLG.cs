@@ -74,7 +74,8 @@ public sealed class LPFRLG : InjectionBase
     {
         var boxoff = GetBoxOffset(psb);
         var slotsize = RamOffsets.GetSlotSize(psb.Version);
-        var slotstart = boxoff + (ulong)(slot * slotsize);
+        var boxsize = RamOffsets.GetSlotCount(psb.Version) * slotsize;
+        var slotstart = boxoff + (ulong)(box * boxsize) + (ulong)(slot * slotsize);   // PKHeXKR: 박스 번호 반영 (원본은 항상 1번 박스)
         return psb.com.ReadBytes(slotstart + slotOffset, slotsize);
     }
 
@@ -82,7 +83,9 @@ public sealed class LPFRLG : InjectionBase
     {
         var boxoff = GetBoxOffset(psb);
         var slotsize = RamOffsets.GetSlotSize(psb.Version);
-        var slotstart = boxoff + (ulong)(slot * slotsize);
+        var boxsize = RamOffsets.GetSlotCount(psb.Version) * slotsize;
+        var slotstart = boxoff + (ulong)(box * boxsize) + (ulong)(slot * slotsize);   // PKHeXKR: 박스 번호 반영 (원본은 항상 1번 박스)
+        if (data.Length > slotsize) data = data[..slotsize];                           // PKHeXKR: 다음 칸 덮어쓰기 방지
         psb.com.WriteBytes(data, slotstart + slotOffset);
     }
 
