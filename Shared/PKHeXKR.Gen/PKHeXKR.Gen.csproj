@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- 모바일 앱(PKHeXKR)과 PC PKHeX 플러그인이 함께 쓰는 생성 엔진 (화면 없음) -->
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>disable</Nullable>
+		<RootNamespace>PKHeXKR</RootNamespace>
+		<NoWarn>$(NoWarn);CS1998;CS8632;CS0162</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		</ItemGroup>
+	<!-- PKHeX.Core: 기본은 개발 버전 소스(PKHeX-Core-Dev). PC 플러그인처럼 PKHeX 본체 버전에 맞춰야 할 때는 UsePkhexNuget=true → 정식 패키지 -->
+	<ItemGroup Condition="'$(UsePkhexNuget)' != 'true'">
+		<ProjectReference Include="..\..\PKHeX-Core-Dev\PKHeX.Core\PKHeX.Core.csproj" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(UsePkhexNuget)' == 'true'">
+		<PackageReference Include="PKHeX.Core" Version="26.8.26" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!--
+		PC용 PKHeX 플러그인: 모바일 앱의 "텍스트로 빠른 생성"·"리빙덱스 채우기"를 PKHeX에서.
+		생성 엔진은 모바일 앱과 같은 Shared/PKHeXKR.Gen을 씀. 빌드 결과 DLL 하나(PKHeXKR.Plugin.dll)를 PKHeX의 plugins 폴더에 넣으면 됨.
+		리눅스·맥에서도 빌드 가능 (EnableWindowsTargeting), 실행은 윈도우 PKHeX에서.
+	-->
+	<PropertyGroup>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<UseWindowsForms>true</UseWindowsForms>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>disable</Nullable>
+		<RootNamespace>PKHeXKR.Plugin</RootNamespace>
+		<AssemblyName>PKHeXKR.Plugin</AssemblyName>
+		<Version>1.0.1</Version>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<NoWarn>$(NoWarn);CS1998;CS8632;CA1416;WFO1000</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		<!-- PKHeX.Core는 PKHeX 본체가 가지고 있으므로 넣지 않음 -->
+		<PackageReference Include="PKHeX.Core" Version="26.8.26" ExcludeAssets="runtime" />
+		<PackageReference Include="Costura.Fody" Version="5.7.0" PrivateAssets="all" />
+		<PackageReference Include="Fody" Version="6.8.0" PrivateAssets="all" />
+	</ItemGroup>
+	<ItemGroup>
+		<!-- PC용 PKHeX 본체(정식 26.08.26)와 맞추기 위해 빌드할 때 -p:UsePkhexNuget=true 필수 (공용 프로젝트도 정식 PKHeX.Core 패키지로) -->
+		<ProjectReference Include="..\..\Shared\PKHeXKR.Gen\PKHeXKR.Gen.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="..\..\PKHeXKR\Resources\Raw\card_windows.json" LogicalName="card_windows.json" />
+	</ItemGroup>
+</Project>

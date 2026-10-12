@@ -1,0 +1,13 @@
+<Project>
+  <!-- PKHeX 개발 버전 (kwsch/PKHeX master 66ef598, 2026-10-08) — 정식 릴리스 26.08.26 이후 수정 반영용 -->
+  <PropertyGroup>
+    <Version>26.10.08</Version>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <NeutralLanguage>en</NeutralLanguage>
+    <Product>PKHeX</Product>
+    <Company>Project Pokémon</Company>
+    <Authors>Kaphotics</Authors>
+    <Copyright>Kaphotics</Copyright>
+  </PropertyGroup>
+</Project>

@@ -18,8 +18,8 @@
 		<!-- 별도 설치판(구버전과 동시 설치): dotnet build ... -p:SideBySide=true → 패키지명·앱 이름만 다르게 -->
 		<ApplicationId Condition="'$(SideBySide)' == 'true'">com.pkhexkr.mobile.side</ApplicationId>
 		<ApplicationTitle Condition="'$(SideBySide)' == 'true'">PKHeX 모바일 (별도)</ApplicationTitle>
-		<ApplicationDisplayVersion>1.4.6</ApplicationDisplayVersion>
-		<ApplicationVersion>54</ApplicationVersion>
+		<ApplicationDisplayVersion>1.4.11</ApplicationDisplayVersion>
+		<ApplicationVersion>59</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>
@@ -49,9 +49,16 @@
 		<PackageReference Include="FluentFTP" Version="52.1.0" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.90" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.0" />
+		</ItemGroup>
+	<!-- PKHeX.Core: 기본은 개발 버전 소스(PKHeX-Core-Dev). PC 플러그인처럼 PKHeX 본체 버전에 맞춰야 할 때는 UsePkhexNuget=true → 정식 패키지 -->
+	<ItemGroup Condition="'$(UsePkhexNuget)' != 'true'">
+		<ProjectReference Include="..\PKHeX-Core-Dev\PKHeX.Core\PKHeX.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(UsePkhexNuget)' == 'true'">
 		<PackageReference Include="PKHeX.Core" Version="26.8.26" />
 	</ItemGroup>
 	<ItemGroup>
+		<ProjectReference Include="..\Shared\PKHeXKR.Gen\PKHeXKR.Gen.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
 		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.AutoMod\PKHeX.Core.AutoMod.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
 		<ProjectReference Include="..\PKHeX-Plugins\PKHeX.Core.Injection\PKHeX.Core.Injection.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />
 		<ProjectReference Include="..\HOMELive\HomeLive.Core\HomeLive.Core.csproj" GlobalPropertiesToRemove="RuntimeIdentifiers;RuntimeIdentifier;IosOnly;IosTfm" />

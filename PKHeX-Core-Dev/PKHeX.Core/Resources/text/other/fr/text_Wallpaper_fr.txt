@@ -1,0 +1,64 @@
+Forêt
+Ville
+Désert
+Savane
+Rochers
+Volcan
+Neige
+Grotte
+Plage
+Mer
+Rivière
+Ciel
+Centre Pokémon
+Métal
+Carreaux
+Uni
+Spécial 1
+Spécial 2
+Spécial 3
+Spécial 4
+Spécial 5
+Spécial 6
+Spécial 7
+Spécial 8
+Pois
+Engrenage
+Uni
+Amis
+Étoiles
+Carreaux
+Fleur
+Tapis
+Ruine
+Mon fond
+Espace
+Jardin
+Nostalgie
+Poussifeu
+Trio
+Pikapika
+Légende
+Team Galaxie
+Distorsion
+Concours
+Cradopaud
+Cœur
+Âme
+Castor
+Pokéathlon
+Pikapika
+Kimono
+Renouveau
+Reshiram
+Zekrom
+Noir et Blanc
+Team Plasma
+Munna
+Zoroark
+Métro
+Musical
+Pokéwood
+PWT
+Kyurem 1
+Kyurem 2

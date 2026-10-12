@@ -64,6 +64,9 @@ public static class AppState
         GameInfo.CurrentLanguage = LangCode;
         GameInfo.Strings = GameInfo.GetStrings(LangCode);
         EventData.LoadLocal();   // 자동 업데이트로 받아 둔 배포 데이터 등록
+        GenHost.IsLegal = IsLegal;                    // 공통 생성 엔진: 앱 설정을 반영한 합법 판정
+        GenHost.ExtraWindow = g => EventData.NewWindow(g);
+        EncCond.Unlimited = Preferences.Get("enc_unlimited", false);
         SetSave(NewBlankSave(), notify: false);
         _ = LoadCardWindowsAsync();
     }
@@ -111,37 +114,12 @@ public static class AppState
     /// ALM은 만드는 개체의 출신 게임에 등록된 트레이너가 없으면 "ALM"·영어로 만듦 → 모든 게임에 앱의 트레이너를 등록.
     /// 우선순위: 지금 세이브(같은 게임) → 게임별 트레이너 설정 → 같은 세대 세이브의 트레이너(예: 파이어레드 세이브에서 리프그린 출신) → 기본 트레이너 설정.
     /// </summary>
-    public static void RegisterTrainers(SaveFile s)
-    {
-        TrainerSettings.Clear();
-        // 1~3세대 세이브는 언어가 0(알 수 없음)으로 읽혀 ALM이 영어로 만듦 → 일본판 형식이면 일본어, 아니면 이 게임의 설정 언어
-        int saveLang = s.Language > 0 ? s.Language : OldGenName.IsJapaneseSave(s) ? (int)LanguageID.Japanese : SafeLang(s.Version);
-        TrainerSettings.Register(s.Language > 0 ? s : new SimpleTrainerInfo(s) { Language = saveLang });
-        foreach (var v in Games.Concat([GameVersion.GN, GameVersion.CXD]).Distinct())
-        {
-            if (v == s.Version) continue;
-            try
-            {
-                var gen = new SimpleTrainerInfo(v).Generation; var ctx = v.Context;
-                bool explicitSet = Preferences.ContainsKey(K("def_ot", v));
-                bool sameGen = !explicitSet && s.Generation == gen && s.Context == ctx && !string.IsNullOrEmpty(s.OT);
-                string ot; byte g; int lang; uint id32;
-                if (sameGen) { ot = s.OT; g = s.Gender; lang = saveLang; id32 = s.ID32; }
-                else
-                {
-                    ot = OTFor(v); g = GenderFor(v); lang = SafeLang(v);
-                    int tid = TIDFor(v), sid = SIDFor(v);
-                    id32 = gen >= 7 ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999999)) : (uint)(Math.Min(tid, 65535) | (Math.Min(sid, 65535) << 16));
-                }
-                if (v is GameVersion.GN or GameVersion.BU) lang = (int)LanguageID.Japanese;
-                var t = gen is 6 or 7
-                    ? new SimpleTrainerInfo(v) { OT = ot, Gender = g, Language = lang, ID32 = id32, ConsoleRegion = 5, Country = 136, Region = 1 }   // 3DS: 한국 본체 (ApplyTrainer와 같게)
-                    : new SimpleTrainerInfo(v) { OT = ot, Gender = g, Language = lang, ID32 = id32 };
-                TrainerSettings.Register(t);
-            }
-            catch { }
-        }
-    }
+    public static void RegisterTrainers(SaveFile s) => GenTrainers.Register(s,
+        v => Preferences.ContainsKey(K("def_ot", v)) ? new TrainerPref(OTFor(v), GenderFor(v), TIDFor(v), SIDFor(v), LangFor(v)) : null,
+        v => new TrainerPref(OTFor(v), GenderFor(v), TIDFor(v), SIDFor(v), LangFor(v)),
+        (v, l) => SafeLangFor(v, l));
+    /// <summary>그 게임에 있는 언어로 (한국판이 없는 게임은 기본 언어 규칙).</summary>
+    private static int SafeLangFor(GameVersion v, int l) => l == (int)LanguageID.Korean && DefaultLang(v) != DefLang ? DefaultLang(v) : l <= 0 ? DefaultLang(v) : l;
 
     public static SaveFile NewBlankSave() => NewBlankSave(DefGame);
     public static SaveFile NewBlankSave(GameVersion v)
@@ -313,76 +291,13 @@ public static class AppState
         return p;
     }
 
-    // ===== 배포 기간 (불바피디아 기준, 5~7세대 카드) =====
-    public static Dictionary<string, string[][]> CardWindows = new();
+    // ===== 배포 기간: 공통 엔진(GenHost)으로 =====
     public static async Task LoadCardWindowsAsync()
     {
-        try
-        {
-            await using var st = await FileSystem.OpenAppPackageFileAsync("card_windows.json");
-            CardWindows = await System.Text.Json.JsonSerializer.DeserializeAsync<Dictionary<string, string[][]>>(st) ?? new();
-        }
-        catch { }
+        try { await using var st = await FileSystem.OpenAppPackageFileAsync("card_windows.json"); GenHost.LoadCardWindows(st); } catch { }
     }
-    /// <summary>배포 카드의 배포 기간 중 개체 언어 지역에 맞는 첫 날짜.</summary>
-    /// <summary>
-    /// 배포 기간 정보가 없는 시리얼 코드 배포(예: 색이 다른 무한다이노 ID 221118, 신비한 포켓몬 2022 ID 220909)는
-    /// 카드의 트레이너 ID가 배포 날짜(YYMMDD)인 경우가 많음 → 게임 발매일 이후·오늘 이전의 올바른 날짜면 사용.
-    /// </summary>
-    private static DateOnly? IdDate(MysteryGift g)
-    {
-        try
-        {
-            var id = (g.ID32 % 1_000_000).ToString("000000");
-            if (!DateOnly.TryParseExact(id, "yyMMdd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d)) return null;
-            var min = g switch { WB7 => new DateOnly(2018, 11, 16), WC8 => new DateOnly(2019, 11, 15), WB8 => new DateOnly(2021, 11, 19), WA8 => new DateOnly(2022, 1, 28), WC9 => new DateOnly(2022, 11, 18), WA9 => new DateOnly(2025, 10, 16), _ => new DateOnly(2000, 1, 1) };
-            return d >= min && d <= DateOnly.FromDateTime(DateTime.Today) ? d : null;
-        }
-        catch { return null; }
-    }
-
-    /// <summary>개체가 배포 카드에서 왔으면 만난 날짜를 배포 날짜로 (합법이 유지될 때만).</summary>
-    public static void FixEventDate(PKM p)
-    {
-        try
-        {
-            if (p.Species == 0 || p.Format < 5) return;
-            if (new LegalityAnalysis(p).EncounterMatch is not MysteryGift mg) return;
-            if (DistributionDate(mg, p.Language) is not { } d || p.MetDate == d) return;
-            var t = p.Clone(); t.MetDate = d; t.RefreshChecksum();
-            if (IsLegal(t) || !IsLegal(p)) { p.MetDate = d; p.RefreshChecksum(); }
-        }
-        catch { }
-    }
-
-    public static DateOnly? DistributionDate(MysteryGift g, int lang)
-    {
-        // 레츠고·8~9세대 배포: PKHeX가 합법성 검사에 쓰는 배포 기간(서버 날짜) 데이터의 시작일
-        {
-            DistributionWindow w = default; bool ok = false;
-            try
-            {
-                if (g is WB7 g7b) ok = g7b.GetDistributionWindow(out w);
-                else if (g is WC8 g8) ok = g8.GetDistributionWindow(out w);
-                else if (g is WA8 g8a) ok = g8a.GetDistributionWindow(out w);
-                else if (g is WB8 g8b) ok = g8b.GetDistributionWindow(out w);
-                else if (g is WC9 g9) ok = g9.GetDistributionWindow(out w);
-                else if (g is WA9 g9a) ok = g9a.GetDistributionWindow(out w);
-                else if (g.Generation >= 8) return null;
-            }
-            catch { return null; }
-            if (!ok && EventData.NewWindow(g) is { } nw) { w = nw; ok = true; }   // 자동 업데이트로 받은 최신 배포 기간
-            if (g is WB7 or WC8 or WA8 or WB8 or WC9 or WA9) return ok ? w.Start.AddDays(w.GenerateDaysAfterStart) : IdDate(g);
-        }
-        if (g.Generation is < 5 or > 7) return null;
-        var tid = g.Generation >= 7 ? (g.ID32 % 1000000).ToString("000000") : g.TID16.ToString("00000");
-        var key = $"{g.GetType().Name}|{g.CardID}|{GameInfo.GetStrings("en").Species[g.Species]}|{tid}";
-        if (!CardWindows.TryGetValue(key, out var ws)) return null;
-        bool Ok(string r) { r = r.ToLowerInvariant(); if (r.Trim() is "all" or "") return true;
-            return (LanguageID)lang switch { LanguageID.Korean => r.Contains("korea"), LanguageID.Japanese => r.Contains("japan"), _ => r.Contains("american") || r.Contains("pal") || r.Contains("english") }; }
-        var pick = ws.FirstOrDefault(w => Ok(w[2])) ?? ws.FirstOrDefault();
-        return pick != null && DateOnly.TryParse(pick[0], out var d) ? d : null;
-    }
+    public static void FixEventDate(PKM p) => GenHost.FixEventDate(p);
+    public static DateOnly? DistributionDate(MysteryGift g, int lang) => GenHost.DistributionDate(g, lang);
 
     // ===== 교환 상대 정보 (SysBot.NET 포인터 기준) =====
     public record Partner(string OT, uint ID32, bool SixDigit, byte Gender, int Lang);
@@ -656,8 +571,8 @@ public static class AppState
         catch { }
     }
 
-    public static void ClearNickTrash(PKM p) { try { var n = p.Nickname; p.NicknameTrash.Clear(); p.Nickname = n; } catch { } }
-    public static void ClearOTTrash(PKM p) { try { var n = p.OriginalTrainerName; p.OriginalTrainerTrash.Clear(); p.OriginalTrainerName = n; } catch { } }
+    public static void ClearNickTrash(PKM p) => GenHost.ClearNickTrash(p);
+    public static void ClearOTTrash(PKM p) => GenHost.ClearOTTrash(p);
 
     public static void ApplyParse()
     {
@@ -810,19 +725,7 @@ public static class AppState
     }
 
     /// <summary>자동 어버이작: 편집 중인 개체의 어버이를 게임 트레이너로. 이로치였다면 모양(별·네모)을 유지해 다시 이로치로.</summary>
-    public static void AutoOT(PKM p, Partner t)
-    {
-        bool shiny = p.IsShiny; bool square = shiny && p.ShinyXor == 0;
-        p.OriginalTrainerName = t.OT; p.OriginalTrainerGender = t.Gender; p.ID32 = t.ID32;
-        if (t.Lang > 0) { var nick = p.IsNicknamed; p.Language = t.Lang; if (!nick) { p.Nickname = PKHeX.Core.SpeciesName.GetSpeciesNameGeneration(p.Species, p.Language, p.Format); p.IsNicknamed = false; } }
-        if (p.Format >= 6) { p.HandlingTrainerName = ""; p.CurrentHandler = 0; }
-        if (shiny && !p.IsShiny)   // ID가 바뀌어 이로치가 풀리면 같은 모양(별·네모)으로 다시 이로치
-        {
-            if (p.Generation >= 6) p.PID = ShinyUtil.GetShinyPID(p.TID16, p.SID16, p.PID, square ? 0u : 1u);
-            else p.SetShiny();
-        }
-        p.RefreshChecksum();
-    }
+    public static void AutoOT(PKM p, Partner t) => GenHost.AutoOT(p, t.OT, t.ID32, t.Gender, t.Lang);
 }
 
 

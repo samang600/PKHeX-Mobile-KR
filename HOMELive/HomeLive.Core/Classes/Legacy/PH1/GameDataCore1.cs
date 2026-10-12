@@ -469,7 +469,7 @@ public sealed class GameDataCore1 : IHomeTrack, ISpeciesForm, ITrainerID, INatur
         dest.RibbonEvent = set.RibbonEvent;
         dest.RibbonBirthday = set.RibbonBirthday;
         dest.RibbonSpecial = set.RibbonSpecial;
-        dest.RibbonWorld = set.RibbonWorld;
+        if (set is IRibbonSetEvent3 sw && dest is IRibbonSetEvent3 dw) dw.RibbonWorld = sw.RibbonWorld;   // PKHeX 26.10: 월드리본이 IRibbonSetEvent3으로 이동
         dest.RibbonChampionWorld = set.RibbonChampionWorld;
         dest.RibbonSouvenir = set.RibbonSouvenir;
     }

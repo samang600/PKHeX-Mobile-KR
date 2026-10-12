@@ -1,0 +1,4 @@
+<Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
+  <!-- 생성 엔진·ALM 핵심을 DLL 하나에 넣음. PKHeX.Core는 PKHeX 본체 것을 씀 -->
+  <Costura IncludeAssemblies="PKHeXKR.Gen|PKHeX.Core.AutoMod" />
+</Weavers>

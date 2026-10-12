@@ -202,50 +202,6 @@ public class SettingsSheet : Sheet
 // ======================= 리빙덱스 채우기 =======================
 public class LivingDexSheet : Sheet
 {
-    /// <summary>우두머리 조우(진화 전 포켓몬 포함)로 합법 개체 만들기. 없으면 null.</summary>
-    private static PKM DexAlpha(SaveFile sav, ushort species, byte form, bool shiny)
-    {
-        try
-        {
-            var b = sav.BlankPKM; b.Species = species; b.Form = form; b.SetGender(b.GetSaneGender());
-            var encs = EncounterMovesetGenerator.GenerateEncounters(b, sav, ReadOnlyMemory<ushort>.Empty, GameUtil.GetVersionsWithinRange(b, b.Context).ToArray())
-                .Where(e => e is IAlphaReadOnly { IsAlpha: true } && e.Context == sav.Context).OrderBy(e => e.Species == species ? 0 : 1).Take(6).ToList();
-            if (shiny)   // 이로치: 무작위 생성으로는 거의 안 나옴 → 조우의 시드를 돌려 이로치가 나오는 시드를 찾음 (PLA·Z-A 시드 방식)
-                foreach (var e in encs)
-                {
-                    Seeder sd = null; try { sd = Seeder.For(e, sav); } catch { }
-                    if (sd == null) continue;
-                    ulong seed = (ulong)Random.Shared.NextInt64();
-                    for (int n = 0; n < 300_000; n++, seed = seed * 6364136223846793005UL + 1442695040888963407UL)
-                    {
-                        var p = sd.Template.Clone();
-                        try { if (!sd.Gen(p, seed)) continue; } catch { break; }
-                        if (!p.IsShiny) continue;
-                        try { p = sd.Finish(p) ?? p; } catch { }
-                        p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
-                        if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
-                        if (p.Species == species && p.IsShiny && p is IAlpha { IsAlpha: true } && new LegalityAnalysis(p).Valid) return p;
-                        break;
-                    }
-                }
-            foreach (var e in encs)
-                foreach (var wantShiny in shiny ? new[] { true, false } : new[] { false })
-                {
-                    var crit = EncounterCriteria.Unrestricted with { Shiny = wantShiny ? Shiny.Always : Shiny.Random };
-                    for (int t = 0; t < 3; t++)
-                    {
-                        PKM p; try { p = e.ConvertToPKM(sav, crit); } catch { break; }
-                        p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
-                        if (wantShiny && !p.IsShiny) continue;
-                        if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
-                        if (p.Species == species && p is IAlpha { IsAlpha: true } && new LegalityAnalysis(p).Valid) return p;
-                    }
-                }
-        }
-        catch { }
-        return null;
-    }
-
     private CancellationTokenSource cts;
     public LivingDexSheet() : base("리빙덱스 채우기", 0.8)
     {
@@ -267,74 +223,16 @@ public class LivingDexSheet : Sheet
         go.Clicked += async (_, _) =>
         {
             go.IsEnabled = false; stop.IsVisible = true; bar.IsVisible = true; cts = new CancellationTokenSource(); var tok = cts.Token;
-            bool sh = shiny.IsToggled, fm = forms.IsToggled, sk = skip.IsToggled, al = alphaGame && alpha.IsToggled; int startBox = AppState.Box; int alphaMade = 0;
-            DateOnly? from = DateOnly.TryParse(dFrom.Text, out var df) ? df : null, to = DateOnly.TryParse(dTo.Text, out var dt) ? dt : null;
-            if (from != null && to == null) to = from; if (to != null && from == null) from = to;
-            if (from > to) (from, to) = (to, from);
-            var otList = (ots.Text ?? "").Replace("\r", "").Split('\n').Select(l => l.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)).Where(a => a.Length >= 1)
-                .Select(a => (Name: a[0], TID: a.Length > 1 && int.TryParse(a[1], out var tid) ? tid : -1)).ToList();
-            int nth = 0;
-            var result = await Task.Run(() =>
+            var opt = new LivingDexOptions
             {
-                // 대상 목록 (도감 순)
-                var have = new HashSet<(ushort, byte)>();
-                if (sk) for (int b = 0; b < sav.BoxCount; b++) foreach (var p in sav.GetBoxData(b)) if (p.Species != 0) have.Add((p.Species, fm ? p.Form : (byte)0));
-                var targets = new List<(ushort, byte)>();
-                for (ushort s = 1; s <= sav.MaxSpeciesID; s++)
-                {
-                    if (!sav.Personal.IsSpeciesInGame(s)) continue;
-                    var fc = fm ? sav.Personal.GetFormEntry(s, 0).FormCount : (byte)1;
-                    for (byte f = 0; f < fc; f++)
-                    {
-                        if (fm && (FormInfo.IsBattleOnlyForm(s, f, sav.Generation) || FormInfo.IsTotemForm(s, f, sav.Context) || !sav.Personal.IsPresentInGame(s, f))) continue;
-                        if (!have.Contains((s, f))) targets.Add((s, f));
-                    }
-                }
-                int made = 0, legal = 0, fail = 0, box = startBox, slot = 0;
-                for (int i = 0; i < targets.Count && !tok.IsCancellationRequested; i++)
-                {
-                    // 다음 빈칸
-                    while (box < sav.BoxCount && sav.GetBoxSlotAtIndex(box, slot).Species != 0) { if (++slot >= sav.BoxSlotCount) { slot = 0; box++; } }
-                    if (box >= sav.BoxCount) break;
-                    var (s, f) = targets[i];
-                    PKM pk = null;
-                    if (al) { pk = DexAlpha(sav, s, f, sh); if (pk != null) alphaMade++; }   // 우두머리 조우(진화 전 포함)로 만들기
-                    if (pk == null) try
-                    {
-                        var blank = sav.BlankPKM; blank.Species = s; blank.Form = f; blank.SetGender(blank.GetSaneGender());
-                        // 빈 개체의 전체 세트(레벨 1·개체값 0·특성 없음)를 그대로 쓰면 ALM이 실패 → 종·폼 줄만 사용
-                        var first = ShowdownParsing.GetShowdownText(blank).Split('\n')[0].Trim();
-                        first = System.Text.RegularExpressions.Regex.Replace(first, @"\s*\((M|F)\)\s*$", "");
-                        pk = sav.GetLegalFromSet(new ShowdownSet(first + (sh ? "\nShiny: Yes" : ""))).Created;
-                        if (sh && (!pk.IsShiny || !new LegalityAnalysis(pk).Valid)) pk = sav.GetLegalFromSet(new ShowdownSet(first)).Created;
-                    }
-                    catch { }
-                    if (pk == null || pk.Species != s) { fail++; continue; }
-                    // 어버이 여러 명이면 돌아가며, 날짜 구간이면 그 안의 무작위 날짜 (합법이 유지될 때만)
-                    if (otList.Count > 0)
-                    {
-                        var (on, otid) = otList[nth++ % otList.Count];
-                        bool six = pk.Format >= 7; int tid = otid >= 0 ? otid : (six ? (int)(sav.ID32 % 1_000_000) : sav.TID16);
-                        uint id32 = six ? (uint)(Random.Shared.Next(4295) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Random.Shared.Next(65536) << 16) | Math.Min(tid, 65535));
-                        var t2 = pk.Clone(); AppState.AutoOT(t2, new AppState.Partner(on, id32, six, sav.Gender, sav.Language > 0 ? sav.Language : pk.Language));
-                        if (new LegalityAnalysis(t2).Valid || !new LegalityAnalysis(pk).Valid) pk = t2;
-                    }
-                    if (from != null && pk.Format >= 4)
-                    {
-                        var span = to.Value.DayNumber - from.Value.DayNumber;
-                        var t3 = pk.Clone(); t3.MetDate = from.Value.AddDays(Random.Shared.Next(span + 1)); t3.RefreshChecksum();
-                        if (new LegalityAnalysis(t3).Valid || !new LegalityAnalysis(pk).Valid) pk = t3;
-                    }
-                    sav.SetBoxSlotAtIndex(pk, box, slot); made++;
-                    if (new LegalityAnalysis(pk).Valid) legal++;
-                    if (++slot >= sav.BoxSlotCount) { slot = 0; box++; }
-                    int done = i + 1, total = targets.Count;
-                    MainThread.BeginInvokeOnMainThread(() => { bar.Progress = (double)done / total; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; });
-                }
-                return (made, legal, fail, targets.Count, box >= sav.BoxCount);
-            });
+                Shiny = shiny.IsToggled, Forms = forms.IsToggled, SkipExisting = skip.IsToggled, Alpha = alphaGame && alpha.IsToggled, StartBox = AppState.Box,
+                From = DateOnly.TryParse(dFrom.Text, out var df) ? df : null, To = DateOnly.TryParse(dTo.Text, out var dt) ? dt : null,
+                OTs = LivingDexOptions.ParseOTs(ots.Text),
+            };
+            var result = await Task.Run(() => LivingDexGen.Run(sav, opt, tok, (done, total, s) =>
+                MainThread.BeginInvokeOnMainThread(() => { bar.Progress = (double)done / total; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; })));
             AppState.NotifyBox();
-            status.Text = $"넣음 {result.made}마리 (합법 {result.legal}{(alphaGame && alpha.IsToggled ? $", 우두머리 {alphaMade}" : "")}) · 실패 {result.fail} · 대상 {result.Item4}{(result.Item5 ? " · 박스가 가득 차서 멈춤" : "")}{(cts.IsCancellationRequested ? " · 중지함" : "")}";
+            status.Text = $"넣음 {result.Made}마리 (합법 {result.Legal}{(opt.Alpha ? $", 우두머리 {result.Alpha}" : "")}) · 실패 {result.Fail} · 대상 {result.Targets}{(result.BoxFull ? " · 박스가 가득 차서 멈춤" : "")}{(result.Canceled ? " · 중지함" : "")}";
             go.IsEnabled = true; stop.IsVisible = false;
         };
         var hint = T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
