@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android36.0</TargetFrameworks>
 		<!-- iOS는 macOS(Xcode)에서만 빌드 가능 → 맥(GitHub Actions 등)에서만 iOS 대상 추가 -->
@@ -32,6 +32,11 @@
 		<ValidateXcodeVersion>false</ValidateXcodeVersion>
 		<CodesignKey></CodesignKey>
 	</PropertyGroup>
+	<!-- 1.4.7에서 Shared/PKHeXKR.Gen으로 옮긴 파일: 저장소에 예전 파일이 남아 있어도 빌드되게 제외 -->
+	<ItemGroup>
+		<Compile Remove="Quick\QuickParse.cs" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<MauiIcon Include="Resources\AppIcon\icon.png" ForegroundFile="Resources\AppIcon\iconfg.png" Color="#FFFFFF" />
 		<MauiSplashScreen Include="Resources\AppIcon\iconfg.png" BaseSize="200,200" Color="#FFFFFF" />
