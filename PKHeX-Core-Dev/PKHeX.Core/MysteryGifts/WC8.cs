@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using static PKHeX.Core.RibbonIndex;
 using static System.Buffers.Binary.BinaryPrimitives;
 
@@ -32,7 +32,7 @@ public sealed class WC8(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
 
     public byte RestrictVersion { get => Data[0xE]; set => Data[0xE] = value; }
 
-    public bool CanBeReceivedByVersion(GameVersion version) => RestrictVersion switch
+    public bool CanBeReceivedByVersion(GameVersion version) => IsHOMEGiftOtherOrigin ? version == (GameVersion)OriginGame : RestrictVersion switch
     {
         0 when !IsEntity => true, // Whatever, essentially unrestricted for SW/SH receipt. No Entity gifts are 0.
         1 => version is GameVersion.SW,
@@ -390,6 +390,12 @@ public sealed class WC8(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
 
     public bool IsHOMEGift => CardID >= 9000;
 
+    /// <summary>PKHeXKR: HOME 선물 중 출신 게임이 소드실드가 아닌 것 (예: FRLG 도감 완성 보상 세레비, 출신 버전 56) — 그 출신 게임만 받음</summary>
+    private bool IsHOMEGiftOtherOrigin => IsHOMEGift && OriginGame is not (0 or (int)GameVersion.SW or (int)GameVersion.SH);
+
+    /// <summary>PKHeXKR: FRLG 도감 완성 보상 세레비 (9251 일본어 ミツリン / 9252 영어 HOME, 임시 카드 번호). 출신 번호 56·만난 장소 30007 (HOME 실물 그대로).</summary>
+    public bool IsHOMEFRLGCelebi => CardID is 9251 or 9252;
+
     public bool CanHandleOT(int language) => !GetHasOT(language);
     public bool IsTrashUnderlaySpecies(PKM pk) => GetIsNicknamed(pk.Language);
 
@@ -533,11 +539,12 @@ public sealed class WC8(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
     /// <summary>
     ///  HOME Keldeo is a special case where height/weight is fixed.
     /// </summary>
-    public bool IsScalarFixed => CardID is 9029;
+    public bool IsScalarFixed => CardID is 9029 or 9251 or 9252;   // PKHeXKR: 9251·9252 = FRLG 도감 완성 보상 세레비 (임시 번호)
 
     private byte GetHomeScalar() => CardID switch
     {
         9029 => 128,
+        9251 or 9252 => 128,
         _ => throw new ArgumentException(),
     };
 

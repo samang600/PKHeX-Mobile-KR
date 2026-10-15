@@ -1,4 +1,4 @@
-using HomeLive.Core;
+﻿using HomeLive.Core;
 using HomeLive.DeviceExecutor;
 using PKHeX.Core;
 using SysBot.Base;
@@ -39,11 +39,11 @@ public class HomeLiveSheet : Sheet
         var ranges = new List<(string, int)> { ("한 박스", -1) };
         for (int i = 0; i * 32 < HomeBoxes; i++) ranges.Add(($"{i * 32 + 1}–{Math.Min((i + 1) * 32, HomeBoxes)}", i));
         var rangeFlex = Chips(ranges.Select(r => r.Item1).ToArray(), 0, k => { rangeIdx = ranges[k].Item2; single.IsVisible = rangeIdx < 0; });
-        var convFlex = Chips(["해당 게임 데이터만", "호환 변환", "모두 강제 변환"], 1, k => conv = (ConversionType)(k + 1));
+        var convFlex = Chips(["해당 게임만", "호환 변환", "모두 강제"], 1, k => conv = (ConversionType)(k + 1), cols: 3);
         var fixRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } }; fixRow.Add(T.L("변환 후 합법성 자동 보정", 14), 0); fixRow.Add(fix, 1);
         fix.Toggled += (_, e) => Preferences.Set("home_fix", e.Value);
 
-        var hint = T.L("스위치에서 sys-botbase를 켜고 포켓몬 HOME을 실행한 뒤 연결합니다. 읽기 전용이며 HOME에 쓰지 않습니다. 변환은 비공식 시뮬레이션입니다.\n· 해당 게임 데이터만: 그 게임에 들어간 적이 있는 개체만\n· 호환 변환: 현재 게임으로 옮길 수 있는 개체는 변환\n· 모두 강제 변환: 가능한 한 모두 변환", 12, sub: true);
+        var hint = T.L("스위치에서 sys-botbase를 켜고 포켓몬 HOME을 실행한 뒤 연결합니다. 읽기 전용이며 HOME에 쓰지 않습니다. 변환은 비공식 시뮬레이션입니다.\n· 해당 게임만: 그 게임에 들어간 적이 있는 개체만\n· 호환 변환: 현재 게임으로 옮길 수 있는 개체는 변환\n· 모두 강제: 가능한 한 모두 변환", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         // HOME 새 버전 대응 (테스트): 버전 확인 건너뛰기 + 데이터 위치 직접 입력·자동 찾기
         anyVer.IsToggled = Preferences.Get("home_anyver", false); anyVer.Toggled += (_, e) => Preferences.Set("home_anyver", e.Value);
@@ -61,14 +61,21 @@ public class HomeLiveSheet : Sheet
         status.Text = $"변환 대상: {AppState.GameName(AppState.Sav.Version)} 형식";
     }
 
-    private static FlexLayout Chips(string[] names, int initial, Action<int> on)
+    /// <summary>같은 너비 버튼을 칸에 맞춰 가지런히 (cols열)</summary>
+    private static Grid Chips(string[] names, int initial, Action<int> on, int cols = 4)
     {
-        var flex = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap };
+        var grid = new Grid { ColumnSpacing = 6, RowSpacing = 6 };
+        for (int c = 0; c < cols; c++) grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        for (int r = 0; r < (names.Length + cols - 1) / cols; r++) grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         var btns = new List<Button>();
         void Style(int sel) { for (int j = 0; j < btns.Count; j++) { var b = btns[j]; if (j == sel) { b.BackgroundColor = T.Accent; b.TextColor = Colors.White; } else { b.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); b.SetAppThemeColor(Button.TextColorProperty, T.Accent, Color.FromArgb("#A5B4FC")); } } }
-        for (int i = 0; i < names.Length; i++) { int k = i; var b = T.Pill(names[i]); b.Margin = new Thickness(0, 0, 6, 6); b.Clicked += (_, _) => { Style(k); on(k); }; btns.Add(b); flex.Children.Add(b); }
+        for (int i = 0; i < names.Length; i++)
+        {
+            int k = i; var b = T.Pill(names[i], size: 13); b.Padding = new Thickness(2, 0); b.HorizontalOptions = LayoutOptions.Fill;
+            b.Clicked += (_, _) => { Style(k); on(k); }; btns.Add(b); grid.Add(b, i % cols, i / cols);
+        }
         Style(initial);
-        return flex;
+        return grid;
     }
 
     public record Cell(PKM Pk, string Sprite);

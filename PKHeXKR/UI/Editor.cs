@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 namespace PKHeXKR;
 
 public static class Note
@@ -29,6 +29,8 @@ public abstract class Section : ContentView
     protected static void Pick(string title, IReadOnlyList<ComboItem> list, int cur, Action<ComboItem> on, Func<ComboItem, string> icon = null)
         => SheetHost.Show(new PickerSheet(title, list, cur, on, icon));
 
+    /// <summary>장소 목록용 게임: HOME 선물 출신 56은 소드실드 장소 목록 (만난 장소 30007 "먼 곳")</summary>
+    protected static GameVersion LocVer(PKM p) => p.IsHOMEOrigin56 ? GameVersion.SW : p.Version;
     protected static string NameOf(IReadOnlyList<ComboItem> list, int v) => list.FirstOrDefault(x => x.Value == v)?.Text ?? v.ToString();
 
     protected static Entry Num(Action<int> set, int max = 65535)
@@ -699,8 +701,8 @@ public class MetSection : Section
     public MetSection()
     {
         (var gv, game) = T.Chooser(() => Pick("원산 게임", AppState.Src.Games, (int)Pk.Version, c => Changed(() => { Pk.Version = (GameVersion)c.Value; Reload(); })));
-        (var lv, loc) = T.Chooser(() => Pick("만난 장소", GameInfo.GetLocationList(Pk.Version, Pk.Context, false), Pk.MetLocation, c => Changed(() => { Pk.MetLocation = (ushort)c.Value; Reload(); })));
-        (var ev, eggLoc) = T.Chooser(() => Pick("알 받은 장소", GameInfo.GetLocationList(Pk.Version, Pk.Context, true), Pk.EggLocation, c => Changed(() => { Pk.EggLocation = (ushort)c.Value; Reload(); })));
+        (var lv, loc) = T.Chooser(() => Pick("만난 장소", GameInfo.GetLocationList(LocVer(Pk), Pk.Context, false), Pk.MetLocation, c => Changed(() => { Pk.MetLocation = (ushort)c.Value; Reload(); })));
+        (var ev, eggLoc) = T.Chooser(() => Pick("알 받은 장소", GameInfo.GetLocationList(LocVer(Pk), Pk.Context, true), Pk.EggLocation, c => Changed(() => { Pk.EggLocation = (ushort)c.Value; Reload(); })));
         metLevel = Num(v => Changed(() => { Pk.MetLevel = (byte)Math.Clamp(v, 0, 100); }), 100);
         metDate.DateSelected += (_, e) => Changed(() => { if (e.NewDate is DateTime d) Pk.MetDate = DateOnly.FromDateTime(d); });
         eggDate.DateSelected += (_, e) => Changed(() => { if (e.NewDate is DateTime d) Pk.EggMetDate = DateOnly.FromDateTime(d); });
@@ -732,18 +734,18 @@ public class MetSection : Section
 
     protected override void Load(PKM pk)
     {
-        game.Text = NameOf(AppState.Src.Games, (int)pk.Version);
+        game.Text = AppState.Src.Games.Any(x => x.Value == (int)pk.Version) ? NameOf(AppState.Src.Games, (int)pk.Version) : AppState.GameName(pk.Version);   // 목록에 없는 출신 (예: HOME 56)
         ballRow.IsVisible = pk.Format >= 3;
         obeyRow.IsVisible = pk is IObedienceLevel; if (pk is IObedienceLevel ob) obey.Text = ob.ObedienceLevel.ToString();
         metBall.Text = NameOf(AppState.Src.Balls, pk.Ball); metBallIcon.Source = pk.Format >= 3 ? AppState.BallSprite(pk.Ball) : null;
-        loc.Text = NameOf(GameInfo.GetLocationList(pk.Version, pk.Context, false), pk.MetLocation);
+        loc.Text = NameOf(GameInfo.GetLocationList(LocVer(pk), pk.Context, false), pk.MetLocation);
         metLevel.Text = pk.MetLevel.ToString();
         dateRow.IsVisible = pk.Format >= 4;
         if (pk.MetDate is { } d) metDate.Date = d.ToDateTime(TimeOnly.MinValue);
         fateful.IsToggled = pk.FatefulEncounter;
         bool egg = pk.Format >= 4 && pk.EggLocation != 0;
         hatched.IsToggled = egg; eggCard.IsVisible = egg;
-        eggLoc.Text = NameOf(GameInfo.GetLocationList(pk.Version, pk.Context, true), pk.EggLocation);
+        eggLoc.Text = NameOf(GameInfo.GetLocationList(LocVer(pk), pk.Context, true), pk.EggLocation);
         if (pk.EggMetDate is { } e) eggDate.Date = e.ToDateTime(TimeOnly.MinValue);
     }
 }
@@ -753,8 +755,9 @@ public class OTSection : Section
 {
     private readonly Entry ot, tid, sid, ht, ec, pid, trackE;
     private readonly View trackRow;
-    private readonly Button otG, htG;
-    private readonly View htCard, ecRow;
+    private readonly Button otG, htG, handler;
+    private readonly View htCard, ecRow, htLangRow, noHtCard;
+    private readonly Label htLang, htInfo, noHt;
 
     public OTSection()
     {
@@ -785,12 +788,37 @@ public class OTSection : Section
             var after = AppState.IsLegal(Pk);
             Note.Show(before && !after ? "지웠습니다 — 이 개체는 쓰레기 바이트가 필요해 불법이 됐습니다. 실행 취소로 되돌리세요" : "어버이·닉네임·현재 트레이너 이름의 쓰레기 바이트를 지웠습니다");
         });
-        htCard = T.Card(Stack(T.L("현재 트레이너 (교환받은 경우)", 13, sub: true), Two(T.Field("이름", ht), T.Field("성별", htG))));
+        // 현재 트레이너(HT): 누가 데리고 있는지(어버이/현재 트레이너), 이름·성별·언어, 세이브 트레이너로 설정·지우기
+        handler = T.Pill("어버이"); handler.HeightRequest = 44;
+        handler.Clicked += (_, _) => Changed(() => { Pk.CurrentHandler = (byte)(Pk.CurrentHandler == 0 ? 1 : 0); Reload(); });
+        View lv; (lv, htLang) = T.Chooser(() => Pick("현재 트레이너 언어", AppState.Src.Languages, Pk is IHandlerLanguage hl ? hl.HandlingTrainerLanguage : 0, c => Changed(() => { if (Pk is IHandlerLanguage h) h.HandlingTrainerLanguage = (byte)c.Value; Reload(); })));
+        htLangRow = T.Field("언어", lv);
+        var htMine = T.Pill("세이브 트레이너로 설정", primary: true);
+        htMine.Clicked += (_, _) => Changed(() =>
+        {
+            var s = AppState.Sav;
+            Pk.HandlingTrainerName = s.OT; Pk.HandlingTrainerGender = s.Gender; Pk.CurrentHandler = 1;
+            if (Pk is IHandlerLanguage h) h.HandlingTrainerLanguage = (byte)Math.Max(0, s.Language);
+            Reload();
+        });
+        var htClear = T.Pill("현재 트레이너 지우기");
+        htClear.Clicked += (_, _) => Changed(() =>
+        {
+            Pk.HandlingTrainerName = ""; Pk.HandlingTrainerGender = 0; Pk.CurrentHandler = 0;
+            if (Pk is IHandlerLanguage h) h.HandlingTrainerLanguage = 0;
+            Reload();
+        });
+        htMine.FontSize = htClear.FontSize = 12; htMine.Padding = htClear.Padding = new Thickness(4, 0);
+        htInfo = T.L("", 12, sub: true); htInfo.LineBreakMode = LineBreakMode.WordWrap;
+        htCard = T.Card(Stack(T.L("현재 트레이너 (HT · 교환받은 경우)", 13, sub: true), T.Field("지금 데리고 있는 트레이너", handler),
+            Two(T.Field("이름", ht), T.Field("성별", htG)), htLangRow, Two(htMine, htClear), htInfo));
         trackE = T.Input(); trackE.MaxLength = 16; trackE.TextChanged += (_, e) => Changed(() => { if (Pk is IHomeTrack h && ulong.TryParse(e.NewTextValue, System.Globalization.NumberStyles.HexNumber, null, out var v) && h.Tracker != v) { h.Tracker = v; if (AppState.SyncHomeScale(Pk)) Note.Show("홈 트래커에 맞춰 키를 배율과 같게 맞췄습니다 (HOME과 같은 방식)"); } });
         var trackClr = T.Pill("홈 트래커 비우기"); trackClr.Clicked += (_, _) => Changed(() => { if (Pk is IHomeTrack h) h.Tracker = 0; Reload(); });
         trackRow = new VerticalStackLayout { Spacing = 8, Children = { T.Field("홈 트래커 (16진수)", trackE), trackClr } };
         ecRow = T.Card(Stack(Two(T.Field("암호화 상수 (16진수)", ec), T.Field("PID (16진수)", pid)), reroll, trackRow));
-        Content = Stack(T.Card(Stack(Two(T.Field("어버이 이름", ot), T.Field("성별", otG)), Two(T.Field("TID", tid), T.Field("SID", sid)), Two(mine, trash))), htCard, ecRow);
+        noHt = T.L("현재 트레이너(HT)는 6세대(X·Y) 이후 형식에만 기록됩니다. 1~5세대 형식의 포켓몬은 교환해도 HT가 저장되지 않으니, 확인·수정할 항목이 없습니다.", 12, sub: true);
+        noHt.LineBreakMode = LineBreakMode.WordWrap;
+        Content = Stack(T.Card(Stack(Two(T.Field("어버이 이름", ot), T.Field("성별", otG)), Two(T.Field("TID", tid), T.Field("SID", sid)), Two(mine, trash))), htCard, noHtCard = T.Card(noHt), ecRow);
         mine.FontSize = trash.FontSize = 12; mine.Padding = trash.Padding = new Thickness(4, 0);
     }
 
@@ -809,8 +837,14 @@ public class OTSection : Section
         tid.MaxLength = G7 ? 6 : 5; sid.MaxLength = G7 ? 4 : 5;   // 7세대 이후 TID 6자리·SID 4자리, 이전 세대 각 5자리(최대 65535)
         if (G7) { tid.Text = (pk.ID32 % 1_000_000).ToString("000000"); sid.Text = (pk.ID32 / 1_000_000).ToString("0000"); }
         else { tid.Text = pk.TID16.ToString("00000"); sid.Text = pk.SID16.ToString("00000"); }
-        htCard.IsVisible = pk.Format >= 6;
+        htCard.IsVisible = pk.Format >= 6; noHtCard.IsVisible = pk.Format < 6;
         ht.Text = pk.HandlingTrainerName; htG.Text = pk.HandlingTrainerGender == 0 ? "♂ 남" : "♀ 여"; T.GenderTint(htG, pk.HandlingTrainerGender);
+        handler.Text = pk.CurrentHandler == 0 ? "어버이 (OT)" : "현재 트레이너 (HT)";
+        htLangRow.IsVisible = pk is IHandlerLanguage;
+        if (pk is IHandlerLanguage hl) htLang.Text = hl.HandlingTrainerLanguage == 0 ? "없음" : NameOf(AppState.Src.Languages, hl.HandlingTrainerLanguage);
+        htInfo.Text = pk.CurrentHandler == 0 && !string.IsNullOrEmpty(pk.HandlingTrainerName)
+            ? "지금은 어버이가 데리고 있는 상태입니다 (이전에 교환된 적이 있으면 현재 트레이너 이름이 남아 있음)"
+            : pk.CurrentHandler == 1 && string.IsNullOrEmpty(pk.HandlingTrainerName) ? "현재 트레이너가 데리고 있다고 되어 있지만 이름이 비어 있습니다" : "";
         ecRow.IsVisible = pk.Format >= 3;
         ec.Text = pk.EncryptionConstant.ToString("X8"); pid.Text = pk.PID.ToString("X8");
         trackRow.IsVisible = pk is IHomeTrack; if (pk is IHomeTrack ht0) trackE.Text = ht0.Tracker.ToString("X16");
@@ -820,6 +854,27 @@ public class OTSection : Section
 // ======================= 리본·메달·추억 =======================
 public class RibbonSection : Section
 {
+    /// <summary>리본 아이콘: 3세대 콘테스트 리본은 지금 단계(노말·슈퍼·하이퍼·마스터) 그림</summary>
+    private static string RibbonIcon(RibbonInfo r)
+    {
+        var n = r.Name.ToLowerInvariant();
+        if (n.StartsWith("ribboncountg3"))
+        {
+            var cat = n["ribboncountg3".Length..];   // cool·beauty·cute·smart·tough
+            var lv = r.RibbonCount switch { >= 4 => "master", 3 => "hyper", 2 => "super", _ => "" };
+            return $"ribbong3{cat}{lv}.png";
+        }
+        return n + ".png";
+    }
+
+    /// <summary>단계 이름이 있는 개수 리본</summary>
+    private static string[] CountLabels(RibbonInfo r)
+    {
+        if (r.Name.StartsWith("RibbonCountG3")) return ["없음", "노말", "슈퍼", "하이퍼", "마스터"];
+        if (r.MaxCount <= 8) return Enumerable.Range(0, r.MaxCount + 1).Select(i => i == 0 ? "없음" : $"{i}개").ToArray();
+        return null;
+    }
+
     public static View SharedMem;
     private readonly VerticalStackLayout ribbonList = new() { Spacing = 2 }, markList = new() { Spacing = 2 };
     private readonly Label ribbonCount = T.L("", 13, sub: true), ribbonHead = T.L("", 15, bold: true), markHead = T.L("", 15, bold: true);
@@ -906,8 +961,8 @@ public class RibbonSection : Section
             if (ribbonQuery.Length > 0 && !Korean.Match(name, ribbonQuery) && !r.Name.Contains(ribbonQuery, StringComparison.OrdinalIgnoreCase)) continue;
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8, HeightRequest = 42 };
             if (possible.Contains(r.Name)) { g.BackgroundColor = Color.FromArgb("#3316A34A"); g.Padding = new Thickness(4, 0); }   // 달 수 있는 리본 (초록)
-            g.Add(new Image { Source = r.Name.ToLowerInvariant() + ".png", WidthRequest = 30, HeightRequest = 30 }, 0);
-            g.Add(T.L(name, 14), 1);
+            g.Add(new Image { Source = RibbonIcon(r), WidthRequest = 30, HeightRequest = 30, Opacity = r.Type != RibbonValueType.Boolean && r.RibbonCount == 0 ? 0.35 : 1 }, 0);
+            g.Add(T.L(r.Type == RibbonValueType.Boolean || CountLabels(r) != null ? name : $"{name}  (최대 {r.MaxCount})", 14), 1);   // 고르기 버튼이면 최대 표시 없음
             var prop = pk.GetType().GetProperty(r.Name);
             if (r.Type == RibbonValueType.Boolean)
             {
@@ -917,9 +972,21 @@ public class RibbonSection : Section
             }
             else
             {
-                var e = T.Input(Keyboard.Numeric); e.WidthRequest = 70; e.Text = r.RibbonCount.ToString(); e.HorizontalTextAlignment = TextAlignment.Center;
-                e.TextChanged += (_, a) => Changed(() => { if (byte.TryParse(a.NewTextValue, out var v)) prop?.SetValue(Pk, Math.Min(v, (byte)r.MaxCount)); });
-                g.Add(e, 2);
+                // 단계가 있는 리본(3세대 콘테스트: 노말·슈퍼·하이퍼·마스터 등)은 고르기, 그 밖의 개수 리본은 숫자 입력
+                var labels = CountLabels(r);
+                if (labels != null)
+                {
+                    var b = T.Pill(labels[Math.Min(r.RibbonCount, labels.Length - 1)], size: 12); b.WidthRequest = 96; b.Padding = new Thickness(2, 0);
+                    var items = labels.Select((t, i) => new ComboItem(t, i)).ToList();
+                    b.Clicked += (_, _) => Pick(name, items, r.RibbonCount, c => Changed(() => { prop?.SetValue(Pk, (byte)c.Value); Reload(); }));
+                    g.Add(b, 2);
+                }
+                else
+                {
+                    var e = T.Input(Keyboard.Numeric); e.WidthRequest = 70; e.Text = r.RibbonCount.ToString(); e.HorizontalTextAlignment = TextAlignment.Center;
+                    e.TextChanged += (_, a) => Changed(() => { if (byte.TryParse(a.NewTextValue, out var v)) prop?.SetValue(Pk, Math.Min(v, (byte)r.MaxCount)); });
+                    g.Add(e, 2);
+                }
             }
             (IsMark(r) ? markList : ribbonList).Children.Add(g);
         }

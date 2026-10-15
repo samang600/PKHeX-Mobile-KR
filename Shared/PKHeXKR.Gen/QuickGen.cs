@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using System.Reflection;
 namespace PKHeXKR;
@@ -52,19 +52,21 @@ public static class QuickGen
             return (null, "이 게임에 없는 포켓몬이라 건너뜁니다");
         SetEncCond(o, sav);
         var candidates = Candidates(o, sav);
-        foreach (var e in candidates.Take(20))
+        foreach (var e in candidates.Take(o.SkipAlm ? 12 : 20))
         {
             if (tok.IsCancellationRequested) break;
-            var p = TryBoth(o, e, sav, tok, 4);
+            var p = TryBoth(o, e, sav, tok, o.Seconds);
             if (p != null) return (Finish(o, p, sav), $"{KindName(e)} · {GenHost.GameName(e.Version)}{(e is MysteryGift mg ? $" · {mg.CardTitle} (카드 {mg.CardID})" : "")}에서 생성 · 어버이 {p.OriginalTrainerName} {p.DisplayTID}");
         }
         // 조우로 못 만들면 자동 합법화(ALM)로 (배포 주문은 배포에서만 찾음)
         if (o.Event) return (null, candidates.Count == 0 ? "조건에 맞는 배포가 없습니다" : "배포로 조건을 모두 만족하는 합법 개체를 찾지 못했습니다");
+        if (o.SkipAlm) return (null, "조우로 만들지 못했습니다");   // 리빙덱스: 자동 합법화는 이미 해 봄
         try
         {
             var set = new ShowdownSet(Showdown(o, sav));
             var p = GenHost.Legal(sav, set);
-            if (p != null && p.Species == o.Species && p.Version != GameVersion.GO && p.Version.Context == sav.Context)   // 다른 게임 출신은 만들지 않음
+            if (p != null && o.Form >= 0 && p.Form != o.Form) p = null;   // 다른 폼으로 만들어짐
+            if (p != null && p.Species == o.Species && (o.AllowTransfer || (p.Version != GameVersion.GO && p.Version.Context == sav.Context)))   // 다른 게임 출신은 만들지 않음 (리빙덱스는 허용)
             {
                 if (o.Ball > 0) p.Ball = (byte)o.Ball;
                 EncCond.ApplyMark(p);
@@ -100,11 +102,14 @@ public static class QuickGen
         catch { }
         bool Ok(IEncounterInfo e)
         {
-            if (e.Version == GameVersion.GO || e.GetType().Name.Contains("GO")) return false;   // 포켓몬 GO에서는 만들지 않음
-            if (e.Context != sav.Context) return false;                                           // 현재 게임 출신만 (다른 게임에서 전송된 개체는 만들지 않음)
+            if (!o.AllowTransfer)
+            {
+                if (e.Version == GameVersion.GO || e.GetType().Name.Contains("GO")) return false;   // 포켓몬 GO에서는 만들지 않음
+                if (e.Context != sav.Context && !(e is WC8 { IsHOMEGift: true } && sav.Context == EntityContext.Gen8b)) return false;   // 현재 게임 출신만 (HOME 선물은 BDSP로도 옮겨짐)
+            }
             if (o.Event && e is not MysteryGift) return false;                                    // "배포"면 배포에서만
             if (o.PreSpecies != 0 && e.Species != o.PreSpecies && e.Species != o.Species) return false;
-            if (o.Form >= 0 && e.Species == o.Species && e.Form != o.Form) return false;
+            if (o.Form >= 0 && e.Species == o.Species && e.Form != o.Form && e.Form < EncounterUtil.FormDynamic) return false;   // 30·31: 무늬·폼이 정해지지 않은 조우 (비비용 등)
             if (EncCond.Impossible(e) != null) return false;
             if (o.Alpha == 1 && e is not IAlphaReadOnly { IsAlpha: true }) return false;
             if (o.Alpha == 0 && e is IAlphaReadOnly { IsAlpha: true }) return false;
@@ -113,7 +118,12 @@ public static class QuickGen
         }
         int Rank(IEncounterInfo e) =>
             (o.Event ? -GiftScore(e as MysteryGift, o) * 1000 : 0) + (e.Context == sav.Context ? 0 : 100) + (SameGame(e.Version, sav.Version) ? 0 : 20) + (e.Species == o.Species ? 0 : 10) + e switch { MysteryGift => 50, _ when e.GetType().Name.StartsWith("EncounterGift3") => 50, IEncounterEgg => 30, _ when e.GetType().Name.StartsWith("EncounterSlot") => 0, _ => 5 };
-        return list.Distinct().Where(Ok).OrderBy(Rank).ToList();
+        var sorted = list.Distinct().Where(Ok).OrderBy(Rank).ToList();
+        if (sav.Generation > 4 && !o.AllowTransfer) return sorted;
+        // 3·4세대: 같은 종류·버전·종의 조우(예: 장소만 다른 야생 칸 수십 개)는 앞쪽에 3개까지만 → 알 등 다른 방식도 시도 순서 안에 들어오게
+        return sorted
+            .GroupBy(e => (e.GetType().Name, e.Version, e.Species, e.Form)).SelectMany(g => g.Take(3).Select((e, i) => (e, i)))
+            .OrderBy(x => x.i).ThenBy(x => Rank(x.e)).Select(x => x.e).ToList();
     }
 
     /// <summary>지금 게임(또는 짝 버전·묶음)의 조우인지. 예: 파이어레드 세이브 → FR·LG·FRLG 조우를 콜로세움/XD·에메랄드보다 먼저.</summary>
@@ -132,6 +142,8 @@ public static class QuickGen
             var mi = g.GetType().GetMethod(name, [typeof(int)]);
             if (mi != null) foreach (var lang in new[] { 1, 2, 3, 4, 5, 7, 8, 9, 10 }) try { if (mi.Invoke(g, [lang]) is string x) texts.Add(x); } catch { }
         }
+        if (texts.Any(t => t.Contains("ミツリン"))) texts.Add("미츠린 일본판");   // HOME FRLG 보상 세레비 (일본어판 어버이)
+        if (texts.Any(t => t == "HOME")) texts.Add("홈");
         var all = string.Join(" ", texts).ToLowerInvariant().Replace(" ", "");
         return o.Keywords.Count(k => k.Length > 0 && all.Contains(k.ToLowerInvariant().Replace(" ", "")));
     }
@@ -140,7 +152,8 @@ public static class QuickGen
     {
         Seeder sd = null;
         try { sd = Seeder.For(e, GenHost.TrainerOf(sav)); } catch { }   // 시드로 만들 수 있는 조우(SV 레이드·소드실드 야생 등)는 순차·무작위 동시
-        if (sd == null) return TryEncounter(o, e, sav, tok, seconds);
+        // 3·4세대 개체값 고정 주문: 개체값→시드 역산으로 가능한 경우를 모두 확인하므로 시드 순차 탐색(최대 4초)은 할 필요 없음
+        if (sd == null || (sav.Generation is 3 or 4 && IvVectors(o, EncCond.Criteria()) != null)) return TryEncounter(o, e, sav, tok, seconds);
         using var race = CancellationTokenSource.CreateLinkedTokenSource(tok);
         var a = Task.Run(() => TryEncounter(o, e, sav, race.Token, seconds));
         var b = Task.Run(() => TrySeq(o, sd, sav, race.Token, seconds));
@@ -179,26 +192,119 @@ public static class QuickGen
 
     public static PKM TryEncounter(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
-        var crit = EncCond.Criteria(); var sw = System.Diagnostics.Stopwatch.StartNew(); int illegal = 0;
-        while (!tok.IsCancellationRequested && sw.Elapsed.TotalSeconds < seconds)
+        var crit = EncCond.Criteria(); var sw = System.Diagnostics.Stopwatch.StartNew(); int illegal = 0; bool fail = false, mismatch = false;
+        var tr = TrainerFor(e, o, sav);
+        // 3·4세대 + 개체값 고정(6V·5V·개체값 전부 지정): PKHeX가 개체값에서 시드를 거꾸로 찾아 성격·성별까지 정해서 만듦 (결과가 정해져 있음)
+        // → 무작위로 4초 돌리는 대신 가능한 개체값 조합만 몇 번씩 시도하고, 안 되면 바로 다음 조우로
+        if (sav.Generation is 3 or 4 && IvVectors(o, crit) is { } vecs)
+        {
+            // 이 조우가 개체값 지정을 따르는지 먼저 확인 (다른 조건 없이 한 번 만들어 봄). 4세대 야생 등은 개체값을 무작위로 정함 → 바로 다음 조우로
+            bool Honors(sbyte[] v)
+            {
+                try
+                {
+                    var t = e.ConvertToPKM(tr, EncounterCriteria.Unrestricted with { IV_HP = v[0], IV_ATK = v[1], IV_DEF = v[2], IV_SPA = v[3], IV_SPD = v[4], IV_SPE = v[5] });
+                    return t.IV_HP == v[0] && t.IV_ATK == v[1] && t.IV_DEF == v[2] && t.IV_SPA == v[3] && t.IV_SPD == v[4] && t.IV_SPE == v[5];
+                }
+                catch { return false; }
+            }
+            // 이로치 + 개체값 고정: 3·4세대 야생·고정 조우는 성격값(PID)과 개체값이 같은 난수에서 나와 둘 다 맞출 수 없음 (PKHeX도 개체값만 맞춤)
+            // → 알(성격값이 따로 정해짐)이나 이로치가 정해진 조우만 시도
+            if (EncCond.ShinyMode is 1 or 3 or 4 && e is not IEncounterEgg && e is not IShinyPotential { Shiny: Shiny.Always or Shiny.AlwaysSquare or Shiny.AlwaysStar or Shiny.FixedValue }) return null;
+            if (!vecs.Take(4).Any(Honors)) return null;
+            foreach (var v in vecs)
+            {
+                var c2 = crit with { IV_HP = v[0], IV_ATK = v[1], IV_DEF = v[2], IV_SPA = v[3], IV_SPD = v[4], IV_SPE = v[5] };
+                for (int k = 0; k < 4 && !fail && !tok.IsCancellationRequested && sw.Elapsed.TotalSeconds < seconds; k++)
+                {
+                    mismatch = false;
+                    if (Attempt(c2, v) is { } r) return r;
+                    if (mismatch) break;   // 이 개체값 조합은 (성격 등과 함께) 이 조우로 불가 → 다음 조합
+                }
+                if (fail || tok.IsCancellationRequested || sw.Elapsed.TotalSeconds >= seconds) return null;
+            }
+            return null;
+        }
+        while (!tok.IsCancellationRequested && sw.Elapsed.TotalSeconds < seconds && !fail)
+            if (Attempt(crit, null) is { } r) return r;
+        return null;
+
+        PKM Attempt(EncounterCriteria c, sbyte[] want)
         {
             PKM p;
-            try { p = e.ConvertToPKM(GenHost.TrainerOf(sav), crit); } catch { return null; }
+            try { p = e.ConvertToPKM(tr, c); } catch { fail = true; return null; }
             p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
+            if (p.GetType() != sav.PKMType) { fail = true; return null; }   // 이 게임 형식으로 옮길 수 없음
+            // 개체값을 정해 달라고 했는데 다르게 나옴 = 이 조합은 이 조우로 못 만듦 (무작위로 6V·5V가 나올 확률은 사실상 0)
+            if (want != null && (p.IV_HP != want[0] || p.IV_ATK != want[1] || p.IV_DEF != want[2] || p.IV_SPA != want[3] || p.IV_SPD != want[4] || p.IV_SPE != want[5])) { mismatch = true; return null; }
             if (e is MysteryGift mg && GenHost.DistributionDate(mg, p.Language) is { } dd)   // 배포 개체: 실제 배포 기간 시작일 (합법이 유지될 때만)
             { var t = p.Clone(); t.MetDate = dd; t.RefreshChecksum(); if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t; }
             EncCond.ApplyMark(p);
             if (o.Ball > 0) p.Ball = (byte)o.Ball;
             if (o.Level > 0 && o.Level >= p.MetLevel) p.CurrentLevel = (byte)o.Level;
             // 조건(성별·이로치·성격·개체값·크기)은 진화해도 그대로라 진화 전에 먼저 확인 → 맞는 개체만 진화 (진화는 무거움)
-            if (!EncCond.Satisfied(p)) continue;
-            if (o.FlawlessIVs > 0 && new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(v => v == p.MaxIV) < o.FlawlessIVs) continue;
-            if (p.Species != o.Species) { p = EvoUtil.Evolve(p, o.Species, o.Form); if (p.Species != o.Species) continue; }
+            if (!EncCond.Satisfied(p)) return null;
+            if (o.FlawlessIVs > 0 && new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(v => v == p.MaxIV) < o.FlawlessIVs) return null;
+            if (p.Species != o.Species) { p = EvoUtil.Evolve(p, o.Species, o.Form); if (p.Species != o.Species) return null; }
+            if (o.Form >= 0 && p.Form != o.Form && FormInfo.IsFormChangeable(p.Species, p.Form, (byte)o.Form, p.Context, p.Context)) { p.Form = (byte)o.Form; p.ResetPartyStats(); }   // 게임 안에서 바꿀 수 있는 폼 (로토무·트리미앙 등)
+            if (o.Form >= 0 && p.Form != o.Form) { fail = e.Form < EncounterUtil.FormDynamic; return null; }   // 다른 폼이 나옴 (폼이 고정된 조우면 더 시도할 필요 없음)
+            if (o.AllowTransfer && e.Context != sav.Context) sav.AdaptToSaveFile(p, false);   // 옮겨 온 개체: 지금 세이브 트레이너가 맡은 상태로 (박스에 넣을 때와 같게)
             p.RefreshChecksum();
             if (GenHost.IsLegal(p)) return p;
-            if (++illegal > 300) return null;   // 이 조우로는 합법이 안 나옴 (볼 불가 등)
+            if (++illegal > 300) fail = true;   // 이 조우로는 합법이 안 나옴 (볼 불가 등)
+            return null;
         }
-        return null;
+    }
+
+    /// <summary>
+    /// 조우에 쓸 트레이너. 3DS(6·7세대) 비비용 계열은 무늬가 3DS 본체의 나라·지역으로 정해지므로,
+    /// 원하는 무늬가 나오는 나라·지역·본체 지역을 골라 줌 (트레이너 언어와 별개).
+    /// </summary>
+    public static ITrainerInfo TrainerFor(IEncounterInfo e, OrderSpec o, SaveFile sav)
+    {
+        var tr = GenHost.TrainerOf(sav);
+        if (o.Form < 0 || e.Generation is not (6 or 7) || o.Species is not ((int)Species.Vivillon or (int)Species.Spewpa or (int)Species.Scatterbug)) return tr;
+        if (o.Species == (int)Species.Vivillon && o.Form > 17) return tr;   // 나비(18)·몬스터볼(19) 무늬는 배포 전용
+        var geo = VivillonGeo((byte)Math.Max(0, o.Form));
+        if (geo == null) return tr;
+        var (cr, c, r) = geo.Value;
+        return new SimpleTrainerInfo(e.Version) { OT = tr.OT, TID16 = tr.TID16, SID16 = tr.SID16, Gender = tr.Gender, Language = tr.Language, ConsoleRegion = cr, Country = c, Region = r };
+    }
+
+    private static readonly Dictionary<byte, (byte, byte, byte)?> vivGeo = [];
+    /// <summary>무늬 → (본체 지역, 나라, 지역). 그 무늬가 나오는 첫 나라·지역.</summary>
+    public static (byte ConsoleRegion, byte Country, byte Region)? VivillonGeo(byte form)
+    {
+        lock (vivGeo)
+        {
+            if (vivGeo.TryGetValue(form, out var hit)) return hit;
+            (byte, byte, byte)? res = null;
+            for (int c = 1; c < 256 && res == null; c++)
+                for (int r = 0; r < 128 && res == null; r++)
+                {
+                    if (Vivillon3DS.GetPattern((byte)c, (byte)r) != form || !Vivillon3DS.IsPatternNative(form, (byte)c, (byte)r)) continue;
+                    for (byte cr = 0; cr <= 6 && res == null; cr++)
+                        if (Vivillon3DS.IsPatternValid(form, cr)) res = (cr, (byte)c, (byte)r);
+                }
+            return vivGeo[form] = res;
+        }
+    }
+
+    /// <summary>개체값을 정확히 정할 수 있는 주문이면 가능한 개체값 조합 목록 (6V·개체값 전부 지정: 1개, 5V: 남는 1칸 × 0~30). 아니면 null.</summary>
+    private static List<sbyte[]> IvVectors(OrderSpec o, EncounterCriteria c)
+    {
+        sbyte[] cur = [c.IV_HP, c.IV_ATK, c.IV_DEF, c.IV_SPA, c.IV_SPD, c.IV_SPE];
+        if (cur.All(v => v >= 0)) return [cur];
+        if (cur.Any(v => v >= 0 && v != 31)) return null;   // 일부만 지정(31 외 값): 기존 방식
+        if (o.FlawlessIVs == 6) return [[31, 31, 31, 31, 31, 31]];
+        if (o.FlawlessIVs != 5) return null;
+        var list = new List<sbyte[]>();
+        for (int i = 0; i < 6; i++)
+        {
+            if (cur[i] == 31) continue;   // V로 지정된 칸은 그대로
+            for (sbyte x = 30; x >= 0; x--) { var v = new sbyte[] { 31, 31, 31, 31, 31, 31 }; v[i] = x; list.Add(v); }
+        }
+        return list.OrderBy(_ => Random.Shared.Next()).ToList();
     }
 
     /// <summary>마무리: Z-A 우두머리는 HP 노력치 252(게임 실제 값), 어버이 지정 반영(이로치 모양 유지).</summary>

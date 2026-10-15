@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<!--
 		PC용 PKHeX 플러그인: 모바일 앱의 "텍스트로 빠른 생성"·"리빙덱스 채우기"를 PKHeX에서.
 		생성 엔진은 모바일 앱과 같은 Shared/PKHeXKR.Gen을 씀. 빌드 결과 DLL 하나(PKHeXKR.Plugin.dll)를 PKHeX의 plugins 폴더에 넣으면 됨.
@@ -12,13 +12,15 @@
 		<Nullable>disable</Nullable>
 		<RootNamespace>PKHeXKR.Plugin</RootNamespace>
 		<AssemblyName>PKHeXKR.Plugin</AssemblyName>
-		<Version>1.0.1</Version>
+		<Version>1.2.0</Version>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<NoWarn>$(NoWarn);CS1998;CS8632;CA1416;WFO1000</NoWarn>
 	</PropertyGroup>
 	<ItemGroup>
 		<!-- PKHeX.Core는 PKHeX 본체가 가지고 있으므로 넣지 않음 -->
-		<PackageReference Include="PKHeX.Core" Version="26.8.26" ExcludeAssets="runtime" />
+		<PackageReference Include="PKHeX.Core" Version="26.8.26" ExcludeAssets="runtime" Condition="'$(UsePkhexNuget)' == 'true'" />
+		<!-- PKHeX KR 커스텀 빌드용 (개발 버전 PKHeX.Core): dotnet build ... (UsePkhexNuget 없이) -->
+		<ProjectReference Include="..\..\PKHeX-Core-Dev\PKHeX.Core\PKHeX.Core.csproj" Private="false" ExcludeAssets="runtime" Condition="'$(UsePkhexNuget)' != 'true'" />
 		<PackageReference Include="Costura.Fody" Version="5.7.0" PrivateAssets="all" />
 		<PackageReference Include="Fody" Version="6.8.0" PrivateAssets="all" />
 	</ItemGroup>

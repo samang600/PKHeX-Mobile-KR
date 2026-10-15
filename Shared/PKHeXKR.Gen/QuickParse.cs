@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using PKHeX.Core;
 namespace PKHeXKR;
 
@@ -24,6 +24,9 @@ public sealed class OrderSpec
     public bool Superl;                     // "가장"·"제일" 다음 크기 단어는 최대·최소
     public List<string> Unknown = [];
     public List<string> Notes = [];
+    public bool AllowTransfer;              // 리빙덱스: 다른 게임에서 옮겨 온 개체도 허용 (HOME 등)
+    public double Seconds = 4;              // 조우 하나당 최대 시도 시간
+    public bool SkipAlm;                    // 조우로 못 만들어도 자동 합법화로 넘어가지 않음 (리빙덱스: 이미 해 봄)
 
     public string Describe(GameStrings s)
     {

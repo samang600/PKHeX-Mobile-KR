@@ -466,15 +466,16 @@ public class MainPage : ContentPage
                 if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); await DisplayAlertAsync("데이터 언어", $"{sel.Name}(으)로 설정했습니다. 앱을 다시 시작하면 적용됩니다.", "확인"); }
                 break;
             case about:
-                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-08 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker)", "확인");
+                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-13 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker)", "확인");
                 break;
         }
     }
 
     private async Task SaveMenu()
     {
-        const string a = "세이브 내보내기", b = "편집 중인 포켓몬 파일로 저장", c = "현재 박스 데이터(.bin) 내보내기", fav = "편집 중인 포켓몬 즐겨찾기 등록";
-        var pick = await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, fav, c);
+        const string a = "세이브 내보내기", b = "편집 중인 포켓몬 파일로 저장", c = "현재 박스 데이터(.bin) 내보내기", fav = "편집 중인 포켓몬 즐겨찾기 등록", ldn = "PokeLDN 교환 파일로 보내기";
+        var pick = await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, ldn, fav, c);
+        if (pick == ldn) { await ExportLdn(); return; }
         if (pick == fav) { if (AppState.Pk.Species == 0) { Note.Show("등록할 포켓몬이 없습니다"); return; } Favorites.Add(AppState.Pk); Note.Show("즐겨찾기에 등록했습니다"); return; }
         if (pick == a) await ExportSave();
         else if (pick == b) await ExportPk();
@@ -621,6 +622,16 @@ public class MainPage : ContentPage
             Note.Show(r.IsSuccessful ? "세이브를 저장했습니다" : "저장을 취소했습니다");
         }
         catch (Exception ex) { await DisplayAlertAsync("저장 실패", ex.Message, "확인"); }
+    }
+
+    /// <summary>PokeLDN 교환 파일: 휴대폰 교환 앱(PokeLDN 교환)이나 PC PokeLDN이 그대로 쓰는 형식으로 공유.</summary>
+    private async Task ExportLdn()
+    {
+        var pk = AppState.Pk; if (pk.Species == 0) { Note.Show("보낼 포켓몬이 없습니다"); return; }
+        if (LdnExport.GameOf(pk) == null) { await DisplayAlertAsync("PokeLDN 교환", "PokeLDN 교환은 파이어레드·리프그린, 레츠고, 소드실드, BDSP, 아르세우스, SV, Z-A 포켓몬만 됩니다.", "확인"); return; }
+        if (!new LegalityAnalysis(pk).Valid && !await DisplayAlertAsync("PokeLDN 교환", "이 포켓몬은 합법이 아닙니다. 교환하면 게임이나 HOME에서 문제가 될 수 있어요. 그래도 보낼까요?", "보내기", "취소")) return;
+        try { await ShareUtil.ShareBytes(LdnExport.Prepare(pk), LdnExport.FileName(pk), "PokeLDN 교환으로 보내기"); }
+        catch (Exception ex) { await DisplayAlertAsync("PokeLDN 교환", ex.Message, "확인"); }
     }
 
     private async Task ExportPk()

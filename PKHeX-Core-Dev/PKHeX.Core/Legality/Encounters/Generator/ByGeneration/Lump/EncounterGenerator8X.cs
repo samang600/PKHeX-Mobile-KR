@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using static PKHeX.Core.GameVersion;
 
 namespace PKHeX.Core;
@@ -39,6 +39,7 @@ public sealed class EncounterGenerator8X : IEncounterGenerator
         SW when pk.MetLocation == LocationsHOME.SWSL => EncounterGenerator9.Instance.GetEncountersSWSH(pk, chain, SL),
         SH when pk.MetLocation == LocationsHOME.SHVL => EncounterGenerator9.Instance.GetEncountersSWSH(pk, chain, VL),
         SW or SH => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),
+        _ when pk.IsHOMEOrigin56 => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),   // PKHeXKR: HOME 선물 출신 버전 56 (FRLG 도감 완성 보상 세레비)
         _ => [],
     };
 }

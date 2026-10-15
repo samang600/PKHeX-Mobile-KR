@@ -14,14 +14,17 @@ public static class ALMVersion
         public readonly Version? AlmVersionCurrent = GetCurrentVersion("PKHeX.Core.AutoMod");
 
         public readonly Version? CoreVersionCurrent = GetCurrentVersion("PKHeX.Core");
-        public readonly Version? CoreVersionLatest = GetLatestCoreVersion();
+        // PKHeXKR: 최신 PKHeX 버전 확인(인터넷)은 하지 않음 — 앱·커스텀 빌드는 PKHeX.Core와 ALM을 같은 소스로 함께 빌드
+        public readonly Version? CoreVersionLatest = null;
     }
 
     /// <summary>
     /// Checks for plugin mismatch. If "EnableDevMode" is enabled it will allow a user to skip update warnings until the next release. Will otherwise check plugin mismatch for current versions.
     /// </summary>
     /// <returns>True if a plugin mismatch is found. False if any of the versions are null or no mismatch found.</returns>
-    public static bool GetIsMismatch() => GetIsMismatch(currentCore: Versions.CoreVersionCurrent, currentALM: Versions.AlmVersionCurrent, latestCore: Versions.CoreVersionLatest);
+    /// <remarks>PKHeXKR: PKHeX.Core 개발 버전(예: 26.10.13)과 ALM(26.8.26)을 함께 빌드해 쓰므로 버전 번호가 달라도 불일치로 보지 않음
+    /// (원래는 "PKHeX and Plugins have a version mismatch" 오류로 자동 합법화가 전부 막힘)</remarks>
+    public static bool GetIsMismatch() => false;
 
     public static bool GetIsMismatch(Version? currentCore, Version? currentALM, Version? latestCore)
     {

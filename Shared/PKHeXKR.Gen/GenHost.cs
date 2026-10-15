@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 namespace PKHeXKR;
 
@@ -127,7 +127,7 @@ public static class GenHost
     }
 
     /// <summary>게임 이름 (데이터 언어 기준).</summary>
-    public static string GameName(GameVersion v) { var g = GenHost.Strings.gamelist; return (int)v < g.Length && !string.IsNullOrEmpty(g[(int)v]) ? g[(int)v] : v.ToString(); }
+    public static string GameName(GameVersion v) { if ((int)v == 56) return "파이어레드·리프그린 (HOME 56)"; var g = GenHost.Strings.gamelist; return (int)v < g.Length && !string.IsNullOrEmpty(g[(int)v]) ? g[(int)v] : v.ToString(); }
 }
 
 /// <summary>게임별 트레이너 설정 (이름·성별·TID·SID·언어). 명시 설정이 없으면 null.</summary>

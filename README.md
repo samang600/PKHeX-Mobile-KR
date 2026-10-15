@@ -46,3 +46,8 @@ GNU GPL v3 ([LICENSE](LICENSE)). PKHeX와 플러그인들의 라이선스를 따
 - [SysBot.NET](https://github.com/kwsch/SysBot.NET) — 교환 상대 읽기 오프셋
 - [SWSHSeedFinderPlugin](https://github.com/hexbyt3/SWSHSeedFinderPlugin) — 소드실드 야생 시드 계산 순서 (hexbyt3)
 - [sv-research / RaidCalc](https://github.com/MewTracker/sv-research) — SV 레이드 시드 선택 검사 (MewTracker)
+
+
+## 서명
+- 기존 디버그 키로 서명 (키 백업: PKHeX_Mobile_debug_key.zip, SHA-256 87bc40c7…). 새 키는 보안 검사에서 똑같이 차단돼 쓰지 않음.
+- 앱 업데이트 알림: GitHub 릴리스(태그 v1.5.1 형식)에 `.apk` 파일을 그대로 첨부하면 "새 버전 APK 받기"로 브라우저에서 받음 (이름에 side가 들어간 파일은 제외).

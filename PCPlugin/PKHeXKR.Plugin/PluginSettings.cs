@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using PKHeX.Core;
 using PKHeX.Core.AutoMod;
@@ -26,6 +26,12 @@ public sealed class PluginSettings
     public string UserDict { get; set; } = "";
     public string LastQuickText { get; set; } = "";
     public string LastOTs { get; set; } = "";
+    public string LivingDexPresets { get; set; } = "";
+    /// <summary>PokeLDN 위치: pokeldn.exe (릴리스) 또는 소스 폴더</summary>
+    public string LdnPath { get; set; } = "";
+    /// <summary>보드 포트 (비우면 자동: COM 포트가 하나일 때)</summary>
+    public string LdnPort { get; set; } = "";
+    public bool LdnHost { get; set; } = true;
 
     // 저장 위치: PKHeX 폴더 (쓰기 권한이 없으면 %AppData%\PKHeXKR)
     private const string FileName = "pkhexkr_plugin.json";

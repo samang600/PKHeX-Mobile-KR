@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -361,10 +361,14 @@ public abstract class PKM : ISpeciesForm, ITrainerID32, IGeneration, IShiny, ILa
     public bool Gen1 => Version == RBY; // Fixed value set by the Gen1 PKM classes
     public bool GenU => Generation <= 0;
 
+    /// <summary>PKHeXKR: HOME 선물의 출신 번호 56 (FRLG 도감 완성 보상 세레비). PKHeX 열거형에서는 묶음 값 GS와 겹쳐 2세대로 오인되므로 8세대(HOME 선물)로 판정.</summary>
+    public bool IsHOMEOrigin56 => Format >= 8 && (byte)Version == 56;
+
     public byte Generation
     {
         get
         {
+            if (IsHOMEOrigin56) return 8;
             if (Gen9) return 9;
             if (Gen8) return 8;
             if (Gen7 || GG) return 7;

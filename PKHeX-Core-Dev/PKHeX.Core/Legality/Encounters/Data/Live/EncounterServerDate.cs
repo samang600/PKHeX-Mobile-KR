@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using static PKHeX.Core.EncounterServerDateCheck;
 
@@ -122,6 +122,8 @@ public static class EncounterServerDate
         {9013, new(2021, 06, 17)}, // Gigantamax Bulbasaur
         {9014, new(2021, 06, 17)}, // Gigantamax Squirtle
         {9029, new(2025, 02, 11)}, // Shiny Keldeo
+        {9251, new(2026, 10, 07)}, // PKHeXKR: FRLG 도감 완성 보상 세레비 일본어 (HOME 4.1.0, 임시 카드 번호)
+        {9252, new(2026, 10, 07)}, // PKHeXKR: FRLG 도감 완성 보상 세레비 영어 (HOME 4.1.0, 임시 카드 번호)
     };
 
     /// <summary>

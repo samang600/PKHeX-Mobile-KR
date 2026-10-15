@@ -30,7 +30,9 @@ public sealed class KRToolsPlugin : IPlugin
         dex.Click += (_, _) => Open(() => new LivingDexForm(this));
         var settings = new ToolStripMenuItem("트레이너·내 사전 설정…");
         settings.Click += (_, _) => Open(() => new SettingsForm(this));
-        root.DropDownItems.AddRange([quick, dex, new ToolStripSeparator(), settings]);
+        var ldn = new ToolStripMenuItem("PokeLDN 교환 (ESP32 보드)…");
+        ldn.Click += (_, _) => Open(() => new LdnTradeForm(this));
+        root.DropDownItems.AddRange([quick, dex, ldn, new ToolStripSeparator(), settings]);
         tools.DropDownItems.Add(root);
     }
 

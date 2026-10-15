@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 namespace PKHeXKR;
 
 /// <summary>
@@ -27,10 +27,28 @@ public static class EventData
         ("wa8.pkl", WA8.Size, ".wa8", () => EncounterEvent.MGDB_G8A),
     ];
 
+    /// <summary>앱에 넣어 둔 카드 (PKHeX에 아직 없는 HOME 선물 등). Resources/Raw/home_gifts</summary>
+    private static readonly string[] BuiltinCards = ["9251_HOME_FRLG_Celebi_JPN.wc8", "9252_HOME_FRLG_Celebi_ENG.wc8"];   // FRLG 도감 완성 보상 세레비 일본어(ミツリン)·영어(HOME) (HOME 4.1.0, 실물 기준)
+    public static string BuiltinDir { get { var d = Path.Combine(FileSystem.AppDataDirectory, "mgdb_builtin"); Directory.CreateDirectory(d); return d; } }
+    private static void CopyBuiltin()
+    {
+        try { foreach (var f in Directory.GetFiles(BuiltinDir)) if (!BuiltinCards.Contains(Path.GetFileName(f))) File.Delete(f); } catch { }   // 이전 버전 카드 정리
+        foreach (var name in BuiltinCards)
+            try
+            {
+                var bytes = Task.Run(async () => { await using var st = await FileSystem.OpenAppPackageFileAsync("home_gifts/" + name); using var ms = new MemoryStream(); await st.CopyToAsync(ms); return ms.ToArray(); }).GetAwaiter().GetResult();
+                var path = Path.Combine(BuiltinDir, name);
+                if (!File.Exists(path) || !File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes)) File.WriteAllBytes(path, bytes);
+            }
+            catch { }
+    }
+    /// <summary>받아 둔 카드 + 앱에 넣어 둔 카드를 PKHeX에 등록.</summary>
+    private static void Refresh() => EncounterEvent.RefreshMGDB(Dir, BuiltinDir);
+
     /// <summary>앱 시작 시: 받아 둔 카드와 배포 기간을 PKHeX에 등록.</summary>
     public static void LoadLocal()
     {
-        try { if (Count > 0) EncounterEvent.RefreshMGDB(Dir); } catch { }
+        try { CopyBuiltin(); Refresh(); } catch { }
         try { if (File.Exists(WinPath)) { Windows = ParseWindows(File.ReadAllText(WinPath)); Inject(); } } catch { }
     }
 
@@ -177,7 +195,7 @@ public static class EventData
             Preferences.Set("mgdb_last", DateTime.Now);
             if (changed)
             {
-                EncounterEvent.RefreshMGDB(Dir);
+                Refresh();
                 AppState.ClearLegalCache();
                 MainThread.BeginInvokeOnMainThread(() => { AppState.RefreshSummary(); AppState.NotifyBox(); });
             }

@@ -68,6 +68,7 @@ public class BoxPanel : ContentView
         filterInfo.TextColor = T.Good;
         Content = T.Card(new VerticalStackLayout { Spacing = 6, Children = { head, new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = actRow, HorizontalScrollBarVisibility = ScrollBarVisibility.Never }, filterInfo, hint, gridHost } }, 10);
         AppState.BoxChanged += () => MainThread.BeginInvokeOnMainThread(Refresh);
+        AppState.LiveWriteWarn += m => MainThread.BeginInvokeOnMainThread(() => Note.Show(m));
         AppState.PkLoaded += () => MainThread.BeginInvokeOnMainThread(Refresh);
         Refresh();
     }
@@ -275,8 +276,8 @@ public class BoxPanel : ContentView
         var sav = AppState.Sav;
         var picks = Selected.Where(k => sav.GetBoxSlotAtIndex(k.Box, k.Index).Species != 0).OrderBy(k => k.Box).ThenBy(k => k.Index).ToList();
         if (picks.Count == 0) { Note.Show("선택한 칸이 없습니다"); return; }
-        const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제";
-        var a = await Page().DisplayActionSheetAsync($"{picks.Count}칸 선택", "취소", null, move, fav, export, del, clear);
+        const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제", ldn = "PokeLDN 교환 파일로 보내기 (최대 6마리)";
+        var a = await Page().DisplayActionSheetAsync($"{picks.Count}칸 선택", "취소", null, move, fav, ldn, export, del, clear);
         byte[] Bin() { int size = sav.SIZE_BOXSLOT; var buf = new byte[picks.Count * size]; for (int i = 0; i < picks.Count; i++) { var p = sav.GetBoxSlotAtIndex(picks[i].Box, picks[i].Index); p.WriteEncryptedDataStored(buf.AsSpan(i * size, Math.Min(size, p.SIZE_STORED))); } return buf; }
         switch (a)
         {
@@ -302,6 +303,23 @@ public class BoxPanel : ContentView
             case export:
                 await using (var ms = new MemoryStream(Bin())) { var r = await CommunityToolkit.Maui.Storage.FileSaver.Default.SaveAsync($"selected_{picks.Count}.bin", ms, CancellationToken.None); Note.Show(r.IsSuccessful ? "저장했습니다" : "취소했습니다"); }
                 break;
+            case ldn:
+            {
+                var mons = picks.Take(6).Select(k => sav.GetBoxSlotAtIndex(k.Box, k.Index)).Where(p => LdnExport.GameOf(p) != null).ToList();
+                if (mons.Count == 0) { Note.Show("PokeLDN 교환을 지원하지 않는 게임입니다"); return; }
+                int illegal = mons.Count(p => !new LegalityAnalysis(p).Valid);
+                if (illegal > 0 && !await Page().DisplayAlertAsync("PokeLDN 교환", $"{illegal}마리가 합법이 아닙니다. 그래도 보낼까요?", "보내기", "취소")) return;
+                var files = new List<ShareFile>();
+                for (int i = 0; i < mons.Count; i++)
+                {
+                    var path = Path.Combine(FileSystem.CacheDirectory, $"{i + 1}_" + LdnExport.FileName(mons[i]));
+                    await File.WriteAllBytesAsync(path, LdnExport.Prepare(mons[i]));
+                    files.Add(new ShareFile(path));
+                }
+                await Share.Default.RequestAsync(new ShareMultipleFilesRequest { Title = "PokeLDN 교환으로 보내기", Files = files });
+                if (picks.Count > 6) Note.Show("앞의 6마리만 보냈습니다");
+                break;
+            }
             case fav:
                 foreach (var k in picks) Favorites.Add(sav.GetBoxSlotAtIndex(k.Box, k.Index));
                 Note.Show($"{picks.Count}마리를 즐겨찾기에 등록했습니다"); break;

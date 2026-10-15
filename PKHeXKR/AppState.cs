@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.Injection;
 using PKHeX.Core.AutoMod;
 namespace PKHeXKR;
@@ -83,7 +83,7 @@ public static class AppState
         GameVersion.GP, GameVersion.GE, GameVersion.US, GameVersion.UM, GameVersion.SN, GameVersion.MN, GameVersion.OR, GameVersion.AS, GameVersion.X, GameVersion.Y,
         GameVersion.B2, GameVersion.W2, GameVersion.B, GameVersion.W, GameVersion.HG, GameVersion.SS, GameVersion.Pt, GameVersion.D, GameVersion.P,
         GameVersion.E, GameVersion.FR, GameVersion.LG, GameVersion.R, GameVersion.S, GameVersion.C, GameVersion.GD, GameVersion.SI, GameVersion.YW, GameVersion.RD, GameVersion.BU];
-    public static string GameName(GameVersion v) { var g = GameInfo.Strings.gamelist; return (int)v < g.Length && !string.IsNullOrEmpty(g[(int)v]) ? g[(int)v] : v.ToString(); }
+    public static string GameName(GameVersion v) { if ((int)v == 56) return "파이어레드·리프그린 (HOME 56)"; var g = GameInfo.Strings.gamelist; return (int)v < g.Length && !string.IsNullOrEmpty(g[(int)v]) ? g[(int)v] : v.ToString(); }
 
     // 게임별 트레이너 저장 (없으면 공통 기본값)
     private static string K(string n, GameVersion v) => $"{n}_{v}";
@@ -407,6 +407,12 @@ public static class AppState
             var data = LiveSlotBytes(Sav.GetBoxSlotAtIndex(box, index));
             var expect = PKHeX.Core.Injection.RamOffsets.GetSlotSize(Remote.Version);
             if (data.Length > expect && !(Remote.Version >= PKHeX.Core.Injection.LiveHeXVersion.ZA_v101 && Remote.Version <= PKHeX.Core.Injection.LiveHeXVersion.ZA_v202)) data = data[..expect];   // 칸 크기를 넘겨 다음 칸을 덮어쓰지 않게
+            if (Remote.Injector is PKHeX.Core.Injection.LPLGPE)
+            {
+                // 레츠고: 게임이 박스를 여러 사본으로 관리하고 일부 사본은 실행마다 위치가 바뀌어, 메모리에 써도 게임에 반영되지 않음 → 쓰지 않고 안내
+                LiveWriteWarn?.Invoke("레츠고는 라이브헥스로 쓴 내용이 게임에 반영되지 않습니다 · 앱 세이브에만 저장했으니 세이브 파일로 편집해 주세요");
+                return;
+            }
             lock (LiveLock) Remote.SendSlot(data, box, index);
         }
         catch { MarkLiveLost(); }
@@ -702,6 +708,9 @@ public static class AppState
     public static string SpeciesName(PKM p) { try { return PKHeX.Core.SpeciesName.GetSpeciesNameGeneration(p.Species, p.Language > 0 ? p.Language : 8, p.Format); } catch { return GameInfo.Strings.Species[p.Species]; } }
 
     /// <summary>라이브헥스로 게임 속 트레이너(이름·ID·성별)를 읽어 세이브·게임별 트레이너에 반영.</summary>
+    /// <summary>라이브헥스 쓰기를 하지 않을 때 안내 (레츠고)</summary>
+    public static event Action<string> LiveWriteWarn;
+
     public static bool ReadLiveTrainer()
     {
         if (!LiveConnected) return false;
@@ -709,7 +718,15 @@ public static class AppState
         {
             try
             {
-                bool okRead; lock (LiveLock) okRead = Remote.Injector.ReadBlockFromString(Remote, Sav, name, out _);
+                bool okRead;
+                if (Sav is SAV7b s7b && Remote.Injector is PKHeX.Core.Injection.LPLGPE)
+                {
+                    // 레츠고: 블록 이름으로 읽는 기능이 없음 → 트레이너 블록(MyStatus, 0x168)을 위치로 직접 읽음
+                    byte[] raw; lock (LiveLock) raw = PKHeX.Core.Injection.LPLGPE.GetTrainerData(Remote);
+                    okRead = raw != null && raw.Length == s7b.Blocks.Status.Data.Length && raw.Any(b => b != 0);
+                    if (okRead) raw.CopyTo(s7b.Blocks.Status.Data);
+                }
+                else lock (LiveLock) okRead = Remote.Injector.ReadBlockFromString(Remote, Sav, name, out _);
                 if (!okRead) continue;
                 var v = Sav.Version;
                 int tid = Sav.Generation >= 7 ? (int)(Sav.ID32 % 1_000_000) : Sav.TID16, sid = Sav.Generation >= 7 ? (int)(Sav.ID32 / 1_000_000) : Sav.SID16;

@@ -116,7 +116,7 @@ public class LiveHexSheet : Sheet
         hint.LineBreakMode = LineBreakMode.WordWrap;
         var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 };
         g.Add(T.L("박스를 넘길 때 게임에서 읽기", 14), 0); g.Add(readOnChange, 1);
-        var s = new VerticalStackLayout { Spacing = 12, Children = { state, new Grid { ColumnDefinitions = { new(new GridLength(2, GridUnitType.Star)), new(GridLength.Star) }, ColumnSpacing = 8, Children = { } }, hint, g, T.L("칸에 저장하면 게임에도 바로 기록됩니다.", 12, sub: true), new HorizontalStackLayout { Spacing = 8, Children = { connect, readBox } } } };
+        var s = new VerticalStackLayout { Spacing = 12, Children = { state, new Grid { ColumnDefinitions = { new(new GridLength(2, GridUnitType.Star)), new(GridLength.Star) }, ColumnSpacing = 8, Children = { } }, hint, g, T.L(AppState.Sav is SAV7b ? "레츠고는 박스 읽기·트레이너 가져오기만 됩니다. 쓰기는 게임에 반영되지 않아 앱 세이브에만 저장됩니다 (세이브 파일로 편집하세요)." : "칸에 저장하면 게임에도 바로 기록됩니다.", 12, sub: true), new HorizontalStackLayout { Spacing = 8, Children = { connect, readBox } } } };
         var row = (Grid)s.Children[1]; row.Add(T.Field("IP 주소", ip), 0); row.Add(T.Field("포트", port), 1);
         Body.Add(new ScrollView { Content = s });
         Update();
@@ -179,7 +179,7 @@ public class LiveHexSheet : Sheet
             AppState.Remote = remote; AppState.LiveSav = AppState.Sav;
             bool tr = AppState.ReadLiveTrainer();   // 게임 속 트레이너 이름·ID·성별 자동 반영
             BoxPanel.ReadLiveBox(); AppState.NotifyBox();
-            Note.Show(tr ? $"연결했습니다 · 트레이너 {AppState.Sav.OT} 불러옴" : "연결했습니다 (트레이너 정보는 이 게임에서 읽지 못했습니다)");
+            Note.Show((tr ? $"연결했습니다 · 트레이너 {AppState.Sav.OT} 불러옴" : "연결했습니다 (트레이너 정보는 이 게임에서 읽지 못했습니다)") + (AppState.Sav is SAV7b ? " · 레츠고는 읽기 전용" : ""));
         }
         catch (Exception ex) { await page.DisplayAlertAsync("연결 실패", ex.Message, "확인"); }
         Update();

@@ -1,4 +1,4 @@
-using CommunityToolkit.Maui.Storage;
+﻿using CommunityToolkit.Maui.Storage;
 using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 namespace PKHeXKR;
@@ -180,6 +180,38 @@ public class SettingsSheet : Sheet
         var bkRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 }; bkRow.Add(T.L("자동 백업", 15), 0); bkRow.Add(bk, 1);
         var bkHint = T.L("켜면 세이브를 열 때 원본을, 내보낼 때 저장본을 앱 안에 보관합니다(최근 30개).", 12, sub: true); bkHint.LineBreakMode = LineBreakMode.WordWrap;
         var list = T.Pill("백업 목록 보기"); list.Clicked += (_, _) => { Close(); SheetHost.Show(new SaveListSheet(true)); };
+        // 앱 데이터 통째로 내보내기·가져오기 (앱을 지우고 다시 설치할 때)
+        var dataHint = T.L("설정(트레이너·검사 토글 등)·즐겨찾기·세이브 백업·최근 세이브·내 사전을 한 파일로 내보내고, 앱을 지우고 새로 설치한 뒤 가져올 수 있습니다.", 12, sub: true); dataHint.LineBreakMode = LineBreakMode.WordWrap;
+        var dataRow = T.Cols(2, 6);
+        var dataOut = T.Pill("앱 데이터 내보내기"); var dataIn = T.Pill("앱 데이터 가져오기");
+        dataOut.Clicked += async (_, _) =>
+        {
+            try
+            {
+                var (bytes, n) = await Task.Run(AppDataBackup.Export);
+                await using var ms = new MemoryStream(bytes);
+                var r = await CommunityToolkit.Maui.Storage.FileSaver.Default.SaveAsync($"PKHeX모바일_데이터_{DateTime.Now:yyyyMMdd_HHmm}.zip", ms, CancellationToken.None);
+                Note.Show(r.IsSuccessful ? $"내보냈습니다 (파일 {n}개, {bytes.Length / 1024:N0}KB)" : "취소했습니다");
+            }
+            catch (Exception ex) { Note.Show("내보내지 못했습니다: " + ex.Message); }
+        };
+        dataIn.Clicked += async (_, _) =>
+        {
+            try
+            {
+                var f = await FilePicker.PickAsync(); if (f == null) return;
+                var page = Application.Current.Windows[0].Page;
+                if (!await page.DisplayAlertAsync("앱 데이터 가져오기", "지금 앱의 설정·즐겨찾기·백업을 이 파일의 내용으로 덮어씁니다. 가져온 뒤 앱이 종료되며, 다시 실행하면 적용됩니다. 계속할까요?", "가져오기", "취소")) return;
+                await using var st = await f.OpenReadAsync(); using var ms = new MemoryStream(); await st.CopyToAsync(ms); ms.Position = 0;
+                var n = await Task.Run(() => AppDataBackup.Import(ms));
+                if (n < 0) { Note.Show("PKHeX 모바일 데이터 백업 파일이 아닙니다"); return; }
+                await page.DisplayAlertAsync("앱 데이터 가져오기", $"파일 {n}개를 가져왔습니다. 확인을 누르면 앱이 종료됩니다. 다시 실행하세요.", "확인");
+                AppDataBackup.Quit();
+            }
+            catch (Exception ex) { Note.Show("가져오지 못했습니다: " + ex.Message); }
+        };
+        dataRow.Add(dataOut, 0); dataRow.Add(dataIn, 1);
+        dataHint.IsVisible = dataRow.IsVisible = AppDataBackup.Supported;
         (var lv, var ll) = T.Chooser(() => { });
         ll.Text = AppState.Languages.FirstOrDefault(x => x.Code == AppState.LangCode).Name ?? AppState.LangCode;
         var tapL = new TapGestureRecognizer();
@@ -195,7 +227,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
     }
 }
 
@@ -212,6 +244,10 @@ public class LivingDexSheet : Sheet
         var skipRow = Sw("이미 박스에 있는 포켓몬 건너뛰기", true, out var skip);
         bool alphaGame = sav is SAV8LA or SAV9ZA;
         var alphaRow = Sw("우두머리로 만들기 (우두머리 조우가 없으면 일반)", false, out var alpha); alphaRow.IsVisible = alphaGame;
+        var transferRow = Sw("다른 게임에서 옮겨 온 개체 포함 (HOME·GO 등)", LivingDexOptions.DefaultTransfer(sav), out var transfer);
+        var presets = new Editor { AutoSize = EditorAutoSizeOption.TextChanges, MinimumHeightRequest = 70, FontSize = 14, Text = Preferences.Get("ldex_presets", ""),
+            Placeholder = "포켓몬별 성별·볼 미리 정하기 (텍스트 생성과 같은 문법, 한 줄에 하나)\n예) 피카츄 ♀ 몬스터볼\n라이츄(알로라) ♂ 럭셔리볼" };
+        presets.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
         var status = T.L("", 13, sub: true); status.LineBreakMode = LineBreakMode.WordWrap;
         var bar = new ProgressBar { ProgressColor = T.Accent, IsVisible = false };
         var dFrom = T.Input(placeholder: "예: 2025-10-16"); var dTo = T.Input(placeholder: "예: 2026-09-30");
@@ -228,16 +264,19 @@ public class LivingDexSheet : Sheet
                 Shiny = shiny.IsToggled, Forms = forms.IsToggled, SkipExisting = skip.IsToggled, Alpha = alphaGame && alpha.IsToggled, StartBox = AppState.Box,
                 From = DateOnly.TryParse(dFrom.Text, out var df) ? df : null, To = DateOnly.TryParse(dTo.Text, out var dt) ? dt : null,
                 OTs = LivingDexOptions.ParseOTs(ots.Text),
+                Transfer = transfer.IsToggled,
+                Presets = LivingDexOptions.ParsePresets(presets.Text, sav, UserDict.Load()),
             };
+            Preferences.Set("ldex_presets", presets.Text ?? "");
             var result = await Task.Run(() => LivingDexGen.Run(sav, opt, tok, (done, total, s) =>
                 MainThread.BeginInvokeOnMainThread(() => { bar.Progress = (double)done / total; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; })));
             AppState.NotifyBox();
-            status.Text = $"넣음 {result.Made}마리 (합법 {result.Legal}{(opt.Alpha ? $", 우두머리 {result.Alpha}" : "")}) · 실패 {result.Fail} · 대상 {result.Targets}{(result.BoxFull ? " · 박스가 가득 차서 멈춤" : "")}{(result.Canceled ? " · 중지함" : "")}";
+            status.Text = $"넣음 {result.Made}마리 (모두 합법{(opt.Alpha ? $", 우두머리 {result.Alpha}" : "")}) · 만들 수 없음 {result.Fail} · 대상 {result.Targets}{(result.PresetMissed > 0 ? $" · 미리 정한 성별·볼이 안 돼 기본으로 만든 수 {result.PresetMissed}" : "")}{(result.BoxFull ? " · 박스가 가득 차서 멈춤" : "")}{(result.Canceled ? " · 중지함" : "")}";
             go.IsEnabled = true; stop.IsVisible = false;
         };
-        var hint = T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
+        var hint = T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)·조우로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 이 게임에서 합법으로 만들 수 있는 개체만 넣고, 도구를 지니면 바뀌는 폼(아르세우스·실버디·게노세크트 등)은 기본 폼만 만듭니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, alphaRow, dateRow, ots, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, alphaRow, transferRow, dateRow, ots, presets, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
     }
 }
 
@@ -518,11 +557,33 @@ public static class UpdateCheck
             if (latest <= mine) { if (manual) Note.Show($"최신 버전입니다 (v{mine.ToString(3)})"); return; }
             if (!manual && Preferences.Get("upd_skip", "") == latest.ToString()) return;
             var excerpt = body.Length > 300 ? body[..300] + "…" : body;
-            var pick = await page.DisplayActionSheetAsync($"새 버전 v{latest.ToString(3)}이 있습니다 (지금 v{mine.ToString(3)})\n\n{excerpt}", "나중에", null, "릴리스 페이지 열기", "이 버전 건너뛰기");
-            if (pick == "릴리스 페이지 열기") await Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
+            // 릴리스에 올린 APK (별도 설치판 제외)
+            string apkUrl = null, apkName = null;
+            if (DeviceInfo.Platform == DevicePlatform.Android && root.TryGetProperty("assets", out var assets))
+                foreach (var a in assets.EnumerateArray())
+                {
+                    var an = a.TryGetProperty("name", out var nn) ? nn.GetString() ?? "" : "";
+                    if (!an.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) || an.Contains("side", StringComparison.OrdinalIgnoreCase)) continue;
+                    apkName = an; apkUrl = a.TryGetProperty("browser_download_url", out var du) ? du.GetString() : null; break;
+                }
+            const string direct = "새 버전 APK 받기";
+            var opts = apkUrl != null ? new[] { direct, "릴리스 페이지 열기", "이 버전 건너뛰기" } : new[] { "릴리스 페이지 열기", "이 버전 건너뛰기" };
+            var pick = await page.DisplayActionSheetAsync($"새 버전 v{latest.ToString(3)}이 있습니다 (지금 v{mine.ToString(3)})\n\n{excerpt}", "나중에", null, opts);
+            if (pick == direct) await InstallApk(apkUrl, apkName);
+            else if (pick == "릴리스 페이지 열기") await Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
             else if (pick == "이 버전 건너뛰기") Preferences.Set("upd_skip", latest.ToString());
         }
         catch { if (manual) Note.Show("업데이트를 확인하지 못했습니다 (인터넷 연결 확인)"); }
+    }
+
+    /// <summary>
+    /// 릴리스의 APK 받기: 앱이 직접 설치하려면 '다른 앱 설치' 권한이 필요한데, 이 권한이 있으면 보안 검사가 악성 앱(설치 유도 앱)으로 의심함
+    /// → 권한 없이 브라우저로 APK를 받게 하고, 받은 파일을 눌러 설치 (브라우저의 설치 허용만 필요).
+    /// </summary>
+    private static async Task InstallApk(string url, string name)
+    {
+        try { await Browser.Default.OpenAsync(url, BrowserLaunchMode.External); Note.Show($"{name}을(를) 받는 중입니다 · 다 받으면 알림이나 다운로드 폴더에서 눌러 설치하세요"); }
+        catch (Exception ex) { Note.Show("열지 못했습니다: " + ex.Message); }
     }
 }
 
