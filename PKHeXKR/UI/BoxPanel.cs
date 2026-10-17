@@ -307,8 +307,6 @@ public class BoxPanel : ContentView
             {
                 var mons = picks.Take(6).Select(k => sav.GetBoxSlotAtIndex(k.Box, k.Index)).Where(p => LdnExport.GameOf(p) != null).ToList();
                 if (mons.Count == 0) { Note.Show("PokeLDN 교환을 지원하지 않는 게임입니다"); return; }
-                int illegal = mons.Count(p => !new LegalityAnalysis(p).Valid);
-                if (illegal > 0 && !await Page().DisplayAlertAsync("PokeLDN 교환", $"{illegal}마리가 합법이 아닙니다. 그래도 보낼까요?", "보내기", "취소")) return;
                 var files = new List<ShareFile>();
                 for (int i = 0; i < mons.Count; i++)
                 {

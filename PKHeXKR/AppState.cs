@@ -48,6 +48,8 @@ public static class AppState
     private static PKM GetSlot(bool party, int box, int index) => party ? (index < Sav.PartyCount ? Sav.GetPartySlotAtIndex(index) : Sav.BlankPKM) : Sav.GetBoxSlotAtIndex(box, index);
     private static void SetSlotRaw(bool party, int box, int index, PKM p)
     {
+        if (ForSave(p) is not { } fit) return;
+        p = fit;
         if (!party) { Sav.SetBoxSlotAtIndex(p, box, index); LiveSync(box, index); return; }
         if (p.Species == 0) { if (index < Sav.PartyCount) Sav.DeletePartySlot(index); }
         else Sav.SetPartySlotAtIndex(p, Math.Min(index, Sav.PartyCount));
@@ -166,15 +168,31 @@ public static class AppState
         if (notify) { SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke(); }
     }
 
-    public static void Load(PKM p, (bool, int, int)? source = null)
+    /// <summary>편집기로 불러오기. 지금 세이브 형식으로 바꿀 수 없는 포켓몬(예: 스칼렛·바이올렛 세이브에 아르세우스에만 있는 종)은
+    /// 불러오지 않음 — 형식이 다른 데이터가 박스에 들어가면 저장·박스 그리기가 멈췄음.</summary>
+    public static bool Load(PKM p, (bool, int, int)? source = null)
     {
+        var conv = p.GetType() == Sav.PKMType ? p : EntityConverter.ConvertToType(p, Sav.PKMType, out _);
+        if (conv == null) { Note.Show($"{ContextName(p.Context)} 포켓몬은 지금 세이브({ContextName(Sav.Context)})로 바꿀 수 없어 불러오지 않았습니다"); return false; }
         if (Pk != null && Pk.Species != 0) Checkpoint(force: true);
         Source = source;
-        var conv = p.GetType() == Sav.PKMType ? p : EntityConverter.ConvertToType(p, Sav.PKMType, out _);
-        Pk = (conv ?? p).Clone();
+        Pk = conv.Clone();
         Dirty = false;
         PkLoaded?.Invoke();
+        return true;
     }
+
+    /// <summary>게임(형식) 이름</summary>
+    public static string ContextName(EntityContext c) => c switch
+    {
+        EntityContext.Gen1 => "1세대", EntityContext.Gen2 => "2세대", EntityContext.Gen3 => "3세대", EntityContext.Gen4 => "4세대",
+        EntityContext.Gen5 => "5세대", EntityContext.Gen6 => "6세대", EntityContext.Gen7 => "7세대(썬문·울트라썬문)", EntityContext.Gen7b => "레츠고",
+        EntityContext.Gen8 => "소드·실드", EntityContext.Gen8a => "레전드 아르세우스", EntityContext.Gen8b => "BDSP",
+        EntityContext.Gen9 => "스칼렛·바이올렛", EntityContext.Gen9a => "레전드 Z-A", _ => c.ToString(),
+    };
+
+    /// <summary>세이브 형식에 맞춘 사본, 못 바꾸면 null (형식이 다른 데이터를 세이브에 쓰지 않게)</summary>
+    public static PKM ForSave(PKM p) => p.GetType() == Sav.PKMType ? p : EntityConverter.ConvertToType(p, Sav.PKMType, out _);
 
     /// <summary>세이브의 이름은 그대로 두고 ALM 트레이너·합법성 기준만 갱신.</summary>
     public static void ReapplyTrainerKeepOT()
@@ -358,6 +376,8 @@ public static class AppState
 
     public static void WriteSlot(int index, PKM p)
     {
+        if (ForSave(p) is not { } fit) { Note.Show($"{ContextName(p.Context)} 포켓몬은 이 세이브에 넣을 수 없습니다"); return; }
+        p = fit;
         Push(new SlotAct(PartyMode, Box, index, GetSlot(PartyMode, Box, index).Clone(), p.Clone()));
         if (PartyMode) { if (index >= Sav.PartyCount) Sav.SetPartySlotAtIndex(p, Sav.PartyCount); else Sav.SetPartySlotAtIndex(p, index); }
         else

@@ -31,7 +31,7 @@ public class HomeLiveSheet : Sheet
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
             var g = new Grid { HeightRequest = 54 }; g.Add(img);
             var tap = new TapGestureRecognizer(); tap.SetBinding(TapGestureRecognizer.CommandParameterProperty, ".");
-            tap.Tapped += (_, e) => { if (e.Parameter is Cell c && c.Pk != null) { Close(); AppState.Load(c.Pk); Note.Show("HOME 개체를 불러왔습니다"); } };
+            tap.Tapped += (_, e) => { if (e.Parameter is Cell c && c.Pk != null) { Close(); if (AppState.Load(c.Pk)) Note.Show("HOME 개체를 불러왔습니다"); } };
             g.GestureRecognizers.Add(tap); return g;
         });
 

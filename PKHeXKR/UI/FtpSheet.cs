@@ -19,9 +19,10 @@ public class FtpSheet : Sheet
     private static string cwd = "/";
     private readonly Entry hostE = T.Input(placeholder: "스위치 IP (예: 192.168.0.23)"), portE = T.Input(Keyboard.Numeric), userE = T.Input(placeholder: "anonymous"), passE = T.Input(placeholder: "비밀번호 (없으면 비움)");
     private readonly VerticalStackLayout list = new() { Spacing = 4 };
-    private readonly Entry pathE = T.Input(placeholder: "/backup/saves");
+    private readonly Entry pathE = T.Input(placeholder: "/switch/DBI/saves");
     private readonly Label pathL = T.L("", 13, sub: true), status = T.L("", 13, sub: true);
-    private static string DbiBackup => Preferences.Get("ftp_backup", "/backup/saves");
+    // DBI 기본 세이브 백업 폴더 (dbi.config SavesFolder=sdmc:/switch/DBI/saves/). 1.5.5까지의 잘못된 기본값 /backup/saves는 새 기본값으로
+    private static string DbiBackup => Preferences.Get("ftp_backup", "/switch/DBI/saves") is var v && v != "/backup/saves" ? v : "/switch/DBI/saves";
     private bool busy;
 
     public FtpSheet() : base("스위치 세이브 (무선 FTP)")
@@ -34,7 +35,7 @@ public class FtpSheet : Sheet
         var here = T.Pill("이곳을 백업 폴더로"); here.Clicked += (_, _) => { Preferences.Set("ftp_backup", cwd); pathE.Text = cwd; Note.Show("백업 폴더로 지정했습니다"); };
         var off = T.Pill("연결 해제"); off.Clicked += (_, _) => { Drop(); list.Children.Clear(); status.Text = "연결을 해제했습니다"; pathL.Text = ""; };
         pathE.Text = DbiBackup;
-        pathE.Completed += (_, _) => { var v = (pathE.Text ?? "").Trim(); if (v.Length == 0) v = "/backup/saves"; if (!v.StartsWith('/')) v = "/" + v.Replace("sdmc:/", ""); Preferences.Set("ftp_backup", v.TrimEnd('/')); pathE.Text = DbiBackup; };
+        pathE.Completed += (_, _) => { var v = (pathE.Text ?? "").Trim(); if (v.Length == 0) v = "/switch/DBI/saves"; if (!v.StartsWith('/')) v = "/" + v.Replace("sdmc:/", ""); Preferences.Set("ftp_backup", v.TrimEnd('/')); pathE.Text = DbiBackup; };
         var root = T.Pill("맨 위"); root.Clicked += async (_, _) => await Safe(async () => { cwd = "/"; await Refresh(); });
         var jksv = T.Pill("JKSV"); jksv.Clicked += async (_, _) => await Safe(async () => { cwd = "/JKSV"; await Refresh(); });
         var ckpt = T.Pill("Checkpoint"); ckpt.Clicked += async (_, _) => await Safe(async () => { cwd = "/switch/Checkpoint/saves"; await Refresh(); });

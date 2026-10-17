@@ -390,7 +390,7 @@ public class EncounterSheet : Sheet
     {
         var p = sd.Template.Clone(); sd.Gen(p, seed); p = sd.Finish(p); EncCond.ApplyMark(p); p = EvoUtil.ToTarget(p, species); p.ResetPartyStats(); p.RefreshChecksum();
         var conv = p.GetType() == AppState.Sav.PKMType ? p : EntityConverter.ConvertToType(p, AppState.Sav.PKMType, out _) ?? p;
-        Close(); AppState.Load(conv); AppState.Edited();
+        Close(); if (AppState.Load(conv)) AppState.Edited();
         Note.Show($"시드 {seed:X} 개체를 불러왔습니다{(AppState.IsLegal(conv) ? " (합법)" : " — 합법성 표시를 확인하세요")}");
     }
 
@@ -418,7 +418,7 @@ public class EncounterSheet : Sheet
             try { var t0 = r.Enc.ConvertToPKM(sav, EncounterCriteria.Unrestricted); p0 = EntityConverter.ConvertToType(t0, sav.PKMType, out _) ?? t0; if (why == null) EncCond.ApplyMark(p0); } catch { }
             if (p0 == null) { status.Text = "이 인카운터로는 개체를 만들 수 없습니다"; return; }
             var note0 = FixDate(r, p0);
-            p0 = EvoUtil.ToTarget(p0, species); Close(); AppState.Load(p0); AppState.Edited();
+            p0 = EvoUtil.ToTarget(p0, species); Close(); if (AppState.Load(p0)) AppState.Edited();
             Note.Show((why != null ? "조건 없이 불러왔습니다" : "불러왔습니다") + note0 + (AppState.IsLegal(p0) ? "" : " · 이 게임에서는 불법으로 판정됩니다"));
             return;
         }
@@ -472,7 +472,7 @@ public class EncounterSheet : Sheet
         if (list.Count > 1)
         {
             status.Text = $"조건에 맞는 개체 {list.Count}개";
-            SheetHost.Show(new EncResultSheet($"결과 {list.Count}개", list.Select(x => (x, "")).ToList(), k => { var pk = EvoUtil.ToTarget(list[k], species); var nt = FixDate(r, pk); Close(); AppState.Load(pk); AppState.Edited(); Note.Show("불러왔습니다" + nt); }));
+            SheetHost.Show(new EncResultSheet($"결과 {list.Count}개", list.Select(x => (x, "")).ToList(), k => { var pk = EvoUtil.ToTarget(list[k], species); var nt = FixDate(r, pk); Close(); if (AppState.Load(pk)) { AppState.Edited(); Note.Show("불러왔습니다" + nt); } }));
             return;
         }
         PKM pick = list.Count == 1 ? list[0] : fallback;

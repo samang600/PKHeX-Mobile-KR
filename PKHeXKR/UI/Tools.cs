@@ -364,7 +364,7 @@ public class FavoritesSheet : Sheet
         var pick = await p.DisplayActionSheetAsync($"{name} ({c.Pk.Extension})", "취소", null, "편집기로 불러오기", "현재 박스 빈 칸에 넣기", "파일로 받기", "공유", "즐겨찾기에서 삭제");
         switch (pick)
         {
-            case "편집기로 불러오기": Close(); AppState.Load(c.Pk); Note.Show("즐겨찾기에서 불러왔습니다"); break;
+            case "편집기로 불러오기": Close(); if (AppState.Load(c.Pk)) Note.Show("즐겨찾기에서 불러왔습니다"); break;
             case "현재 박스 빈 칸에 넣기":
                 var sav = AppState.Sav; int slot = -1;
                 for (int i = 0; i < sav.BoxSlotCount; i++) if (sav.GetBoxSlotAtIndex(AppState.Box, i).Species == 0) { slot = i; break; }

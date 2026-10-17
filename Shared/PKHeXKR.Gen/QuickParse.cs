@@ -296,10 +296,11 @@ public static class QuickParse
         // 이로치·우두머리
         if (t is "우두로치" or "색우두" or "우두이로치" or "알파이로치") { o.Alpha = 1; o.Shiny = Math.Max(o.Shiny, 1); return true; }
         if (t is "일반우두" or "우두" or "우두머리" or "알파") { o.Alpha = 1; return true; }
-        if (t is "일로치" or "이로치" or "색이다른" or "색違い" or "shiny") { if (o.Shiny == 0) o.Shiny = 1; return true; }
+        if (t is "일로치" or "이로치" or "색이다른" or "색違い" or "shiny") { if (o.Shiny is 0 or 2) o.Shiny = 1; return true; }   // "일반 이로치" = 우두머리 아닌 이로치
         if (t is "별" or "별이로치" or "별로치") { o.Shiny = 3; return true; }
         if (t is "네모" or "스퀘어" or "네모이로치" or "네모로치") { o.Shiny = 4; return true; }
-        if (t is "일반" or "일반색" or "노말색") { if (o.Alpha < 0) o.Alpha = 0; o.Shiny = 2; return true; }
+        if (t is "일반색" or "노말색") { if (o.Alpha < 0) o.Alpha = 0; o.Shiny = 2; return true; }
+        if (t is "일반" or "일반개체" or "비우두") { if (o.Alpha < 0) o.Alpha = 0; if (o.Shiny == 0) o.Shiny = 2; return true; }   // 우두머리 아님 (이로치와 함께 쓰면 이로치)
         // 크기·증표
         if (t is "가장" or "제일" or "최고로" or "완전") { o.Superl = true; return true; }
         if (t is "크기" or "사이즈" or "size" or "짜리") return true;

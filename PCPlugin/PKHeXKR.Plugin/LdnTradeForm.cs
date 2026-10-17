@@ -37,6 +37,7 @@ public sealed class LdnTradeForm : Form
     private readonly KRToolsPlugin plugin;
     private readonly TextBox path = new() { Dock = DockStyle.Fill }, port = new() { Width = 90, PlaceholderText = "자동" };
     private readonly ComboBox game = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
+    private readonly ComboBox lang = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private readonly RadioButton host = new() { Text = "기다리기 (호스트)", AutoSize = true }, join = new() { Text = "찾아 들어가기 (참가)", AutoSize = true };
     private readonly Label guide = new() { AutoSize = true, MaximumSize = new Size(640, 0), ForeColor = SystemColors.GrayText };
     private readonly ListBox offers = new() { Height = 96, Dock = DockStyle.Fill, HorizontalScrollbar = true };
@@ -58,6 +59,8 @@ public sealed class LdnTradeForm : Form
         path.Text = st.LdnPath; port.Text = st.LdnPort;
         (st.LdnHost ? host : join).Checked = true;
         foreach (var g in Games) game.Items.Add(g.Name);
+        foreach (var (_, name) in LdnLanguage.Languages) lang.Items.Add(name);
+        lang.SelectedIndex = Math.Max(0, Array.FindIndex(LdnLanguage.Languages, l => l.Id == st.LdnLanguage));
         game.SelectedIndex = Math.Max(0, Array.FindIndex(Games, g => g.Key == KeyOf(plugin.SaveFileEditor.SAV)));
         game.SelectedIndexChanged += (_, _) => UpdateGuide();
         host.CheckedChanged += (_, _) => UpdateGuide();
@@ -72,7 +75,10 @@ public sealed class LdnTradeForm : Form
 
         var gameRow = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, WrapContents = true };
         gameRow.Controls.AddRange([new Label { Text = "게임", AutoSize = true, Padding = new Padding(0, 6, 0, 0) }, game, host, join,
-            new Label { Text = "보드 포트", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }, port]);
+            new Label { Text = "보드 포트", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }, port,
+            new Label { Text = "트레이너 국적", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }, lang]);
+        var langHelp = new Label { AutoSize = true, MaximumSize = new Size(660, 0), ForeColor = SystemColors.GrayText,
+            Text = "트레이너 이름은 PokeLDN 앱 설정의 이름을 씁니다. 한글 이름이면 국적을 한국어로 두세요 (SV·Z-A·BDSP에 적용, 소드실드·레츠고는 콘솔 언어를 따름, 아르세우스는 미적용, 파이어레드·리프그린은 한글 불가)." };
 
         var addCur = new Button { Text = "편집 중인 포켓몬 추가", AutoSize = true };
         addCur.Click += (_, _) => AddPkm(plugin.PKMEditor.PreparePKM());
@@ -97,7 +103,7 @@ public sealed class LdnTradeForm : Form
 
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(10) };
         void Add(Control c, SizeType t = SizeType.AutoSize, float h = 0) { layout.RowStyles.Add(new RowStyle(t, h)); layout.Controls.Add(c); }
-        Add(pathRow); Add(help); Add(gameRow); Add(guide);
+        Add(pathRow); Add(help); Add(gameRow); Add(langHelp); Add(guide);
         Add(new Label { Text = "보낼 포켓몬 (최대 6마리, 순서대로 교환)", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
         Add(offers, SizeType.Absolute, 100); Add(offerBtns); Add(runRow);
         Add(new Label { Text = "받은 포켓몬", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
@@ -132,6 +138,7 @@ public sealed class LdnTradeForm : Form
     {
         var st = PluginSettings.Current;
         st.LdnPath = path.Text.Trim(); st.LdnPort = port.Text.Trim(); st.LdnHost = host.Checked;
+        st.LdnLanguage = LdnLanguage.Languages[Math.Max(0, lang.SelectedIndex)].Id;
         st.Save();
     }
 
@@ -231,6 +238,9 @@ public sealed class LdnTradeForm : Form
             extra.Add(offerFiles[i]);
         }
         if (g.Key == "frlg") { extra.Add("--trades"); extra.Add(offerFiles.Count.ToString()); }
+        string langNote;
+        try { extra.AddRange(LdnLanguage.Args(g.Key, LdnLanguage.Languages[Math.Max(0, lang.SelectedIndex)].Id, path.Text, work, out langNote)); }
+        catch (Exception ex) { langNote = "국적 설정 실패: " + ex.Message; }
         var cmd = Command(isHost ? g.Host : g.Join, extra);
         if (cmd == null) { MessageBox.Show("PokeLDN 위치를 먼저 지정하세요 (pokeldn.exe 또는 소스 폴더).", Text); return; }
         SaveSettings();
@@ -245,6 +255,7 @@ public sealed class LdnTradeForm : Form
         psi.Environment["PYTHONIOENCODING"] = "utf-8";
         psi.Environment["PYTHONUNBUFFERED"] = "1";
         log.Clear();
+        if (langNote != "") Append("※ " + langNote);
         Append($"> {Path.GetFileName(cmd.Value.exe)} {cmd.Value.args}");
         try
         {

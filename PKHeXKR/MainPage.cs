@@ -447,7 +447,7 @@ public class MainPage : ContentPage
                 if (AppState.Dirty && !await DisplayAlertAsync("저장하지 않은 변경", "편집 중인 내용을 버리고 붙여넣을까요?", "붙여넣기", "취소")) break;
                 var conv = AppState.Clipboard.GetType() == AppState.Sav.PKMType ? AppState.Clipboard.Clone() : EntityConverter.ConvertToType(AppState.Clipboard, AppState.Sav.PKMType, out _);
                 if (conv == null) { Note.Show("이 게임 형식으로 변환할 수 없습니다"); break; }
-                AppState.Load(conv); AppState.Edited(); Note.Show("붙여넣었습니다 (박스 칸을 눌러 저장)"); break;
+                if (AppState.Load(conv)) { AppState.Edited(); Note.Show("붙여넣었습니다 (박스 칸을 눌러 저장)"); } break;
             case boxAll: await ExportBoxes(true); break;
             case showdown: SheetHost.Show(new ShowdownSheet()); break;
             case trainer: SheetHost.Show(new TrainerSheet()); break;
@@ -585,10 +585,20 @@ public class MainPage : ContentPage
                     { AppState.AddInstance(s); Note.Show($"새 인스턴스로 열었습니다 ({AppState.Instances.Count}개)"); }
                     else { AppState.SetSave(s); Note.Show("세이브를 열었습니다"); }
                     break;
-                case PKM p: AppState.Load(p); Note.Show("포켓몬을 불러왔습니다"); break;
+                case PKM p:
+                    if (p.GetType() != AppState.Sav.PKMType)
+                    {
+                        // 다른 게임(형식)의 파일: 바꿀 수 없으면 열지 않고, 바꿀 수 있으면 물어봄 (HOME으로 옮기듯 변환)
+                        string from = AppState.ContextName(p.Context), to = AppState.ContextName(AppState.Sav.Context);
+                        if (EntityConverter.ConvertToType(p, AppState.Sav.PKMType, out _) == null)
+                        { await DisplayAlertAsync("열기", $"이 파일은 {from} 포켓몬이라 지금 세이브({to})에 넣을 수 없습니다. {from} 세이브를 열고 불러오세요.", "확인"); break; }
+                        if (!await DisplayAlertAsync("다른 게임의 포켓몬", $"이 파일은 {from} 포켓몬입니다. 지금 세이브({to}) 형식으로 바꿔서 열까요?\n\nHOME으로 옮긴 것처럼 변환되며, HOME 추적 번호 등이 없어 불법으로 나올 수 있습니다.", "바꿔서 열기", "취소")) break;
+                    }
+                    if (AppState.Load(p)) Note.Show("포켓몬을 불러왔습니다");
+                    break;
                 case MysteryGift g when g.IsEntity: AppState.Load(g.ConvertToPKM(AppState.Sav)); break;
                 case ConcatenatedEntitySet set:
-                    var sav = AppState.Sav; int n = 0;
+                    var sav = AppState.Sav; int n = 0, skipped = 0;
                     var start = await DisplayAlertAsync("박스 데이터", $"{set.Count}칸 분량입니다. {AppState.BoxName(AppState.Box)}부터 채울까요?", "현재 박스부터", "1번 박스부터") ? AppState.Box : 0;
                     for (int i = 0; i < set.Count; i++)
                     {
@@ -597,10 +607,11 @@ public class MainPage : ContentPage
                         PKM p2; try { p2 = set.SlotSize == sav.SIZE_BOXSLOT ? sav.GetDecryptedPKM(raw) : EntityFormat.GetFromBytes(raw); } catch { p2 = null; }
                         if (p2 == null) continue;
                         if (p2.Species == 0) continue;
-                        var c = EntityConverter.ConvertToType(p2, sav.PKMType, out _) ?? p2;
+                        var c = AppState.ForSave(p2);
+                        if (c == null) { skipped++; continue; }   // 이 세이브 형식으로 못 바꾸는 포켓몬은 건너뜀
                         sav.SetBoxSlotAtIndex(c, b, i % sav.BoxSlotCount); n++;
                     }
-                    AppState.NotifyBox(); Note.Show($"{n}마리를 넣었습니다"); break;
+                    AppState.NotifyBox(); Note.Show(skipped > 0 ? $"{n}마리를 넣었습니다 (이 게임에 넣을 수 없는 {skipped}마리는 건너뜀)" : $"{n}마리를 넣었습니다"); break;
                 default: await DisplayAlertAsync("열기", "지원하지 않는 파일입니다.", "확인"); break;
             }
         }
@@ -629,7 +640,6 @@ public class MainPage : ContentPage
     {
         var pk = AppState.Pk; if (pk.Species == 0) { Note.Show("보낼 포켓몬이 없습니다"); return; }
         if (LdnExport.GameOf(pk) == null) { await DisplayAlertAsync("PokeLDN 교환", "PokeLDN 교환은 파이어레드·리프그린, 레츠고, 소드실드, BDSP, 아르세우스, SV, Z-A 포켓몬만 됩니다.", "확인"); return; }
-        if (!new LegalityAnalysis(pk).Valid && !await DisplayAlertAsync("PokeLDN 교환", "이 포켓몬은 합법이 아닙니다. 교환하면 게임이나 HOME에서 문제가 될 수 있어요. 그래도 보낼까요?", "보내기", "취소")) return;
         try { await ShareUtil.ShareBytes(LdnExport.Prepare(pk), LdnExport.FileName(pk), "PokeLDN 교환으로 보내기"); }
         catch (Exception ex) { await DisplayAlertAsync("PokeLDN 교환", ex.Message, "확인"); }
     }

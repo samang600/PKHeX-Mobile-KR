@@ -117,7 +117,10 @@ public static class QuickGen
             return true;
         }
         int Rank(IEncounterInfo e) =>
-            (o.Event ? -GiftScore(e as MysteryGift, o) * 1000 : 0) + (e.Context == sav.Context ? 0 : 100) + (SameGame(e.Version, sav.Version) ? 0 : 20) + (e.Species == o.Species ? 0 : 10) + e switch { MysteryGift => 50, _ when e.GetType().Name.StartsWith("EncounterGift3") => 50, IEncounterEgg => 30, _ when e.GetType().Name.StartsWith("EncounterSlot") => 0, _ => 5 };
+            (o.Event ? -GiftScore(e as MysteryGift, o) * 1000 : 0) + (e.Context == sav.Context ? 0 : 100)
+            // 우두머리를 적지 않았으면 일반 조우(진화 전 포함)를 먼저: 갑주무사·리자몽·데덴네 등 Z-A에서 같은 종 조우가 우두머리뿐이면
+            // 진화 전 일반 조우보다 앞서 뽑혀 '이로치'만 적어도 우두머리가 되던 문제. 일반 조우가 없을 때만 우두머리로.
+            + (o.Alpha < 0 && e is IAlphaReadOnly { IsAlpha: true } ? 60 : 0) + (SameGame(e.Version, sav.Version) ? 0 : 20) + (e.Species == o.Species ? 0 : 10) + e switch { MysteryGift => 50, _ when e.GetType().Name.StartsWith("EncounterGift3") => 50, IEncounterEgg => 30, _ when e.GetType().Name.StartsWith("EncounterSlot") => 0, _ => 5 };
         var sorted = list.Distinct().Where(Ok).OrderBy(Rank).ToList();
         if (sav.Generation > 4 && !o.AllowTransfer) return sorted;
         // 3·4세대: 같은 종류·버전·종의 조우(예: 장소만 다른 야생 칸 수십 개)는 앞쪽에 3개까지만 → 알 등 다른 방식도 시도 순서 안에 들어오게

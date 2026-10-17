@@ -94,7 +94,7 @@ public class QuickSheet : Sheet
         if (made.Count == 1)
         {
             status.Text = "편집기로 불러왔습니다";
-            Close(); AppState.Load(made[0]); AppState.Edited(); Note.Show("텍스트로 만든 포켓몬을 불러왔습니다");
+            Close(); if (AppState.Load(made[0])) { AppState.Edited(); Note.Show("텍스트로 만든 포켓몬을 불러왔습니다"); }
             return;
         }
         int put = QuickGen.PlaceInBoxes(sav, made, AppState.Box);
