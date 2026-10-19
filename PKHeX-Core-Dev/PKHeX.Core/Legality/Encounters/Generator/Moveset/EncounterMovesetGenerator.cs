@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -128,6 +128,9 @@ public static class EncounterMovesetGenerator
     /// <returns>A consumable <see cref="IEncounterable"/> list of possible encounters.</returns>
     private static IEnumerable<IEncounterable> GenerateVersionEncounters(PKM pk, ReadOnlyMemory<ushort> moves, GameVersion version)
     {
+        // PKHeXKR: 아직 데이터가 없는 새 버전(윈즈·웨이브 등, 세대 정보 없음)은 건너뜀 — 26.10.18에서 목록에 들어와 생성이 통째로 예외로 끝났음
+        if (version is not GameVersion.GO && version.Context is EntityContext.None)
+            return [];
         pk.Version = version;
         if (version is GameVersion.GO)
             return GenerateVersionEncountersGO(pk, moves);

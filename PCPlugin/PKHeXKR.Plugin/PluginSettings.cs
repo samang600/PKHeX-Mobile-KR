@@ -34,6 +34,7 @@ public sealed class PluginSettings
     public bool LdnHost { get; set; } = true;
     /// <summary>PokeLDN 교환 트레이너 국적 (PKHeX 언어 번호, 8 = 한국어)</summary>
     public int LdnLanguage { get; set; } = 8;
+    public bool LdnSkipLegality { get; set; } = true;
 
     // 저장 위치: PKHeX 폴더 (쓰기 권한이 없으면 %AppData%\PKHeXKR)
     private const string FileName = "pkhexkr_plugin.json";

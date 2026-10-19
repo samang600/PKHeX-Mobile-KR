@@ -490,7 +490,7 @@ public static class AppState
     public static string Sprite(PKM p)
     {
         if (p.Species == 0) return null;
-        if (p.IsEgg) return "b_0.png";
+        if (p.IsEgg) return "a_egg.png";   // b_0은 빈 그림이라 알이 안 보였음
         if (p.Species == (ushort)PKHeX.Core.Species.Alcremie && p is IFormArgument fa)   // 마휘핑: 크림(폼)과 장식(폼 인수)별 아이콘
         {
             var n = $"b_869_{p.Form}_{Math.Min(fa.FormArgument, 6u)}{(p.IsShiny ? "s" : "")}";
@@ -536,6 +536,8 @@ public static class AppState
         if (la.Valid) return true;
         var bad = la.Results.Where(r => r.Judgement == Severity.Invalid).ToList();
         if (!HTFlagCheck) bad = bad.Where(r => r.Result != LegalityCheckResultCode.TransferHandlerFlagRequired).ToList();
+        // 어버이(현재 트레이너) 검사를 끈 경우: 현재 트레이너 이름 흔적(쓰레기 바이트) 판정도 무시 (교환으로 받은 알 등)
+        if (!HandlerCheck) bad = bad.Where(r => !(r.Identifier == CheckIdentifier.Handler && r.Result is LegalityCheckResultCode.TrashBytesExpected or LegalityCheckResultCode.TrashBytesShouldBeEmpty)).ToList();
         if (bad.Count == 0) return true;
         // 리본만 문제: 진화 전 포켓몬이 받을 수 있는 리본이면 허용 (예: BDSP 리본을 단 이브이 → BDSP에 없는 님피아로 진화)
         if (bad.All(r => r.Identifier == CheckIdentifier.Ribbon) && RibbonOkViaPreEvo(la)) return true;

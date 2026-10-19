@@ -390,7 +390,7 @@ public sealed class WC8(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
 
     public bool IsHOMEGift => CardID >= 9000;
 
-    /// <summary>PKHeXKR: HOME 선물 중 출신 게임이 소드실드가 아닌 것 (예: FRLG 도감 완성 보상 세레비, 출신 버전 56) — 그 출신 게임만 받음</summary>
+    /// <summary>PKHeXKR: HOME 선물 중 출신 게임이 소드실드가 아닌 것 (예: FRLG 도감 완성 보상 세레비, 출신 56) — 그 출신 게임만 받음</summary>
     private bool IsHOMEGiftOtherOrigin => IsHOMEGift && OriginGame is not (0 or (int)GameVersion.SW or (int)GameVersion.SH);
 
     /// <summary>PKHeXKR: FRLG 도감 완성 보상 세레비 (9251 일본어 ミツリン / 9252 영어 HOME, 임시 카드 번호). 출신 번호 56·만난 장소 30007 (HOME 실물 그대로).</summary>
@@ -531,6 +531,12 @@ public sealed class WC8(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
             }
         }
 
+        if (Version is GameVersion.FRX) // HOME Celebi (temp workaround)
+        {
+            pk.Version = GameVersion.SW;
+            pk.MetLocation = LocationsHOME.SWFR;
+        }
+
         pk.ResetPartyStats();
         pk.RefreshChecksum();
         return pk;
@@ -662,7 +668,26 @@ public sealed class WC8(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
 
             var OT = GetOT(pk.Language); // May not be guaranteed to work.
             if (!string.IsNullOrEmpty(OT) && OT != pk.OriginalTrainerName) return false;
-            if (OriginGame != 0 && (GameVersion)OriginGame != pk.Version) return false;
+
+            if ((GameVersion)OriginGame is GameVersion.FRX) // HOME Celebi (temp workaround)
+            {
+                if (pk is PK8)
+                {
+                    // PKHeXKR: HOME에서 그대로 꺼낸 실물(출신 56·만난 장소 30007)도 허용
+                    if (!(pk.Version is GameVersion.SW && pk.MetLocation == LocationsHOME.SWFR) && !pk.IsHOMEOrigin56)
+                        return false;
+                }
+                else
+                {
+                    if (!(pk.Version is GameVersion.FRX && pk.MetLocation != LocationsHOME.VirtualConsole3))
+                        return false;
+                }
+            }
+            else if (OriginGame != 0 && (GameVersion)OriginGame != pk.Version)
+            {
+                return false;
+            }
+
             if (EncryptionConstant != 0)
             {
                 if (EncryptionConstant != pk.EncryptionConstant)

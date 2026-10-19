@@ -1,4 +1,4 @@
-using CommunityToolkit.Maui.Storage;
+﻿using CommunityToolkit.Maui.Storage;
 using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using Microsoft.Maui.Controls.Shapes;
@@ -43,7 +43,8 @@ public class MainPage : ContentPage
         // 상단 바
         var menu = T.Pill("⋮", size: 18); menu.WidthRequest = 44; menu.Padding = 0;
         menu.Clicked += async (_, _) => await Menu();
-        liveBtn.Clicked += (_, _) => SheetHost.Show(new LiveHexSheet());
+        liveBtn.Clicked += async (_, _) => { if (TopIsLdn) await TradeLdn(); else SheetHost.Show(new LiveHexSheet()); };
+        LdnTrade.Changed += () => MainThread.BeginInvokeOnMainThread(UpdateLive);
         var gameBtn = T.Pill("🎮", size: 18); gameBtn.WidthRequest = 44; gameBtn.Padding = 0;
         gameBtn.Clicked += async (_, _) => await ChangeGame();
         var top = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto) }, ColumnSpacing = 8, Padding = new Thickness(16, 10, 12, 4) };
@@ -337,8 +338,18 @@ public class MainPage : ContentPage
         saveSub.Text = $"{s.OT}  ·  TID {tid}{file}{(AppState.HaX ? "  ·  ⚠ PKHaX" : "")}";   // 2줄: 트레이너 정보
     }
 
+    /// <summary>설정: 위쪽 '라이브헥스' 버튼 자리를 PokeLDN 교환으로 (LDN판)</summary>
+    public static bool TopIsLdn => LdnTrade.Available && Preferences.Get("top_ldn", false);
+
     public void UpdateLive()
     {
+        if (TopIsLdn)
+        {
+            liveBtn.Text = LdnTrade.Running ? "● PokeLDN" : "PokeLDN";
+            liveBtn.TextColor = LdnTrade.Running ? T.Good : null;
+            if (!LdnTrade.Running) liveBtn.SetAppThemeColor(Button.TextColorProperty, T.Accent, Color.FromArgb("#A5B4FC"));
+            return;
+        }
         liveBtn.Text = AppState.LiveConnected ? "● 라이브헥스" : "라이브헥스";
         liveBtn.TextColor = AppState.LiveConnected ? T.Good : null;
         if (!AppState.LiveConnected) liveBtn.SetAppThemeColor(Button.TextColorProperty, T.Accent, Color.FromArgb("#A5B4FC"));
@@ -392,7 +403,7 @@ public class MainPage : ContentPage
 
     private Task Menu()
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)", mgift = "이상한 소포 받기함";
+        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)";
         const string dexFill = "세이브 도감 일괄 등록";
         const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
         const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
@@ -403,7 +414,7 @@ public class MainPage : ContentPage
             ("파일", [("📂", open), ("🕘", recent), ("⭐", favs), ("💾", export), ("🧬", exportPk), ("📤", sharePk), ("📦", boxOne), ("⇄", showdown)]),
             ("게임 · 트레이너", [("🎮", game), ("👤", trainer), ("🤝", autoOT)]),
             ("인스턴스", [("🗂", inst), ("📋", copyPk), ("📥", pastePk)]),
-            ("도구", [("✍", quick), ("📶", ftp), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
+            ("도구", [("✍", quick), ("📶", ftp), .. (LdnTrade.Available ? new (string, string)[] { ("🔁", ldnTrade) } : []), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
             ("설정", [("⚠", AppState.HaX ? haxOff : haxOn), ("⚙", settings), ("ⓘ", about)]),
         };
         SheetHost.Show(new MenuSheet(groups, k => Dispatcher.Dispatch(async () => await RunMenu(k))));
@@ -412,7 +423,7 @@ public class MainPage : ContentPage
 
     private async Task RunMenu(string pick)
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)", mgift = "이상한 소포 받기함";
+        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "스위치 세이브 (무선 FTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)";
         const string dexFill = "세이브 도감 일괄 등록";
         const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
         const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
@@ -453,6 +464,7 @@ public class MainPage : ContentPage
             case trainer: SheetHost.Show(new TrainerSheet()); break;
             case game: await ChangeGame(); break;
             case home: SheetHost.Show(new HomeLiveSheet()); break;
+            case ldnTrade: await TradeLdn(); break;
             case autoOT: SheetHost.Show(new AutoOTSheet()); break;
             case haxOn:
                 if (await DisplayAlertAsync("PKHaX 모드 주의",
@@ -466,15 +478,19 @@ public class MainPage : ContentPage
                 if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); await DisplayAlertAsync("데이터 언어", $"{sel.Name}(으)로 설정했습니다. 앱을 다시 시작하면 적용됩니다.", "확인"); }
                 break;
             case about:
-                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-13 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker)", "확인");
+                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-19 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.31.3(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker)", "확인");
                 break;
         }
     }
 
     private async Task SaveMenu()
     {
-        const string a = "세이브 내보내기", b = "편집 중인 포켓몬 파일로 저장", c = "현재 박스 데이터(.bin) 내보내기", fav = "편집 중인 포켓몬 즐겨찾기 등록", ldn = "PokeLDN 교환 파일로 보내기";
-        var pick = await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, ldn, fav, c);
+        const string a = "세이브 내보내기", b = "편집 중인 포켓몬 파일로 저장", c = "현재 박스 데이터(.bin) 내보내기", fav = "편집 중인 포켓몬 즐겨찾기 등록", ldn = "PokeLDN 교환 파일로 보내기", ldnNow = "PokeLDN 교환 (ESP32 보드)";
+        // LDN판: PokeLDN 교환은 앱 안에서 (메뉴 → 도구 → PokeLDN 교환) → 교환 파일 내보내기는 일반판에만
+        var pick = LdnTrade.Available
+            ? await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, fav, c)
+            : await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, ldn, fav, c);
+        if (pick == ldnNow) { await TradeLdn(); return; }
         if (pick == ldn) { await ExportLdn(); return; }
         if (pick == fav) { if (AppState.Pk.Species == 0) { Note.Show("등록할 포켓몬이 없습니다"); return; } Favorites.Add(AppState.Pk); Note.Show("즐겨찾기에 등록했습니다"); return; }
         if (pick == a) await ExportSave();
@@ -641,6 +657,13 @@ public class MainPage : ContentPage
         var pk = AppState.Pk; if (pk.Species == 0) { Note.Show("보낼 포켓몬이 없습니다"); return; }
         if (LdnExport.GameOf(pk) == null) { await DisplayAlertAsync("PokeLDN 교환", "PokeLDN 교환은 파이어레드·리프그린, 레츠고, 소드실드, BDSP, 아르세우스, SV, Z-A 포켓몬만 됩니다.", "확인"); return; }
         try { await ShareUtil.ShareBytes(LdnExport.Prepare(pk), LdnExport.FileName(pk), "PokeLDN 교환으로 보내기"); }
+        catch (Exception ex) { await DisplayAlertAsync("PokeLDN 교환", ex.Message, "확인"); }
+    }
+
+    /// <summary>앱 안의 PokeLDN 교환 화면: 편집 중인 포켓몬을 보낼 목록으로 (없거나 교환할 수 없는 형식이면 화면만).</summary>
+    private async Task TradeLdn()
+    {
+        try { await LdnTrade.Open(null); }
         catch (Exception ex) { await DisplayAlertAsync("PokeLDN 교환", ex.Message, "확인"); }
     }
 

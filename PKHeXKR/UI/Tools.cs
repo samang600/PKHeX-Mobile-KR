@@ -169,6 +169,8 @@ public class SettingsSheet : Sheet
         var swfHint = T.L("파이어레드·리프그린 세이브에만 적용. 루비·사파이어·에메랄드·콜로세움/XD 출신, 옛 배포, 배꼽바위·탄생의섬, FRLG에 나오지 않는 호연 포켓몬 등을 불법으로 봅니다. 끄면 GBA판 기준(교환·배포 허용).", 12, sub: true); swfHint.LineBreakMode = LineBreakMode.WordWrap;
         var chkHint = T.L("합법성 검사 항목을 켜고 끕니다. 끈 항목만 문제인 개체는 합법으로 표시됩니다.", 12, sub: true); chkHint.LineBreakMode = LineBreakMode.WordWrap;
         var upd = Tog("업데이트 알림 (GitHub 새 버전 확인)", UpdateCheck.Enabled, v => UpdateCheck.Enabled = v);
+        var topLdn = Tog("위쪽 '라이브헥스' 버튼을 PokeLDN 교환으로", Preferences.Get("top_ldn", false), v => { Preferences.Set("top_ldn", v); MainPage.Instance?.UpdateLive(); });
+        topLdn.IsVisible = LdnTrade.Available;
         var keep = Tog("마지막 세이브 그대로 열기 (앱을 끌 때 편집 상태 보존)", LastSession.Enabled, v => { LastSession.Enabled = v; if (!v) LastSession.Clear(); });
         var updNow = T.Pill("지금 업데이트 확인"); updNow.Clicked += async (_, _) => await UpdateCheck.Run(true);
         var mg = Tog("배포 데이터 자동 업데이트 (하루 한 번)", EventData.Enabled, v => EventData.Enabled = v);
@@ -227,7 +229,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
     }
 }
 

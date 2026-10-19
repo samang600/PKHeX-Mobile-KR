@@ -33,13 +33,22 @@ public sealed class EncounterGenerator8X : IEncounterGenerator
         GO => EncounterGeneratorGO.Instance.GetEncounters(pk, chain, info),
         PLA      when pk is not PK8 => EncounterGenerator8a.Instance.GetEncounters(pk, chain, info),
         BD or SP when pk is not PK8 => EncounterGenerator8b.Instance.GetEncounters(pk, chain, info),
-        SW when pk.MetLocation == LocationsHOME.SWLA => EncounterGenerator8a.Instance.GetEncounters(pk, chain, info),
-        SW when pk.MetLocation == LocationsHOME.SWBD => EncounterGenerator8b.Instance.GetEncountersSWSH(pk, chain, BD),
-        SH when pk.MetLocation == LocationsHOME.SHSP => EncounterGenerator8b.Instance.GetEncountersSWSH(pk, chain, SP),
-        SW when pk.MetLocation == LocationsHOME.SWSL => EncounterGenerator9.Instance.GetEncountersSWSH(pk, chain, SL),
-        SH when pk.MetLocation == LocationsHOME.SHVL => EncounterGenerator9.Instance.GetEncountersSWSH(pk, chain, VL),
-        SW or SH => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),
-        _ when pk.IsHOMEOrigin56 => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),   // PKHeXKR: HOME 선물 출신 버전 56 (FRLG 도감 완성 보상 세레비)
+        SW => pk.MetLocation switch
+        {
+            LocationsHOME.SWLA => EncounterGenerator8a.Instance.GetEncounters(pk, chain, info),
+            LocationsHOME.SWBD => EncounterGenerator8b.Instance.GetEncountersSWSH(pk, chain, BD),
+            LocationsHOME.SWSL => EncounterGenerator9.Instance.GetEncountersSWSH(pk, chain, SL),
+            LocationsHOME.SWFR when pk is PK8 => EncounterGenerator3.Instance.GetEncounters(pk, chain, info, FRX),
+            _ => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),
+        },
+        SH => pk.MetLocation switch
+        {
+            LocationsHOME.SHSP => EncounterGenerator8b.Instance.GetEncountersSWSH(pk, chain, SP),
+            LocationsHOME.SHVL => EncounterGenerator9.Instance.GetEncountersSWSH(pk, chain, VL),
+            LocationsHOME.SHLG when pk is PK8 => EncounterGenerator3.Instance.GetEncounters(pk, chain, info, LGX),
+            _ => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),
+        },
+        _ when pk.IsHOMEOrigin56 => EncounterGenerator8.Instance.GetEncounters(pk, chain, info),   // PKHeXKR: HOME 선물 출신 56 (FRLG 도감 완성 보상 세레비)
         _ => [],
     };
 }

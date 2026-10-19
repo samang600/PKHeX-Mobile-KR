@@ -1,7 +1,7 @@
 <Project>
-  <!-- PKHeX 개발 버전 (kwsch/PKHeX master 66ef598, 2026-10-08) — 정식 릴리스 26.08.26 이후 수정 반영용 -->
+  <!-- PKHeX 개발 버전 (kwsch/PKHeX master 6042efa, 2026-10-19) — 정식 릴리스 26.10.18 + 이후 수정 반영 -->
   <PropertyGroup>
-    <Version>26.10.08</Version>
+    <Version>26.10.18</Version>
     <LangVersion>14</LangVersion>
     <Nullable>enable</Nullable>
     <NeutralLanguage>en</NeutralLanguage>

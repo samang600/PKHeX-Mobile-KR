@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.Injection;
 using CommunityToolkit.Maui.Behaviors;
 namespace PKHeXKR;
@@ -185,7 +185,7 @@ public class BoxPanel : ContentView
             bool fm = BoxFilter.Active && BoxFilter.Match(p);
             var stroke = sel ? T.Good : isMoving ? T.Warn : pickMode || moving != null ? T.Accent.WithAlpha(0.4f) : fm ? T.Good : current ? T.Accent : Colors.Transparent;
             double dim = BoxFilter.Active && !fm ? 0.3 : 1;
-            if (AppState.IsBadEgg(p)) return new Slot(i, p, "b_0.png", false, true, null, stroke, dim, sel);   // 불량알: 알 그림 + 불법 표시
+            if (AppState.IsBadEgg(p)) return new Slot(i, p, "a_egg.png", false, true, null, stroke, dim, sel);   // 불량알: 알 그림 + 불법 표시
             return new Slot(i, p, AppState.Sprite(p), p.Species != 0 && p.IsShiny, p.Species != 0 && !AppState.IsLegal(p), AppState.ItemSprite(p.HeldItem), stroke, dim, sel);
         }).ToList();
     }
@@ -276,7 +276,7 @@ public class BoxPanel : ContentView
         var sav = AppState.Sav;
         var picks = Selected.Where(k => sav.GetBoxSlotAtIndex(k.Box, k.Index).Species != 0).OrderBy(k => k.Box).ThenBy(k => k.Index).ToList();
         if (picks.Count == 0) { Note.Show("선택한 칸이 없습니다"); return; }
-        const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제", ldn = "PokeLDN 교환 파일로 보내기 (최대 6마리)";
+        const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제", ldn = "PokeLDN 교환으로 보내기 (최대 6마리)";
         var a = await Page().DisplayActionSheetAsync($"{picks.Count}칸 선택", "취소", null, move, fav, ldn, export, del, clear);
         byte[] Bin() { int size = sav.SIZE_BOXSLOT; var buf = new byte[picks.Count * size]; for (int i = 0; i < picks.Count; i++) { var p = sav.GetBoxSlotAtIndex(picks[i].Box, picks[i].Index); p.WriteEncryptedDataStored(buf.AsSpan(i * size, Math.Min(size, p.SIZE_STORED))); } return buf; }
         switch (a)
@@ -307,6 +307,13 @@ public class BoxPanel : ContentView
             {
                 var mons = picks.Take(6).Select(k => sav.GetBoxSlotAtIndex(k.Box, k.Index)).Where(p => LdnExport.GameOf(p) != null).ToList();
                 if (mons.Count == 0) { Note.Show("PokeLDN 교환을 지원하지 않는 게임입니다"); return; }
+                if (LdnTrade.Available)   // LDN판: 앱 안의 교환 화면으로 바로
+                {
+                    Selected.Clear(); Refresh();
+                    await LdnTrade.Open(mons);
+                    if (picks.Count > 6) Note.Show("앞의 6마리만 넣었습니다");
+                    break;
+                }
                 var files = new List<ShareFile>();
                 for (int i = 0; i < mons.Count; i++)
                 {

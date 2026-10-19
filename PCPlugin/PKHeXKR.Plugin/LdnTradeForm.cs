@@ -38,6 +38,7 @@ public sealed class LdnTradeForm : Form
     private readonly TextBox path = new() { Dock = DockStyle.Fill }, port = new() { Width = 90, PlaceholderText = "자동" };
     private readonly ComboBox game = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
     private readonly ComboBox lang = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
+    private readonly CheckBox skipLegal = new() { Text = "합법성 확인 건너뛰기 (PKHeX 판정이 불법이어도 그대로 보냄)", AutoSize = true };
     private readonly RadioButton host = new() { Text = "기다리기 (호스트)", AutoSize = true }, join = new() { Text = "찾아 들어가기 (참가)", AutoSize = true };
     private readonly Label guide = new() { AutoSize = true, MaximumSize = new Size(640, 0), ForeColor = SystemColors.GrayText };
     private readonly ListBox offers = new() { Height = 96, Dock = DockStyle.Fill, HorizontalScrollbar = true };
@@ -58,6 +59,7 @@ public sealed class LdnTradeForm : Form
         var st = PluginSettings.Current;
         path.Text = st.LdnPath; port.Text = st.LdnPort;
         (st.LdnHost ? host : join).Checked = true;
+        skipLegal.Checked = st.LdnSkipLegality;
         foreach (var g in Games) game.Items.Add(g.Name);
         foreach (var (_, name) in LdnLanguage.Languages) lang.Items.Add(name);
         lang.SelectedIndex = Math.Max(0, Array.FindIndex(LdnLanguage.Languages, l => l.Id == st.LdnLanguage));
@@ -105,7 +107,7 @@ public sealed class LdnTradeForm : Form
         void Add(Control c, SizeType t = SizeType.AutoSize, float h = 0) { layout.RowStyles.Add(new RowStyle(t, h)); layout.Controls.Add(c); }
         Add(pathRow); Add(help); Add(gameRow); Add(langHelp); Add(guide);
         Add(new Label { Text = "보낼 포켓몬 (최대 6마리, 순서대로 교환)", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
-        Add(offers, SizeType.Absolute, 100); Add(offerBtns); Add(runRow);
+        Add(offers, SizeType.Absolute, 100); Add(offerBtns); Add(skipLegal); Add(runRow);
         Add(new Label { Text = "받은 포켓몬", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
         Add(received, SizeType.Absolute, 84); Add(recBtns);
         Add(new Label { Text = "진행 상황", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
@@ -139,6 +141,7 @@ public sealed class LdnTradeForm : Form
         var st = PluginSettings.Current;
         st.LdnPath = path.Text.Trim(); st.LdnPort = port.Text.Trim(); st.LdnHost = host.Checked;
         st.LdnLanguage = LdnLanguage.Languages[Math.Max(0, lang.SelectedIndex)].Id;
+        st.LdnSkipLegality = skipLegal.Checked;
         st.Save();
     }
 
@@ -163,8 +166,8 @@ public sealed class LdnTradeForm : Form
     {
         if (pk == null || pk.Species == 0) { MessageBox.Show("편집 중인 포켓몬이 없습니다.", Text); return; }
         if (offerFiles.Count >= 6) { MessageBox.Show("최대 6마리까지 넣을 수 있습니다.", Text); return; }
-        var la = new LegalityAnalysis(pk);
-        if (!la.Valid && MessageBox.Show("이 포켓몬은 합법이 아닙니다. PokeLDN이 교환 전에 PKHeX로 다시 확인하므로 거절될 수 있습니다. 그래도 넣을까요?", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+        if (!skipLegal.Checked && !new LegalityAnalysis(pk).Valid)
+            Append("※ 합법이 아닌 포켓몬입니다. '합법성 확인 건너뛰기'를 켜지 않으면 PokeLDN이 교환 전에 거절합니다.");
         var data = new byte[pk.SIZE_STORED]; pk.WriteDecryptedDataStored(data);
         var file = Path.Combine(work, $"{DateTime.Now:HHmmssfff}_{pk.Species:0000}.{pk.Extension}");
         File.WriteAllBytes(file, data);
@@ -211,15 +214,29 @@ public sealed class LdnTradeForm : Form
     {
         var p = path.Text.Trim().Trim('"');
         var rest = string.Join(" ", extra.Select(Quote));
+        var run = skipLegal.Checked ? RunScript() : null;   // 합법성 확인 건너뛰기: PokeLDN 안에서 확인 부분만 바꿔 실행
         if (File.Exists(p) && p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-            return (p, $"--module pokeldn {tool} -- {rest}", Path.GetDirectoryName(p));
+            return (p, run != null ? $"--run {Quote(run)} {tool} -- {rest}" : $"--module pokeldn {tool} -- {rest}", Path.GetDirectoryName(p));
         var root = Directory.Exists(p) ? FindSourceRoot(p) ?? p : null;
         if (root != null && File.Exists(Path.Combine(root, "pokeldn", "__main__.py")))
         {
             var py = new[] { Path.Combine(root, ".venv", "Scripts", "python.exe"), Path.Combine(root, ".venv", "bin", "python") }.FirstOrDefault(File.Exists) ?? "python";
-            return (py, $"-u -m pokeldn {tool} -- {rest}", root);
+            return (py, run != null ? $"-u {Quote(Path.Combine(root, "pokeldn", "app", "entry.py"))} --run {Quote(run)} {tool} -- {rest}" : $"-u -m pokeldn {tool} -- {rest}", root);
         }
         return null;
+    }
+
+    private string RunScript()
+    {
+        try
+        {
+            using var src = typeof(LdnTradeForm).Assembly.GetManifestResourceStream("pkhexkr_ldn_run.py");
+            if (src == null) return null;
+            var file = Path.Combine(work, "pkhexkr_ldn_run.py");
+            using (var dst = File.Create(file)) src.CopyTo(dst);
+            return file;
+        }
+        catch { return null; }
     }
 
     private static string Quote(string s) => s.Length > 0 && !s.Contains(' ') && !s.Contains('"') ? s : "\"" + s.Replace("\"", "\\\"") + "\"";

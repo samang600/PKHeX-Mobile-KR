@@ -195,7 +195,7 @@ public static class QuickGen
 
     public static PKM TryEncounter(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
-        var crit = EncCond.Criteria(); var sw = System.Diagnostics.Stopwatch.StartNew(); int illegal = 0; bool fail = false, mismatch = false;
+        var crit = EncCond.Criteria(); var sw = System.Diagnostics.Stopwatch.StartNew(); int illegal = 0; bool fail = false, mismatch = false; bool? sizeFree = null;
         var tr = TrainerFor(e, o, sav);
         // 3·4세대 + 개체값 고정(6V·5V·개체값 전부 지정): PKHeX가 개체값에서 시드를 거꾸로 찾아 성격·성별까지 정해서 만듦 (결과가 정해져 있음)
         // → 무작위로 4초 돌리는 대신 가능한 개체값 조합만 몇 번씩 시도하고, 안 되면 바로 다음 조우로
@@ -246,6 +246,7 @@ public static class QuickGen
             if (o.Ball > 0) p.Ball = (byte)o.Ball;
             if (o.Level > 0 && o.Level >= p.MetLevel) p.CurrentLevel = (byte)o.Level;
             // 조건(성별·이로치·성격·개체값·크기)은 진화해도 그대로라 진화 전에 먼저 확인 → 맞는 개체만 진화 (진화는 무거움)
+            p = EncCond.FitSize(p, ref sizeFree, GenHost.IsLegal);
             if (!EncCond.Satisfied(p)) return null;
             if (o.FlawlessIVs > 0 && new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(v => v == p.MaxIV) < o.FlawlessIVs) return null;
             if (p.Species != o.Species) { p = EvoUtil.Evolve(p, o.Species, o.Form); if (p.Species != o.Species) return null; }

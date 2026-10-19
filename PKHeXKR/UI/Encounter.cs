@@ -415,7 +415,7 @@ public class EncounterSheet : Sheet
         if (why != null || !EncCond.HasAny)
         {
             PKM p0 = null;
-            try { var t0 = r.Enc.ConvertToPKM(sav, EncounterCriteria.Unrestricted); p0 = EntityConverter.ConvertToType(t0, sav.PKMType, out _) ?? t0; if (why == null) EncCond.ApplyMark(p0); } catch { }
+            try { var t0 = r.Enc.ConvertToPKM(sav, EncounterCriteria.Unrestricted); p0 = EntityConverter.ConvertToType(t0, sav.PKMType, out _) ?? t0; if (why == null) EncCond.ApplyMark(p0); else EncCond.FixTradedEgg(p0); } catch { }
             if (p0 == null) { status.Text = "이 인카운터로는 개체를 만들 수 없습니다"; return; }
             var note0 = FixDate(r, p0);
             p0 = EvoUtil.ToTarget(p0, species); Close(); if (AppState.Load(p0)) AppState.Edited();
@@ -431,7 +431,7 @@ public class EncounterSheet : Sheet
         var made = await Task.Run(() =>
         {
             var sw = System.Diagnostics.Stopwatch.StartNew(); PKM last = null, best = null; int bestScore = -1; long tries = 0, legalN = 0, satIllegal = 0;
-            var found = new List<PKM>(); bool noLegal = false;
+            var found = new List<PKM>(); bool noLegal = false; bool? sizeFree = null;
             var gate = new object(); var stop = new CancellationTokenSource(); var link = CancellationTokenSource.CreateLinkedTokenSource(tok, stop.Token).Token;
             int workers = Math.Max(1, Environment.ProcessorCount - 1);
             var tasks = Enumerable.Range(0, workers).Select(w => Task.Run(() =>
@@ -442,6 +442,7 @@ public class EncounterSheet : Sheet
                     try { p = r.Enc.ConvertToPKM(sav, crit); } catch { stop.Cancel(); break; }
                     p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
                     EncCond.ApplyMark(p);
+                    p = EncCond.FitSize(p, ref sizeFree, AppState.IsLegal);
                     var n = Interlocked.Increment(ref tries);
                     if (last == null) lock (gate) last ??= p;
                     bool ok = EncCond.Satisfied(p); int sc = EncCond.Score(p);

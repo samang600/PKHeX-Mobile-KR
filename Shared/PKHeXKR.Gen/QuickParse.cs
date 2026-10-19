@@ -160,8 +160,9 @@ public static class QuickParse
             var line = rawLine.Trim();
             if (line.Length == 0) continue;
             // 공통 줄: "어버이: 새아 468686", "공통 어버이 새아 / TID 468686"
-            var allM = Regex.Match(line, @"^(모두|전부|전체|다)\s*[:：]?\s*(.+)$");
-            if (allM.Success) { ApplyTokens(allSpec, Tokenize(allM.Groups[2].Value), sav, false); continue; }
+            // 띄어쓰기나 ':'가 있어야 공통 줄 ("다 암컷") — 없으면 다투곰·다크라이·다부니처럼 '다'로 시작하는 이름이 공통 줄로 잡혔음
+            var allM = Regex.Match(line, @"^(모두|전부|전체|다)(\s*[:：]\s*|\s+)(.+)$");
+            if (allM.Success) { ApplyTokens(allSpec, Tokenize(allM.Groups[3].Value), sav, false); continue; }
             if (Regex.IsMatch(line, @"^(공통|어버이\s*[:：]|tn\s*[:：])", RegexOptions.IgnoreCase))
             { ApplyTokens(global, Tokenize(line.Replace("공통", "")), sav, onlyTrainer: true); continue; }
             foreach (var part0 in SplitEntries(line))
@@ -220,7 +221,11 @@ public static class QuickParse
 
     private static List<string> Tokenize(string t)
     {
+        t = Regex.Replace(t, @"타입\s*[:：]?\s*널", "타입:널");   // 이름에 ':'가 든 포켓몬
+        t = t.Replace("타입:널", "\u0001");
+        t = Regex.Replace(t, @"([가-힣])의\s+증표", "$1의증표");   // "카레의 증표" = "카레의증표"
         t = Regex.Replace(t, @"[,，:：/]", " ");   // '/'는 구분용으로만 쓰고 무시
+        t = t.Replace("\u0001", "타입:널");
         return t.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 

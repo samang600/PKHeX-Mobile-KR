@@ -79,8 +79,21 @@ public static class EncCond
         return e is EncounterSlot8 or EncounterStatic8 or EncounterSlot9 or EncounterOutbreak9 or EncounterStatic9;
     }
     /// <summary>만든 개체에 증표를 붙임 (카레의증표는 몬스터·수퍼·하이퍼볼만 가능하므로 볼도 맞춤).</summary>
+    /// <summary>
+    /// 다른 버전에서 낳은 알(교환으로 받은 알을 부화): PKHeX 생성기는 현재 트레이너 칸을 비워 두는데, 게임에서는 알을 주고받은
+    /// 트레이너 이름 흔적이 남아 '예상된 쓰레기 바이트입니다'로 불법 판정됨 → 현재 트레이너 칸에 이름을 채움 (소드실드 제외: 갱신 안 함).
+    /// </summary>
+    public static void FixTradedEgg(PKM p)
+    {
+        if (p.IsEgg || p.Format < 8 || p.SWSH || !p.WasTradedEgg) return;
+        if (p.HandlingTrainerTrash.ContainsAnyExcept((byte)0)) return;
+        p.HandlingTrainerName = "KR";
+        p.RefreshChecksum();
+    }
+
     public static void ApplyMark(PKM p)
     {
+        FixTradedEgg(p);
         if (Mark < 0) return;
         try
         {
@@ -182,8 +195,46 @@ public static class EncCond
             if (IVExact) { if (IVMin[i] >= 0 && IV(p, i) != IVMin[i]) return false; }
             else if (IV(p, i) < Math.Min(IVMin[i], p.MaxIV)) return false;
         }
+        return SizeOk(p);
+    }
+
+    public static bool SizeOk(PKM p)
+    {
         if (p is IScaledSize ss && (ss.HeightScalar < HMin || ss.HeightScalar > HMax || ss.WeightScalar < WMin || ss.WeightScalar > WMax)) return false;
         if (p is IScaledSize3 s3 && (s3.Scale < SMin || s3.Scale > SMax)) return false;
         return true;
+    }
+
+    private static byte Pick(int min, int max) => (byte)(min >= max ? Math.Clamp(min, 0, 255) : Random.Shared.Next(Math.Max(0, min), Math.Min(255, max) + 1));
+
+    /// <summary>크기를 조건 범위로 바꿈 (크기가 시드와 묶이지 않은 조우에서만 합법: 확인은 호출한 쪽에서).</summary>
+    public static void SetSize(PKM p)
+    {
+        if (p is IScaledSize ss)
+        {
+            if (ss.HeightScalar < HMin || ss.HeightScalar > HMax) ss.HeightScalar = Pick(HMin, HMax);
+            if (ss.WeightScalar < WMin || ss.WeightScalar > WMax) ss.WeightScalar = Pick(WMin, WMax);
+        }
+        if (p is IScaledSize3 s3 && (s3.Scale < SMin || s3.Scale > SMax)) s3.Scale = Pick(SMin, SMax);
+        if (p is IScaledSizeValue v) { v.ResetHeight(); v.ResetWeight(); }
+        p.RefreshChecksum();
+    }
+
+    /// <summary>
+    /// 크기 조건이 안 맞으면 크기만 바꿔 봄: 이 조우에서 크기가 자유로운지(바꿔도 합법)를 처음 한 번 확인해 sizeFree에 기억.
+    /// 무작위로 최대·최소 크기(1/256)를 뽑을 때까지 반복하면 휴대폰에서 시간 제한에 걸려 만들어지지 않았음.
+    /// </summary>
+    public static PKM FitSize(PKM p, ref bool? sizeFree, Func<PKM, bool> legal)
+    {
+        if (!HasSize || SizeOk(p) || sizeFree == false) return p;
+        var t = p.Clone(); SetSize(t);
+        if (!SizeOk(t)) { sizeFree = false; return p; }
+        if (sizeFree == null)
+        {
+            if (!legal(p)) return p;            // 원래 개체가 다른 이유로 불법이면 판단 보류
+            sizeFree = legal(t);
+            if (sizeFree == false) return p;
+        }
+        return t;
     }
 }

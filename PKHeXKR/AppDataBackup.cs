@@ -27,6 +27,8 @@ public static class AppDataBackup
             {
                 var rel = Path.GetRelativePath(root, f).Replace('\\', '/');
                 if (rel.StartsWith("mgdb_builtin/") || rel.StartsWith(".")) continue;   // 앱에 들어 있는 카드는 새 앱이 다시 만듦
+                // PokeLDN 교환: 파이썬(앱이 다시 풂)·펌웨어·임시 데이터는 빼고, prod.keys(개인 키)는 절대 넣지 않음
+                if (rel.StartsWith("chaquopy/") || rel == "ldn/prod.keys" || rel.StartsWith("ldn/prod.keys") || rel.StartsWith("ldn/firmware/") || rel.StartsWith("ldn/pokeldn/")) continue;
                 z.CreateEntryFromFile(f, FilesDir + rel, CompressionLevel.Fastest); n++;
             }
             if (Directory.Exists(PrefsPath))

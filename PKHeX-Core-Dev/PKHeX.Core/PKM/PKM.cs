@@ -344,10 +344,15 @@ public abstract class PKM : ISpeciesForm, ITrainerID32, IGeneration, IShiny, ILa
     public virtual bool BDSP => Version is BD or SP;
     public virtual bool LA => Version is PLA;
     public virtual bool SV => Version is SL or VL;
+    public virtual bool VC3 => Version is FRX or LGX;
     public bool ZA => Version is GameVersion.ZA;
 
     public bool GO_LGPE => GO && MetLocation == Locations.GO7;
     public bool GO_HOME => GO && MetLocation == Locations.GO8;
+
+    /// <summary>
+    /// Nintendo 3DS Virtual Console Game (Generation 1 and 2)
+    /// </summary>
     public bool VC => VC1 || VC2;
     public bool GG => LGPE || GO_LGPE;
     public bool Gen9 => SV || ZA;
@@ -361,8 +366,11 @@ public abstract class PKM : ISpeciesForm, ITrainerID32, IGeneration, IShiny, ILa
     public bool Gen1 => Version == RBY; // Fixed value set by the Gen1 PKM classes
     public bool GenU => Generation <= 0;
 
-    /// <summary>PKHeXKR: HOME 선물의 출신 번호 56 (FRLG 도감 완성 보상 세레비). PKHeX 열거형에서는 묶음 값 GS와 겹쳐 2세대로 오인되므로 8세대(HOME 선물)로 판정.</summary>
-    public bool IsHOMEOrigin56 => Format >= 8 && (byte)Version == 56;
+    /// <summary>
+    /// PKHeXKR: HOME 선물의 출신 번호 56 (FRLG 도감 완성 보상 세레비, 만난 장소 30007 "먼 곳").
+    /// 56은 FRLG VC 전송(FRX)과 같은 번호지만 이 선물은 HOME이 만든 8세대 선물 → 8세대로 판정 (VC 전송 개체는 PKHeX 그대로).
+    /// </summary>
+    public bool IsHOMEOrigin56 => Format >= 8 && (byte)Version == 56 && MetLocation == 30007;
 
     public byte Generation
     {
@@ -421,10 +429,8 @@ public abstract class PKM : ISpeciesForm, ITrainerID32, IGeneration, IShiny, ILa
 
     public string FileNameWithoutExtension => EntityFileNamer.GetName(this);
 
-    public int[] IVs
+    public ReadOnlySpan<int> IVs
     {
-        [Obsolete($"Use the {nameof(GetIVs)} method with stackalloc to not allocate.")]
-        get => [IV_HP, IV_ATK, IV_DEF, IV_SPE, IV_SPA, IV_SPD];
         set => SetIVs(value);
     }
 
@@ -632,7 +638,13 @@ public abstract class PKM : ISpeciesForm, ITrainerID32, IGeneration, IShiny, ILa
     /// Checks if the PKM has its original met location.
     /// </summary>
     /// <returns>Returns false if the Met Location has been overwritten via generational transfer.</returns>
-    public virtual bool HasOriginalMetLocation => !(Format < 3 || VC || (Generation <= 4 && Format != Generation));
+    public virtual bool HasOriginalMetLocation => !(Format < 3 || VC || VC3 || (Generation <= 4 && Format != Generation));
+
+    /// <summary>
+    /// Checks if the PKM has its original met level.
+    /// </summary>
+    /// <returns>Returns false if the Met Level has been overwritten via generational transfer.</returns>
+    public virtual bool HasOriginalMetLevel => !(Format < 3 || VC || (Generation <= 4 && Format != Generation));
 
     /// <summary>
     /// Checks if the current <see cref="Gender"/> is valid.
