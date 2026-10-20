@@ -20,8 +20,112 @@ public static class LdnTrade
     public static string KeysPath => Path.Combine(Home, "prod.keys");
     public const string FwVersion = "1.6.2";
 
-    /// <summary>교환할 포켓몬 (최대 6, 지금 세이브 게임 형식). 시트를 닫아도 유지.</summary>
+    /// <summary>교환할 포켓몬 (보통 최대 6, 리빙덱스 교환은 수백 마리). 시트를 닫아도 유지.</summary>
     public static readonly List<PKM> Offers = [];
+
+    // ───── 리빙덱스 교환 (커펌 없이 콘솔 세이브 채우기) ─────
+    /// <summary>보낼 목록이 리빙덱스 대기열이면 그 게임 (교환을 마칠 때마다 대기열 파일도 줄임 → 다음에 이어서).</summary>
+    public static string QueueGame;
+    private static string QueueDir(string game) => Path.Combine(Home, "queue", game);
+    public static int QueueCount(string game) { try { var d = QueueDir(game); return Directory.Exists(d) ? Directory.GetFiles(d).Length : 0; } catch { return 0; } }
+
+    public static void SaveQueue()
+    {
+        if (QueueGame == null) return;
+        var d = QueueDir(QueueGame);
+        try
+        {
+            if (Directory.Exists(d)) Directory.Delete(d, true);
+            if (Offers.Count == 0) { QueueGame = null; return; }
+            Directory.CreateDirectory(d);
+            for (int i = 0; i < Offers.Count; i++) File.WriteAllBytes(Path.Combine(d, $"{i:0000}.{Offers[i].Extension}"), ShareUtil.Stored(Offers[i]));
+        }
+        catch { }
+    }
+
+    public static int LoadQueue(string game)
+    {
+        var d = QueueDir(game); if (!Directory.Exists(d)) return 0;
+        var list = new List<PKM>();
+        foreach (var f in Directory.GetFiles(d).OrderBy(x => x))
+            try { if (EntityFormat.GetFromBytes(File.ReadAllBytes(f), EntityFileExtension.GetContextFromExtension(f)) is { Species: > 0 } pk) list.Add(pk); } catch { }
+        Offers.Clear(); Offers.AddRange(list); QueueGame = game;
+        return list.Count;
+    }
+
+    public static void NotifyChanged() => Changed?.Invoke();
+
+    /// <summary>보낼 목록의 한 마리: 편집기로 불러오기 · 편집 중인 포켓몬으로 바꾸기 · 빼기.</summary>
+    public static async Task OfferActions(int i, Action closeAll)
+    {
+        if (i < 0 || i >= Offers.Count) return;
+        var page = Application.Current.Windows[0].Page; var p = Offers[i];
+        const string load = "편집기로 불러오기 (확인·편집)", put = "편집 중인 포켓몬으로 바꾸기", del = "목록에서 빼기";
+        var pick = await page.DisplayActionSheetAsync($"{i + 1}. {GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}", "취소", null, load, put, del);
+        switch (pick)
+        {
+            case load:
+                if (AppState.Load(p.Clone())) { Note.Show($"교환 목록 {i + 1}번을 편집기로 불러왔어요 · 고친 뒤 '편집 중인 포켓몬으로 바꾸기'로 목록에 반영"); closeAll?.Invoke(); }
+                break;
+            case put:
+                var cur = AppState.Pk;
+                if (cur == null || cur.Species == 0) { Note.Show("편집 중인 포켓몬이 없어요"); return; }
+                if (LdnExport.GameOf(cur)?.Game != LdnExport.GameOf(p)?.Game) { Note.Show("같은 게임 형식의 포켓몬만 바꿀 수 있어요"); return; }
+                Offers[i] = cur.Clone(); if (QueueGame != null) SaveQueue(); Changed?.Invoke(); Note.Show($"{i + 1}번을 편집 중인 포켓몬으로 바꿨어요");
+                break;
+            case del:
+                Offers.RemoveAt(i); if (QueueGame != null) SaveQueue(); Changed?.Invoke();
+                break;
+        }
+    }
+
+    public static void DropQueue(string game) { try { var d = QueueDir(game); if (Directory.Exists(d)) Directory.Delete(d, true); } catch { } if (QueueGame == game) QueueGame = null; }
+
+    /// <summary>
+    /// 리빙덱스를 만들어 보낼 목록(대기열)으로. 지금 세이브가 그 게임이면 그 트레이너·박스 기준(이미 있는 종 건너뛰기), 아니면 빈 세이브.
+    /// 세이브 사본의 빈 박스에 채워서 꺼내므로 지금 세이브는 바뀌지 않음.
+    /// </summary>
+    public static int BuildLivingDex(string game, LivingDexOptions o, CancellationToken tok, Action<int, int, ushort> progress)
+    {
+        var cur = AppState.Sav;
+        SaveFile baseSav = cur != null && KeyOf(cur) == game ? cur : BlankFor(game);
+        if (baseSav == null) return 0;
+        var have = new HashSet<(ushort, byte)>();
+        if (o.SkipExisting) for (int b = 0; b < baseSav.BoxCount; b++) foreach (var p in baseSav.GetBoxData(b)) if (p.Species != 0) have.Add((p.Species, o.Forms ? p.Form : (byte)0));
+        var tmp = baseSav.Clone();
+        var blank = tmp.BlankPKM;
+        var made = new List<PKM>(); var got = new HashSet<(ushort, byte)>();
+        for (int round = 0; round < 4 && !tok.IsCancellationRequested; round++)
+        {
+            for (int b = 0; b < tmp.BoxCount; b++) for (int i = 0; i < tmp.BoxSlotCount; i++) tmp.SetBoxSlotAtIndex(blank, b, i);
+            var opt = new LivingDexOptions
+            {
+                Shiny = o.Shiny, Forms = o.Forms, Alpha = o.Alpha, Transfer = o.Transfer, OTs = o.OTs, Presets = o.Presets, From = o.From, To = o.To,
+                SkipExisting = false, StartBox = 0,
+                SpeciesFilter = s => o.Forms || (!have.Contains((s, 0)) && !got.Contains((s, 0))),
+            };
+            var r = LivingDexGen.Run(tmp, opt, tok, progress);
+            int before = made.Count;
+            for (int b = 0; b < tmp.BoxCount; b++)
+                foreach (var p in tmp.GetBoxData(b))
+                {
+                    if (p.Species == 0) continue;
+                    var key = (p.Species, o.Forms ? p.Form : (byte)0);
+                    if (have.Contains(key) || got.Contains(key)) continue;
+                    got.Add(key); made.Add(p);
+                }
+            if (!r.BoxFull || made.Count == before) break;   // 박스가 가득 차서 멈췄으면 남은 종으로 한 번 더
+        }
+        Offers.Clear(); Offers.AddRange(made); QueueGame = game; SaveQueue();
+        return made.Count;
+    }
+
+    public static SaveFile BlankFor(string game)
+    {
+        var v = game switch { "frlg" => GameVersion.FR, "lgpe" => GameVersion.GP, "swsh" => GameVersion.SW, "bdsp" => GameVersion.BD, "pla" => GameVersion.PLA, "sv" => GameVersion.SL, "za" => GameVersion.ZA, _ => GameVersion.Any };
+        if (v == GameVersion.Any) return null;
+        try { return BlankSaveFile.Get(v, "PKHeX", LanguageID.Korean); } catch { return null; }
+    }
 
     public record LdnGame(string Key, string Name, string HostGuide, string JoinGuide);
     public static readonly LdnGame[] Games =
@@ -30,7 +134,7 @@ public static class LdnTrade
         new("lgpe", "레츠고 피카츄·이브이", "시작 → 게임에서 통신 → 근처의 사람과 교환 → 링크 코드 피카츄×3 → 검색 화면에서 기다리세요.", "게임에서 통신 → 근처의 사람과 교환 → 링크 코드(아무거나)로 검색 화면을 연 뒤 시작을 누르세요."),
         new("swsh", "소드·실드", "시작 → 게임에서 Y통신 → 링크 교환 → 로컬 통신 → 두 메시지 모두 A → 검색 화면에서 기다리세요.", "게임에서 Y통신 → 링크 교환 → 로컬 통신(코드 없이)으로 검색을 연 뒤 시작을 누르세요."),
         new("bdsp", "브릴리언트다이아몬드·샤이닝펄", "시작 → 포켓몬센터 2층 왼쪽 접수원 → '예'(암호·그룹 아님) → 유니언룸에서 Y → 통신 메뉴 → 포켓몬 교환.", "포켓몬센터 2층 왼쪽 접수원 → '예' → 유니언룸 벽에서 떨어져 기다린 뒤 시작. 캐릭터가 나타나면 Y → 포켓몬 교환."),
-        new("pla", "레전드 아르세우스", "시작 → 게임에서 코트키 마을 시마 → 교환 → 근처의 사람과 → 코드 00000000 입력.", "게임에서 코트키 마을 시마 → 교환 → 근처의 사람과 → 아무 코드나 입력해 검색을 연 뒤 시작을 누르세요."),
+        new("pla", "레전드 아르세우스", "시작 → 게임에서 축복마을의 사문 → 교환 → 근처의 사람과 → 코드 00000000 입력.", "게임에서 축복마을의 사문 → 교환 → 근처의 사람과 → 아무 코드나 입력해 검색을 연 뒤 시작을 누르세요."),
         new("sv", "스칼렛·바이올렛", "시작 → 게임에서 X → 포케포털 → 링크 교환 → 오프라인, 코드 없이 → 검색.", "게임에서 X → 포케포털 → 링크 교환 → 오프라인으로 검색(코드 없이 또는 아무 코드)을 연 뒤 시작을 누르세요."),
         new("za", "레전드 Z-A", "시작 → 게임에서 링크 교환 → 로컬 통신 → 코드 00000000으로 검색.", "게임에서 링크 교환 → 로컬 통신 → 아무 코드로 검색을 연 뒤 시작을 누르세요."),
     ];
@@ -69,7 +173,7 @@ public static class LdnTrade
         if (!Available) throw new PlatformNotSupportedException("이 빌드에는 PokeLDN 교환이 없습니다 (LDN판에서 사용)");
         if (mons != null)
         {
-            Offers.Clear();
+            Offers.Clear(); QueueGame = null;   // 리빙덱스 대기열 파일은 남겨 둠 (다음에 '이어서 보내기')
             var game = mons.Count > 0 ? LdnExport.GameOf(mons[0])?.Game : null;
             foreach (var p in mons.Take(6)) if (LdnExport.GameOf(p)?.Game == game) Offers.Add(p.Clone());
         }
@@ -156,6 +260,8 @@ public static class LdnTrade
         private const string C = "Landroid/content/Context;", S = "Ljava/lang/String;";
 
         public static string UsbState() => Str(Android.Runtime.JNIEnv.CallStaticObjectMethod(Cls, M("usbState", $"({C}){S}"), Ctx));
+        /// <summary>"native" 내장 USB, "cp210x" 클래식 ESP32, "" 없음.</summary>
+        public static string UsbKind() { try { return Str(Android.Runtime.JNIEnv.CallStaticObjectMethod(Cls, M("usbKind", $"({C}){S}"), Ctx)); } catch { return ""; } }
         public static void RequestUsb() => Android.Runtime.JNIEnv.CallStaticVoidMethod(Cls, M("requestUsbPermission", $"({C})V"), Ctx);
         public static bool Busy => Android.Runtime.JNIEnv.CallStaticBooleanMethod(Cls, M("isBusy", "()Z"));
         public static string Poll() => Str(Android.Runtime.JNIEnv.CallStaticObjectMethod(Cls, M("poll", $"(){S}")));
@@ -175,6 +281,7 @@ public static class LdnTrade
         public static bool Flash(bool bleFirmware) => Android.Runtime.JNIEnv.CallStaticBooleanMethod(Cls, M("flash", $"({C}Z)Z"), Ctx, new Android.Runtime.JValue(bleFirmware));
 #else
         public static string UsbState() => "none";
+        public static string UsbKind() => "";
         public static void RequestUsb() { }
         public static bool Busy => false;
         public static string Poll() => "{\"lines\":[],\"status\":[],\"done\":true}";
@@ -194,6 +301,7 @@ public static class LdnTrade
     public static string RunGame { get; private set; }
     public static event Action Changed;
     private static IDispatcherTimer timer;
+    private static BgTask bg;
 
     public static bool Begin(string request, string mode, string game, bool ble, bool flash = false)
     {
@@ -202,6 +310,8 @@ public static class LdnTrade
         bool ok = flash ? Bridge.Flash(ble) : Bridge.Start(request, ble);
         if (!ok) return false;
         Running = true; RunMode = flash ? "flash" : mode; RunGame = game;
+        bg?.Dispose();
+        bg = BgTask.Begin(flash ? "보드 펌웨어 설치" : mode switch { "trade" => $"PokeLDN 교환 ({Offers.Count}마리)", "evolve" => "PokeLDN 교환 진화", "gift" => "PokeLDN 이상한 소포", "save_backup" => "FRLG 세이브 백업", "save_restore" => "FRLG 세이브 복원", _ => "PokeLDN" });
         timer ??= Application.Current.Dispatcher.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(400);
         timer.Tick -= Tick; timer.Tick += Tick;
@@ -232,19 +342,21 @@ public static class LdnTrade
             if (r.TryGetProperty("result", out var rr)) result = rr.GetString();
             if (r.TryGetProperty("error", out var er)) error = er.GetString();
         }
-        if (!done) { Changed?.Invoke(); return; }
+        if (!done) { bg?.Report(ProgressLine.Length > 0 ? ProgressLine : StatusLines.LastOrDefault() ?? "진행 중…"); Changed?.Invoke(); return; }
         timer.Stop(); Running = false; DeviceDisplay.Current.KeepScreenOn = false;
         var files = new List<string>();
         if (result != null) try { using var rd = JsonDocument.Parse(result); files = rd.RootElement.EnumerateArray().Select(x => x.GetString()).Where(x => x != null).ToList(); } catch { }
         if (error != null) StatusLines.Add(error.StartsWith("중지") || error.StartsWith("설치 실패") ? error : "실패: " + error);
         else if (RunMode == "trade") StatusLines.Add(files.Count > 0 ? $"받은 포켓몬 {files.Count}마리" : "받은 포켓몬이 없어요");
         else if (RunMode == "save_backup") StatusLines.Add(files.Count > 0 ? "세이브를 백업했어요: " + Path.GetFileName(files[0]) : "백업한 세이브가 없어요");
+        bg?.Done(StatusLines.LastOrDefault() ?? "끝"); bg = null;
         Changed?.Invoke();
         if (error != null) return;
         if (RunMode == "trade" && files.Count > 0)
         {
             int n = Math.Min(files.Count, Offers.Count);
             if (n > 0) Offers.RemoveRange(0, n);   // 교환을 마친 포켓몬은 보낼 목록에서 뺌
+            if (QueueGame == RunGame) SaveQueue();   // 리빙덱스 대기열: 남은 것만 (다음에 이어서)
             Changed?.Invoke();
             await ImportReceived(files);
         }

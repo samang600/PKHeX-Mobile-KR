@@ -12,7 +12,7 @@
 		<Nullable>disable</Nullable>
 		<RootNamespace>PKHeXKR.Plugin</RootNamespace>
 		<AssemblyName>PKHeXKR.Plugin</AssemblyName>
-		<Version>1.3.4</Version>
+		<Version>1.3.5</Version>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<NoWarn>$(NoWarn);CS1998;CS8632;CA1416;WFO1000</NoWarn>
 	</PropertyGroup>

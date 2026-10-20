@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 namespace PKHeXKR;
 
@@ -181,6 +181,7 @@ public class PlayerSheet : Sheet
     private readonly HorizontalStackLayout pouchBar = new() { Spacing = 6 };   // FlexLayout은 버튼 폭을 잘못 재서 마지막 글자가 잘림 → 가로 스크롤 줄
     private readonly Entry money = T.Input(Keyboard.Numeric);
     private readonly Label status = T.L("", 12, sub: true);
+    private readonly Label bagInfo = T.L("", 12, sub: true);   // 주머니 종류·최대 개수 (가방 바로 아래)
 
     public PlayerSheet() : base("플레이어 편집")
     {
@@ -254,7 +255,7 @@ public class PlayerSheet : Sheet
             new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { trLiveR, trLiveW } } } } });
         var bagCard = UiFold.Card("가방 · 돈", "pl_bag", true, new VerticalStackLayout { Spacing = 10, Children = { hint, T.Field("돈", money),
             new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { liveRead, liveWrite } } },
-            new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = pouchBar, HorizontalScrollBarVisibility = ScrollBarVisibility.Never }, list, saveBtn } });
+            new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = pouchBar, HorizontalScrollBarVisibility = ScrollBarVisibility.Never }, bagInfo, list, saveBtn } });
         var dexSeen = T.Pill("모두 본 것으로"); var dexCaught = T.Pill("모두 잡은 것으로", primary: true); var dexClear = T.Pill("모두 해제");
         dexClear.BackgroundColor = T.Bad; dexClear.TextColor = Colors.White; dexClear.BorderWidth = 0;
         dexSeen.Clicked += (_, _) => DexFill.Apply(0, m => status.Text = m);
@@ -276,7 +277,7 @@ public class PlayerSheet : Sheet
         var sav = AppState.Sav;
         try { bag = sav.Inventory; } catch { bag = null; }
         pouchBar.Children.Clear(); list.Children.Clear();
-        if (bag == null || bag.Pouches.Count == 0) { status.Text = "이 게임은 가방 편집을 지원하지 않습니다"; return; }
+        if (bag == null || bag.Pouches.Count == 0) { bagInfo.Text = "이 게임은 가방 편집을 지원하지 않습니다"; return; }
         for (int i = 0; i < bag.Pouches.Count; i++)
         {
             int k = i; var b = T.Pill(PouchName(bag.Pouches[i].Type), size: 13);
@@ -305,12 +306,12 @@ public class PlayerSheet : Sheet
         (var av, var al) = T.Chooser(() => SheetHost.Show(new PickerSheet("추가할 도구", itemList.Where(c => c.Value != 0).ToList(), 0, c =>
         {
             var slot = pouch.Items.FirstOrDefault(x => x.Index == c.Value) ?? pouch.Items.FirstOrDefault(x => x.Index == 0);
-            if (slot == null) { status.Text = "이 주머니에 빈 칸이 없습니다"; return; }
+            if (slot == null) { bagInfo.Text = "이 주머니에 빈 칸이 없습니다"; return; }
             slot.Index = c.Value; if (slot.Count == 0) slot.Count = 1; Load();
         }, c => AppState.ItemSprite(c.Value))));
         al.Text = "+ 도구 추가";
         list.Children.Add(av);
-        status.Text = $"{PouchName(pouch.Type)}: {pouch.Count}종 · 최대 개수 {pouch.MaxCount}";
+        bagInfo.Text = $"{PouchName(pouch.Type)}: {pouch.Count}종 · 최대 개수 {pouch.MaxCount}";
     }
 
     private static string PouchName(InventoryType t) => t switch

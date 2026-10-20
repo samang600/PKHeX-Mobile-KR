@@ -27,10 +27,35 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v13)
+      - name: 설정 확인 (iOS 빌드 설정 v14)
         run: |
-          echo "=== iOS 빌드 설정 v13 (Xcode 맞춤 .NET 별도 설치) ==="
+          echo "=== iOS 빌드 설정 v14 (Xcode 맞춤 .NET 별도 설치, 릴리스 버전 확인) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
+
+      # 릴리스로 실행되면 GitHub는 '태그가 가리키는 커밋'을 빌드함. 태그를 새 파일을 올리기 전 커밋에 만들었거나
+      # 예전 태그를 다시 쓰면 그 시점 소스(예: v1.5.7)로 빌드되던 문제 → 태그 버전과 앱 버전(csproj)을 비교해서,
+      # 다르면 기본 브랜치 최신 커밋을 확인하고 그쪽이 태그 버전이면 그것으로 빌드, 아니면 멈춤.
+      - name: 릴리스 버전과 소스 버전 확인
+        run: |
+          VER=$(grep -o '<ApplicationDisplayVersion>[^<]*' PKHeXKR/PKHeXKR.csproj | sed 's/.*>//')
+          echo "소스(PKHeXKR.csproj) 버전: $VER"
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+            TAG="${GITHUB_REF_NAME#v}"; TAG="${TAG#V}"
+            echo "릴리스 태그: $GITHUB_REF_NAME → $TAG"
+            if [ "$TAG" != "$VER" ]; then
+              echo "::warning::태그($GITHUB_REF_NAME)가 가리키는 커밋의 앱 버전이 $VER 입니다. 기본 브랜치 최신 커밋을 확인합니다."
+              git fetch --depth 1 origin "${{ github.event.repository.default_branch }}"
+              BV=$(git show FETCH_HEAD:PKHeXKR/PKHeXKR.csproj | grep -o '<ApplicationDisplayVersion>[^<]*' | sed 's/.*>//')
+              echo "기본 브랜치 최신 버전: $BV"
+              if [ "$BV" = "$TAG" ]; then
+                git checkout --force FETCH_HEAD
+                echo "::warning::기본 브랜치 최신 커밋($(git rev-parse --short HEAD), 버전 $BV)으로 빌드합니다. 다음부터는 새 파일을 올린 뒤 그 커밋에 태그를 만들어 릴리스하세요."
+              else
+                echo "::error::태그 $GITHUB_REF_NAME 과 소스 버전($VER, 기본 브랜치 $BV)이 다릅니다. 1.x.x 파일을 올린 커밋에 태그를 다시 만들거나, Actions에서 직접 실행하세요."
+                exit 1
+              fi
+            fi
+          fi
 
       - name: Xcode 선택과 맞는 .NET 버전 결정
         run: |

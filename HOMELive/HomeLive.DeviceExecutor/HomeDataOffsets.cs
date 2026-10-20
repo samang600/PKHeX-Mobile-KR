@@ -5,7 +5,7 @@ public static class HomeDataOffsets
     public const string HomeTitleID = "010015F008C54000";
     public const string HomeSupportedVersion = "4.1.0";
     /// <summary>버전별 박스 시작 위치 (heap 기준). 4.1.0: PKHeXKR 자동 찾기로 확인.</summary>
-    public static readonly Dictionary<string, uint> KnownOffsets = new() { ["4.0.0"] = 0x4C0130, ["4.1.0"] = 0x12F80 };
+    public static readonly Dictionary<string, uint> KnownOffsets = new() { ["4.1.0"] = 0x12F80 };   // PKHeXKR: 4.0.0은 지원하지 않음 (4.1.0 이후로 HOME이 4.0.0을 받지 않음)
     public static bool IsKnownVersion(string version) => KnownOffsets.ContainsKey(version);
     public static uint OffsetFor(string version) => KnownOffsets.TryGetValue(version ?? "", out var o) ? o : KnownOffsets[HomeSupportedVersion];
 

@@ -83,9 +83,18 @@ public class MainSection : Section
     private readonly Switch gmax, alpha;
     private readonly View formArgRow, dmaxRow, gmaxRow, teraRow, alphaRow, plusRow, gameCard;
 
+    public static MainSection Current;
+    /// <summary>종 고르기 (편집기 종 칸, 상단 아이콘 꾹 누르기).</summary>
+    public void PickSpecies()
+    {
+        var fam = AppState.Family(Pk.Species);
+        SheetHost.Show(new PickerSheet("포켓몬", AppState.Src.Species, Pk.Species, c => { AppState.Checkpoint(true); SetSpecies((ushort)c.Value); AppState.Edited(); }, c => AppState.Sprite((ushort)c.Value, 0, false), c => fam.Contains((ushort)c.Value) ? 0 : 2));
+    }
+
     public MainSection()
     {
-        (var sv, species) = T.Chooser(() => { var fam = AppState.Family(Pk.Species); SheetHost.Show(new PickerSheet("포켓몬", AppState.Src.Species, Pk.Species, c => { AppState.Checkpoint(true); SetSpecies((ushort)c.Value); AppState.Edited(); }, c => AppState.Sprite((ushort)c.Value, 0, false), c => fam.Contains((ushort)c.Value) ? 0 : 2)); });
+        Current = this;
+        (var sv, species) = T.Chooser(PickSpecies);
         (var fv, form) = T.Chooser(() =>
         {
             var names = Forms(Pk.Species);
@@ -102,10 +111,10 @@ public class MainSection : Section
         genderBtn.Clicked += (_, _) => Changed(() => CycleGender());
         (var nv, nature) = T.Chooser(() => Pick("성격", AppState.NatureItems(), (int)Pk.Nature, c => Changed(() => { Pk.Nature = (Nature)c.Value; if (Pk.Format < 8) Pk.StatAlignment = Pk.Nature; Reload(); })));
         mintBtn = T.Pill("(민트)", size: 11); mintBtn.Padding = new Thickness(8, 0); mintBtn.HeightRequest = 36;
-        mintBtn.Clicked += (_, _) => Pick("능력 성격(민트)", AppState.NatureItems(), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); }));
+        mintBtn.Clicked += (_, _) => Pick("능력 성격(민트)", AppState.MintItems(Pk), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); }));
         var natGrid = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 6 }; natGrid.Add(nv, 0); natGrid.Add(mintBtn, 1);
         natureRow = T.Field("성격", natGrid);
-        (var snv, statNature) = T.Chooser(() => Pick("능력 성격(민트)", AppState.NatureItems(), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); })));
+        (var snv, statNature) = T.Chooser(() => Pick("능력 성격(민트)", AppState.MintItems(Pk), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); })));
         statNatureRow = T.Field("능력 성격 (민트)", snv);
         (var av, ability) = T.Chooser(() =>
         {

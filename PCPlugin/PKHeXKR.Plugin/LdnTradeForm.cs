@@ -27,7 +27,7 @@ public sealed class LdnTradeForm : Form
         new("bdsp", "브릴리언트다이아몬드·샤이닝펄", "pb8", "bdsp-host", "bdsp-join", "--offer", "--trade-template", "--offer",
             "시작 → 포켓몬센터 2층 왼쪽 접수원 → '예' → 유니언룸에서 Y → 통신 메뉴 → 포켓몬 교환", "유니언룸 벽에서 떨어져 기다린 뒤 시작, 캐릭터가 나타나면 Y → 포켓몬 교환"),
         new("pla", "레전드 아르세우스", "pa8", "pla-host", "pla-join", "--trade-box-record", "--offer", "--trade-box-record",
-            "시작 → 코트키 마을 시마 → 교환 → 근처의 사람과 → 코드 00000000", "근처 교환 검색을 연 뒤 시작"),
+            "시작 → 축복마을의 사문 → 교환 → 근처의 사람과 → 코드 00000000", "근처 교환 검색을 연 뒤 시작"),
         new("sv", "스칼렛·바이올렛", "pk9", "sv-host", "sv-join", "--trade-offer", "--trade-offer", "--trade-offer",
             "시작 → X → 포케포털 → 링크 교환 → 오프라인, 코드 없이 → 검색", "링크 교환 검색(오프라인, 코드 없음)을 연 뒤 시작"),
         new("za", "레전드 Z-A", "pa9", "za-host", "za-join", "--trade-offer", "--trade-offer", "--trade-offer",

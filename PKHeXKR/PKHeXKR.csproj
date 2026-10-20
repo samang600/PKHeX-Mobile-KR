@@ -18,8 +18,8 @@
 		<!-- 별도 설치판(구버전과 동시 설치): dotnet build ... -p:SideBySide=true → 패키지명·앱 이름만 다르게 -->
 		<ApplicationId Condition="'$(SideBySide)' == 'true'">com.pkhexkr.mobile.side</ApplicationId>
 		<ApplicationTitle Condition="'$(SideBySide)' == 'true'">PKHeX 모바일 (별도)</ApplicationTitle>
-		<ApplicationDisplayVersion>1.6.0</ApplicationDisplayVersion>
-		<ApplicationVersion>72</ApplicationVersion>
+		<ApplicationDisplayVersion>1.6.4</ApplicationDisplayVersion>
+		<ApplicationVersion>76</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>
@@ -48,6 +48,8 @@
 		<MauiImage Include="Resources\Images\square\*" />
 		<MauiImage Include="Resources\Images\icons\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+		<!-- SV 레이드 보상 표 (PokeLDN raid_base.json을 줄임, Tera-Finder·GPL-3.0) -->
+		<EmbeddedResource Include="raid9.json" LogicalName="raid9.json" />
 		<MauiImage Include="Resources\Images\Ribbons\*" />
 	</ItemGroup>
 	<!-- PokeLDN 교환 (ESP32 보드 로컬 통신 교환): LDN 교환 앱(ldnapp/embed)을 라이브러리(AAR)로 넣음.

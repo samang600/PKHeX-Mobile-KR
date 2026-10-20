@@ -27,6 +27,9 @@ public sealed class OrderSpec
     public bool AllowTransfer;              // 리빙덱스: 다른 게임에서 옮겨 온 개체도 허용 (HOME 등)
     public double Seconds = 4;              // 조우 하나당 최대 시도 시간
     public bool SkipAlm;                    // 조우로 못 만들어도 자동 합법화로 넘어가지 않음 (리빙덱스: 이미 해 봄)
+    public bool Gmax;                       // 거다이맥스
+    public int Tera = -1;                   // 테라스탈 타입 (0~17, 99 스텔라)
+    public List<ushort> Moves = [];         // 기술 (최대 4개)
 
     public string Describe(GameStrings s)
     {
@@ -45,6 +48,9 @@ public sealed class OrderSpec
         var ex = string.Join(" ", ExactIV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (ex.Length > 0) p.Add("개체값 " + ex);
         var evs = string.Join(" ", EV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (evs.Length > 0) p.Add("노력치 " + evs);
         if (Level > 0) p.Add($"Lv{Level}");
+        if (Gmax) p.Add("거다이맥스");
+        if (Tera >= 0) p.Add((Tera == 99 ? "스텔라" : Tera < s.types.Length ? s.types[Tera] : "?") + " 테라");
+        if (Moves.Count > 0) p.Add("기술 " + string.Join("·", Moves.Select(m => m < s.movelist.Length ? s.movelist[m] : "?")));
         if (OT != null || TID >= 0) p.Add($"어버이 {OT ?? "-"}{(TID >= 0 ? $" {TID}" : "")}{(SID >= 0 ? $"/{SID}" : "")}");
         if (Count > 1) p.Add($"×{Count}");
         return string.Join(" · ", p.Where(x => x.Length > 0));
@@ -190,6 +196,9 @@ public static class QuickParse
             if (allSpec.FlawlessIVs >= 0) o.FlawlessIVs = allSpec.FlawlessIVs;
             for (int k = 0; k < 6; k++) { if (allSpec.EV[k] >= 0) o.EV[k] = allSpec.EV[k]; if (allSpec.ExactIV[k] >= 0) o.ExactIV[k] = allSpec.ExactIV[k]; }
             if (allSpec.Level > 0) o.Level = allSpec.Level;
+            if (allSpec.Gmax) o.Gmax = true;
+            if (allSpec.Tera >= 0) o.Tera = allSpec.Tera;
+            foreach (var m in allSpec.Moves) if (o.Moves.Count < 4 && !o.Moves.Contains(m)) o.Moves.Add(m);
             if (allSpec.Event) o.Event = true;
             if (allSpec.OT != null) o.OT = allSpec.OT; if (allSpec.TID >= 0) o.TID = allSpec.TID; if (allSpec.SID >= 0) o.SID = allSpec.SID;
         }
@@ -256,6 +265,8 @@ public static class QuickParse
             }
             if (t is "배포" or "이벤트" or "배포판" or "배포개체") { o.Event = true; continue; }
             if (t is "진화" or "진화형" or "진화체" or "→" or "->") continue;
+            if (t is "기술" or "기술:" or "-" or "기술배치") continue;
+            if (t is "테라" or "테라타입" or "테라스탈" && i + 1 < tokens.Count && TeraWord(Norm(tokens[i + 1])) is int tw) { o.Tera = tw; i++; continue; }
             if (TryToken(o, raw, t, sav)) continue;
             // 붙여 쓴 말 나누기 시도: "러브볼암컷" 같은 경우 앞에서부터 가장 긴 단어
             if (!SplitCompound(o, raw, sav)) o.Unknown.Add(raw);
@@ -345,6 +356,13 @@ public static class QuickParse
         var ml = Regex.Match(t, @"^(?:lv\.?|레벨)(\d{1,3})$|^(\d{1,3})(?:렙|레벨|lv)$"); if (ml.Success) { o.Level = Math.Clamp(int.Parse(ml.Groups[1].Success ? ml.Groups[1].Value : ml.Groups[2].Value), 1, 100); return true; }
         var mc = Regex.Match(t, @"^(?:x|×)(\d{1,2})$|^(\d{1,2})(?:마리|개)$"); if (mc.Success) { o.Count = Math.Clamp(int.Parse(mc.Groups[1].Success ? mc.Groups[1].Value : mc.Groups[2].Value), 1, 30); return true; }
         if (t is "숨특" or "숨겨진특성" or "드림특성" or "숨") { o.Ability = 2; return true; }
+        // 거다이맥스·테라스탈 타입 ("노말테라", "불테라", "테라페어리", "스텔라테라")
+        if (t is "거다이맥스" or "거다맥" or "거다이" or "거다이맥스개체" or "gmax" or "gigantamax" or "거대맥스") { o.Gmax = true; return true; }
+        foreach (var suf in new[] { "테라타입", "테라스탈", "테라" })
+        {
+            if (t.EndsWith(suf) && t.Length > suf.Length && TeraWord(t[..^suf.Length]) is int ta) { o.Tera = ta; return true; }
+            if (t.StartsWith(suf) && t.Length > suf.Length && TeraWord(t[suf.Length..]) is int tb) { o.Tera = tb; return true; }
+        }
         // 볼
         var ballName = BallAlias.TryGetValue(t, out var al) ? al : t;
         for (int b = 1; b < s.balllist.Length; b++)
@@ -366,10 +384,38 @@ public static class QuickParse
                     try { var pi = sav.Personal.GetFormEntry(o.Species, (byte)Math.Max(0, o.Form)); for (int k = 0; k < pi.AbilityCount; k++) if (pi.GetAbilityAtIndex(k) == a) { o.Ability = k; return true; } } catch { }
                     o.Notes.Add($"{s.abilitylist[a]}: 이 포켓몬의 특성이 아닙니다"); return true;
                 }
-            // 폼 단어 ("뻗은", "붉은달")
-            if (ResolveFormWord(o, raw, sav, quiet: true)) return true;
         }
+        // 기술 이름 ("10만볼트", "thunderbolt")
+        if (FindMove(t) is ushort mvid)
+        {
+            if (o.Moves.Count < 4 && !o.Moves.Contains(mvid)) o.Moves.Add(mvid);
+            else if (!o.Moves.Contains(mvid)) o.Notes.Add($"기술은 4개까지: {s.movelist[mvid]} 무시");
+            return true;
+        }
+        // 폼 단어 ("뻗은", "붉은달")
+        if (o.Species != 0 && ResolveFormWord(o, raw, sav, quiet: true)) return true;
         return false;
+    }
+
+    private static readonly Dictionary<string, string> TypeAlias = new() { ["불"] = "불꽃", ["요정"] = "페어리", ["노멀"] = "노말", ["에스"] = "에스퍼", ["드래"] = "드래곤", ["드라곤"] = "드래곤", ["전"] = "전기", ["얼"] = "얼음", ["고스"] = "고스트", ["강"] = "강철" };
+    /// <summary>타입 이름 → 테라스탈 타입 번호 (스텔라 99). 아니면 null.</summary>
+    private static int? TeraWord(string w)
+    {
+        if (w.EndsWith("타입")) w = w[..^2];
+        if (w.Length == 0) return null;
+        if (w is "스텔라" or "stellar") return 99;
+        if (TypeAlias.TryGetValue(w, out var a)) w = a;
+        var ko = GenHost.Strings.types; var en = GameInfo.GetStrings("en").types;
+        for (int k = 0; k < 18 && k < ko.Length; k++) if (Norm(ko[k]) == w || Norm(en[k]) == w) return k;
+        return null;
+    }
+
+    private static ushort? FindMove(string t)
+    {
+        if (t.Length < 2) return null;
+        var ko = GenHost.Strings.movelist; var en = GameInfo.GetStrings("en").movelist;
+        for (int m = 1; m < ko.Length; m++) if (Norm(ko[m]) == t || (m < en.Length && Norm(en[m]).Replace("-", "") == t.Replace("-", ""))) return (ushort)m;
+        return null;
     }
 
     private static bool FindSpecies(string t, out ushort sp)

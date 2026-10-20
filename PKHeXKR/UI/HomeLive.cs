@@ -13,7 +13,7 @@ public class HomeLiveSheet : Sheet
     private readonly ActivityIndicator busy = new() { Color = T.Accent, IsVisible = false };
     private readonly Switch fix = new() { OnColor = T.Accent };
     private readonly Switch anyVer = new() { OnColor = T.Accent };
-    private readonly Entry offsetE = T.Input(Keyboard.Text, "비우면 버전별 기본값 (4.1.0: 12F80 · 4.0.0: 4C0130)");
+    private readonly Entry offsetE = T.Input(Keyboard.Text, "비우면 기본값 (4.1.0: 12F80)");
     private List<PKM> loaded = [];
     private int rangeIdx = -1;             // -1 = 한 박스
     private ConversionType conv = ConversionType.CompatibleData;
@@ -53,7 +53,7 @@ public class HomeLiveSheet : Sheet
         var scan = T.Pill("데이터 위치 자동 찾기"); scan.Clicked += async (_, _) => await Scan();
         var newHint = T.L("HOME이 업데이트되어 읽기가 안 될 때: 'HOME 1번 박스 1번 칸'에 포켓몬을 넣어 두고 '자동 찾기'를 누르세요. 기존 위치 앞뒤를 읽어 박스 데이터를 찾고, 찾은 위치로 1번 박스를 보여 줍니다(와이파이로 1~3분). 읽기만 하므로 HOME 데이터는 바뀌지 않습니다.", 12, sub: true);
         newHint.LineBreakMode = LineBreakMode.WordWrap;
-        var newCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("HOME 새 버전 대응 (4.0.0·4.1.0 기본 지원)", 13, sub: true), anyRow, T.Field("박스 데이터 위치 (heap 기준 16진수)", offsetE), scan, newHint } });
+        var newCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("HOME 새 버전 대응 (4.1.0 기본 지원)", 13, sub: true), anyRow, T.Field("박스 데이터 위치 (heap 기준 16진수)", offsetE), scan, newHint } });
         var conn = new Grid { ColumnDefinitions = { new(new GridLength(2, GridUnitType.Star)), new(GridLength.Star) }, ColumnSpacing = 8 };
         conn.Add(T.Field("IP 주소", ip), 0); conn.Add(T.Field("포트", port), 1);
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, conn, T.Field("범위", rangeFlex), T.Field("HOME 박스 번호", single), T.Field("데이터 변환 방식", convFlex), fixRow,

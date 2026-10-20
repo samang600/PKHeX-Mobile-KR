@@ -1,10 +1,11 @@
-using System.Text;
+﻿using System.Text;
 using FluentFTP;
 using PKHeX.Core;
 namespace PKHeXKR;
 
 /// <summary>
-/// 스위치 세이브 (무선 FTP, DBI 'Run FTP server'). 범용 FTP 탐색기:
+/// 원격 세이브 (FTP·HTTP). FTP: 스위치 DBI·JKSV 등 (탐색기 기능 전부). HTTP: 레트로 휴대용 기기(앤버닉 등)·PC의 파일 서버
+/// 폴더 목록(HTML)을 읽어 받기, 덮어쓰기는 PUT(지원하는 서버만). 범용 FTP 탐색기:
 /// 세이브 폴더가 보이면 바로 가져오기·덮어쓰기, SD 카드만 보이면 DBI 백업 폴더(switch/DBI/saves)로 반자동.
 /// </summary>
 public class FtpSheet : Sheet
@@ -16,6 +17,11 @@ public class FtpSheet : Sheet
         ["010003F003A34000"] = "레츠고 피카츄", ["0100187003A36000"] = "레츠고 이브이", ["0100F43008C44000"] = "레전즈 Z-A",
     };
     private static AsyncFtpClient client;
+    // HTTP: 연결 = 기준 주소 기억 (상태가 없는 프로토콜)
+    private static bool httpMode = Preferences.Get("remote_http", false);
+    private static Uri httpBase;
+    private static readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(20) };
+    private static bool Connected => httpMode ? httpBase != null : client?.IsConnected == true;
     private static string cwd = "/";
     private readonly Entry hostE = T.Input(placeholder: "스위치 IP (예: 192.168.0.23)"), portE = T.Input(Keyboard.Numeric), userE = T.Input(placeholder: "anonymous"), passE = T.Input(placeholder: "비밀번호 (없으면 비움)");
     private readonly VerticalStackLayout list = new() { Spacing = 4 };
@@ -25,9 +31,13 @@ public class FtpSheet : Sheet
     private static string DbiBackup => Preferences.Get("ftp_backup", "/switch/DBI/saves") is var v && v != "/backup/saves" ? v : "/switch/DBI/saves";
     private bool busy;
 
-    public FtpSheet() : base("스위치 세이브 (무선 FTP)")
+    private readonly Button ftpB = T.Pill("FTP", size: 12), httpB = T.Pill("HTTP", size: 12);
+    private readonly Label modeHint = T.L("", 12, sub: true);
+    private View userRow, ftpTools;
+
+    public FtpSheet() : base("원격 세이브 (FTP·HTTP)")
     {
-        hostE.Text = Preferences.Get("ftp_host", ""); portE.Text = Preferences.Get("ftp_port", "5000"); userE.Text = Preferences.Get("ftp_user", ""); passE.Text = Preferences.Get("ftp_pass", "");
+        hostE.Text = Preferences.Get(httpMode ? "http_host" : "ftp_host", ""); portE.Text = Preferences.Get(httpMode ? "http_port" : "ftp_port", httpMode ? "80" : "5000"); userE.Text = Preferences.Get("ftp_user", ""); passE.Text = Preferences.Get("ftp_pass", "");
         passE.IsPassword = true;
         var connect = T.Pill("연결", primary: true); connect.Clicked += async (_, _) => await Connect();
         var up = T.Pill("상위 폴더"); up.Clicked += async (_, _) => await Safe(async () => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/'))]; } await Refresh(); });
@@ -43,15 +53,45 @@ public class FtpSheet : Sheet
         pasteBtn = T.Pill("붙여넣기", primary: true); pasteBtn.Clicked += async (_, _) => await Safe(async () => { await Paste(); }); UpdatePaste();
         var hint = T.L("스위치 DBI에서 'Run FTP server'를 켜면 화면에 IP와 포트가 나옵니다(기본 5000). 휴대폰과 스위치가 같은 와이파이에 있어야 합니다.\n• 세이브 폴더가 보이면: 파일을 눌러 바로 열고, 편집 후 같은 자리에 덮어쓸 수 있습니다.\n• SD 카드만 보이면: 스위치 DBI → Browse saves → 게임 → Backup 후, 'DBI 백업 폴더'에서 파일을 열어 편집·덮어쓰기 → 스위치 DBI에서 그 백업으로 복원(Restore).", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap; status.LineBreakMode = LineBreakMode.WordWrap; pathL.LineBreakMode = LineBreakMode.WordWrap;
-        var form = T.Cols(2, 6); form.Add(T.Field("IP", hostE), 0); form.Add(T.Field("포트", portE), 1);
+        var form = T.Cols(2, 6); form.Add(T.Field("IP 또는 주소", hostE), 0); form.Add(T.Field("포트", portE), 1);
         var form2 = T.Cols(2, 6); form2.Add(T.Field("사용자", userE), 0); form2.Add(T.Field("비밀번호", passE), 1);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, form, form2, connect,
-            new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { up, root, dbi, jksv, ckpt, here, mk, pasteBtn, off } } }, T.Field("백업 폴더 경로 (SD 카드 기준, sdmc:/ = /)", pathE), status, pathL, list } } });
-        if (client?.IsConnected == true) _ = Safe(Refresh);
+        userRow = form2;
+        var modeRow = T.Cols(2, 6); modeRow.Add(ftpB, 0); modeRow.Add(httpB, 1);
+        ftpB.Clicked += (_, _) => SetMode(false); httpB.Clicked += (_, _) => SetMode(true);
+        modeHint.LineBreakMode = LineBreakMode.WordWrap;
+        var tools = new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { up, root, dbi, jksv, ckpt, here, mk, pasteBtn, off } } };
+        ftpTools = new VerticalStackLayout { Spacing = 10, Children = { hint, T.Field("백업 폴더 경로 (SD 카드 기준, sdmc:/ = /)", pathE) } };
+        var up2 = T.Pill("상위 폴더"); up2.Clicked += async (_, _) => await Safe(async () => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/') + 1)]; } await Refresh(); });
+        var off2 = T.Pill("연결 해제"); off2.Clicked += (_, _) => { Drop(); list.Children.Clear(); status.Text = "연결을 해제했습니다"; pathL.Text = ""; };
+        httpTools = new HorizontalStackLayout { Spacing = 8, Children = { up2, off2 } };
+        ftpToolRow = tools;
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { modeRow, modeHint, form, form2, connect,
+            tools, httpTools, ftpTools, status, pathL, list } } });
+        SetMode(httpMode, true);
+        if (Connected) _ = Safe(Refresh);
+    }
+
+    private View httpTools, ftpToolRow;
+
+    private void SetMode(bool h, bool init = false)
+    {
+        if (!init && h != httpMode)
+        {
+            Drop(); list.Children.Clear(); pathL.Text = ""; status.Text = "";
+            httpMode = h; Preferences.Set("remote_http", h);
+            hostE.Text = Preferences.Get(h ? "http_host" : "ftp_host", ""); portE.Text = Preferences.Get(h ? "http_port" : "ftp_port", h ? "80" : "5000");
+        }
+        void On(Button b, bool on) { if (on) { b.BackgroundColor = T.Accent; b.TextColor = Colors.White; } else { b.SetAppThemeColor(Button.BackgroundColorProperty, Colors.White, Color.FromArgb("#1A1D24")); b.SetAppThemeColor(Button.TextColorProperty, T.Accent, Color.FromArgb("#A5B4FC")); } }
+        On(ftpB, !httpMode); On(httpB, httpMode);
+        userRow.IsVisible = ftpTools.IsVisible = ftpToolRow.IsVisible = !httpMode; httpTools.IsVisible = httpMode;
+        modeHint.Text = httpMode
+            ? "HTTP 파일 서버의 폴더 목록을 읽어 세이브를 받고 엽니다 (레트로 휴대용 기기·PC의 파일 공유 등). IP만 적거나 http://주소:포트/폴더/ 를 통째로 적어도 됩니다. 덮어쓰기는 업로드(PUT)를 지원하는 서버에서만 됩니다."
+            : "스위치 DBI·JKSV 등의 FTP 서버에 연결합니다. 폴더 탐색·복사·이름 바꾸기·삭제, 세이브 열기·덮어쓰기.";
     }
 
     private async Task Connect()
     {
+        if (httpMode) { await ConnectHttp(); return; }
         var host = (hostE.Text ?? "").Trim();
         if (host.Length == 0) { status.Text = "스위치 IP를 입력하세요"; return; }
         int port = int.TryParse(portE.Text, out var p) ? p : 5000;
@@ -76,6 +116,7 @@ public class FtpSheet : Sheet
 
     private static void Drop()
     {
+        httpBase = null;
         var c = client; client = null;
         if (c != null) _ = Task.Run(async () => { try { await c.Disconnect().WaitAsync(TimeSpan.FromSeconds(3)); } catch { } try { c.Dispose(); } catch { } });
     }
@@ -90,6 +131,7 @@ public class FtpSheet : Sheet
     /// </summary>
     private static async Task<List<Item>> ListDir(string path)
     {
+        if (httpMode) return await HttpList(path);
         string Join(string n) => n.StartsWith('/') ? n : path.TrimEnd('/') + "/" + n;
         async Task<List<Item>> FromListing(FtpListOption opt, string how)
         {
@@ -135,6 +177,7 @@ public class FtpSheet : Sheet
     private static (string Dir, string Name) Split(string path) { var i = path.TrimEnd('/').LastIndexOf('/'); return i <= 0 ? ("/", path.Trim('/')) : (path[..i], path[(i + 1)..]); }
     private static async Task<byte[]> Get(string path)
     {
+        if (httpMode) return await http.GetByteArrayAsync(new Uri(httpBase, Esc(path)));
         try { var b = await client.DownloadBytes(path, CancellationToken.None); if (b != null && b.Length > 0) return b; } catch { }
         var (dir, name) = Split(path);
         await client.SetWorkingDirectory(dir);
@@ -142,6 +185,14 @@ public class FtpSheet : Sheet
     }
     private static async Task<FtpStatus> Put(byte[] data, string path)
     {
+        if (httpMode)
+        {
+            using var content = new ByteArrayContent(data);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+            var resp = await http.PutAsync(new Uri(httpBase, Esc(path)), content);
+            if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"이 HTTP 서버는 업로드(PUT)를 받지 않습니다 ({(int)resp.StatusCode} {resp.ReasonPhrase}). 받은 세이브를 편집한 뒤 기기에 직접 옮기세요.");
+            return FtpStatus.Success;
+        }
         FtpStatus r = FtpStatus.Failed;
         try { r = await client.UploadBytes(data, path, FtpRemoteExists.Overwrite, false, null, CancellationToken.None); } catch { }
         if (r == FtpStatus.Success) return r;
@@ -153,8 +204,8 @@ public class FtpSheet : Sheet
     private async Task Refresh()
     {
         list.Children.Clear();
-        if (client?.IsConnected != true) { status.Text = "연결되어 있지 않습니다"; return; }
-        await client.GetWorkingDirectory().WaitAsync(TimeSpan.FromSeconds(10));   // 살아 있는지 확인
+        if (!Connected) { status.Text = "연결되어 있지 않습니다"; return; }
+        if (!httpMode) await client.GetWorkingDirectory().WaitAsync(TimeSpan.FromSeconds(10));   // 살아 있는지 확인
         pathL.Text = "위치: " + cwd;
         try
         {
@@ -164,9 +215,8 @@ public class FtpSheet : Sheet
             if (items.Count == 0)
             {
                 var empty = T.L(cwd.StartsWith(DbiBackup, StringComparison.OrdinalIgnoreCase) ? "(비어 있음) 스위치 DBI에서 먼저 세이브를 Backup 하세요" : "(비어 있음)", 13, sub: true);
-                var diag = T.Pill("목록 진단", size: 12);
-                diag.Clicked += async (_, _) => await Diagnose();
-                list.Children.Add(empty); list.Children.Add(diag);
+                list.Children.Add(empty);
+                if (!httpMode) { var diag = T.Pill("목록 진단", size: 12); diag.Clicked += async (_, _) => await Diagnose(); list.Children.Add(diag); }
             }
             foreach (var it in items)
             {
@@ -202,7 +252,7 @@ public class FtpSheet : Sheet
         await Application.Current.Windows[0].Page.DisplayAlertAsync("목록 진단 (이 화면을 캡처해 알려주세요)", sb.ToString(), "확인");
     }
 
-    private View RowM(Item it, string text, string sub, Func<Task> tap) => Row(text, sub, tap, () => ItemMenu(it));
+    private View RowM(Item it, string text, string sub, Func<Task> tap) => Row(text, sub, tap, httpMode ? null : () => ItemMenu(it));
     private View Row(string text, string sub, Func<Task> tap, Func<Task> menu = null)
     {
         var t1 = T.L(text, 14, bold: true); t1.LineBreakMode = LineBreakMode.WordWrap;
@@ -278,7 +328,7 @@ public class FtpSheet : Sheet
     // ===== 탐색기 기능: 새 폴더, 복사·잘라내기·붙여넣기·이름 바꾸기·삭제 =====
     private static (string Path, string Name, bool Dir, bool Cut)? clip;
     private static readonly SemaphoreSlim opLock = new(1, 1);
-    private static bool IsNet(Exception ex) => ex is TimeoutException or IOException or System.Net.Sockets.SocketException or ObjectDisposedException or FluentFTP.Exceptions.FtpException || ex.InnerException is { } inner && IsNet(inner);
+    private static bool IsNet(Exception ex) => ex is TimeoutException or HttpRequestException or TaskCanceledException or IOException or System.Net.Sockets.SocketException or ObjectDisposedException or FluentFTP.Exceptions.FtpException || ex.InnerException is { } inner && IsNet(inner);
 
     /// <summary>
     /// 스위치와 주고받는 작업은 모두 여기로: 한 번에 하나만(겹치면 무시), 30초 넘으면 끊긴 것으로 보고 정리.
@@ -289,7 +339,7 @@ public class FtpSheet : Sheet
         if (!await opLock.WaitAsync(0)) { status.Text = "이전 작업이 끝나기를 기다리는 중입니다…"; return; }
         try
         {
-            if (client == null || !client.IsConnected) { status.Text = "연결되어 있지 않습니다. '연결'을 눌러 주세요"; return; }
+            if (!Connected) { status.Text = "연결되어 있지 않습니다. '연결'을 눌러 주세요"; return; }
             await op().WaitAsync(TimeSpan.FromSeconds(30));
         }
         catch (Exception ex) when (IsNet(ex)) { Lost(ex is TimeoutException ? "스위치가 응답하지 않습니다 (연결이 끊긴 것 같습니다). 다시 연결해 주세요" : "연결이 끊겼습니다. 다시 연결해 주세요 (" + ex.Message + ")"); }
@@ -298,8 +348,8 @@ public class FtpSheet : Sheet
     }
     private void Lost(string msg)
     {
-        var c = client; client = null;
-        status.Text = msg; Note.Show("FTP 연결이 끊겼습니다");
+        var c = client; client = null; httpBase = null;
+        status.Text = msg; Note.Show(httpMode ? "HTTP 연결이 끊겼습니다" : "FTP 연결이 끊겼습니다");
         if (c != null) _ = Task.Run(() => { try { c.Dispose(); } catch { } });
     }
     private Button pasteBtn;
@@ -379,4 +429,59 @@ public class FtpSheet : Sheet
         }
     }
 
+
+    // ===== HTTP =====
+    private static string Esc(string path) => string.Join("/", path.Split('/').Select(Uri.EscapeDataString));
+
+    private async Task ConnectHttp()
+    {
+        var raw = (hostE.Text ?? "").Trim();
+        if (raw.Length == 0) { status.Text = "기기 IP나 주소를 입력하세요"; return; }
+        int port = int.TryParse(portE.Text, out var p) ? p : 80;
+        Preferences.Set("http_host", raw); Preferences.Set("http_port", port.ToString());
+        if (busy) return; busy = true;
+        status.Text = "연결 중…";
+        try
+        {
+            Drop();
+            var url = raw.Contains("://") ? raw : $"http://{raw}";
+            var u = new UriBuilder(url);
+            if (!raw.Contains("://") || u.Uri.IsDefaultPort) u.Port = port;
+            var start = string.IsNullOrEmpty(u.Path) || u.Path == "/" ? "/" : (u.Path.EndsWith('/') ? u.Path : u.Path[..(u.Path.LastIndexOf('/') + 1)]);
+            u.Path = "/";
+            var baseUri = u.Uri;
+            using var r = await http.GetAsync(new Uri(baseUri, Esc(start)));
+            if (!r.IsSuccessStatusCode) throw new IOException($"{(int)r.StatusCode} {r.ReasonPhrase}");
+            httpBase = baseUri; cwd = Uri.UnescapeDataString(start);
+            status.Text = $"{baseUri.Host}:{baseUri.Port}에 연결했습니다";
+            await Refresh();
+        }
+        catch (Exception ex) { status.Text = "연결 실패: " + ex.Message + " (주소·포트, 같은 와이파이인지, 기기의 HTTP 파일 서버가 켜져 있는지 확인)"; httpBase = null; }
+        finally { busy = false; }
+    }
+
+    /// <summary>HTML 폴더 목록(아파치·nginx·파이썬 http.server·기기 파일 서버 등)의 링크를 항목으로. '/'로 끝나면 폴더.</summary>
+    private static async Task<List<Item>> HttpList(string path)
+    {
+        if (!path.EndsWith('/')) path += "/";
+        var html = await http.GetStringAsync(new Uri(httpBase, Esc(path)));
+        var list = new List<Item>(); var seen = new HashSet<string>();
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(html, "href\\s*=\\s*[\"']([^\"'#?]+)[\"']", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            var href = System.Net.WebUtility.HtmlDecode(m.Groups[1].Value);
+            if (href.StartsWith("mailto:") || href.StartsWith("javascript:") || href is "/" or "./" or "../" or "..") continue;
+            Uri target;
+            try { target = new Uri(new Uri(httpBase, Esc(path)), href); } catch { continue; }
+            if (target.Host != httpBase.Host || target.Port != httpBase.Port) continue;
+            var full = Uri.UnescapeDataString(target.AbsolutePath);
+            if (!full.StartsWith(path) || full == path) continue;   // 이 폴더 바로 아래만
+            var rest = full[path.Length..];
+            bool dir = rest.EndsWith('/');
+            var name = rest.TrimEnd('/');
+            if (name.Length == 0 || name.Contains('/') || !seen.Add(name)) continue;
+            list.Add(new Item(name, full, dir, 0, default));
+        }
+        lastMethod = "HTTP 폴더 목록";
+        return list.OrderByDescending(x => x.Dir).ThenBy(x => x.Name).ToList();
+    }
 }

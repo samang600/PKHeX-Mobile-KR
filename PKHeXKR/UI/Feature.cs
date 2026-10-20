@@ -1,4 +1,4 @@
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using PKHeX.Core.Injection;
 using System.Runtime.CompilerServices;
@@ -7,19 +7,27 @@ namespace PKHeXKR;
 // ======================= 쇼다운 =======================
 public class ShowdownSheet : Sheet
 {
+    /// <summary>쇼다운 내보내기를 시스봇·ALM 형식으로 (Ball·Language·OT·TID·SID·증표·크기 줄 추가)</summary>
+    public static bool SysBot { get => Preferences.Get("sd_sysbot", true); set => Preferences.Set("sd_sysbot", value); }
     private readonly Editor text = new() { AutoSize = EditorAutoSizeOption.Disabled, FontSize = 14, FontFamily = "monospace", Placeholder = "쇼다운 세트를 붙여넣으세요\n\nPikachu @ Light Ball\nAbility: Static\n..." };
     public ShowdownSheet() : base("쇼다운 세트")
     {
         text.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
-        if (AppState.Pk.Species != 0) text.Text = ShowdownParsing.GetShowdownText(AppState.Pk);
+        var sys = new Switch { IsToggled = SysBot, OnColor = T.Accent };
+        string One(PKM p) => SysBot ? SysBotText.Get(p) : ShowdownParsing.GetShowdownText(p);
+        if (AppState.Pk.Species != 0) text.Text = One(AppState.Pk);
+        sys.Toggled += (_, e) => { SysBot = e.Value; if (AppState.Pk.Species != 0) text.Text = One(AppState.Pk); };
+        var sysLab = T.L("시스봇 형식 (볼·언어·어버이·크기·증표 줄 포함)", 13); sysLab.VerticalOptions = LayoutOptions.Center;
+        var sysRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } }; sysRow.Add(sysLab, 0); sysRow.Add(sys, 1);
         var paste = T.Pill("붙여넣기"); paste.Clicked += async (_, _) => { if (Clipboard.HasText) text.Text = await Clipboard.GetTextAsync(); };
         var copy = T.Pill("복사"); copy.Clicked += async (_, _) => { await Clipboard.SetTextAsync(text.Text ?? ""); Note.Show("복사했습니다"); };
-        var box = T.Pill("현재 박스 전체"); box.Clicked += (_, _) => text.Text = ShowdownParsing.GetShowdownSets(AppState.CurrentSlots().Where(p => p.Species != 0), Environment.NewLine + Environment.NewLine);
+        var box = T.Pill("현재 박스 전체"); box.Clicked += (_, _) => text.Text = SysBot ? SysBotText.GetMany(AppState.CurrentSlots().Where(p => p.Species != 0)) : ShowdownParsing.GetShowdownSets(AppState.CurrentSlots().Where(p => p.Species != 0), Environment.NewLine + Environment.NewLine);
         var make = T.Pill("합법 개체로 만들기", primary: true);
         make.Clicked += async (_, _) => await Make();
         var team = T.Pill("팀 전부 박스에 넣기", primary: true);
         team.Clicked += async (_, _) => await ImportTeam();
         var btns = new VerticalStackLayout { Spacing = 6, Children = {
+            sysRow,
             new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 6, Children = { paste, copy, box } } },
             new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 6, Children = { make, team } } } } };
         var frame = new Border { Content = text, StrokeThickness = 1, Padding = 6, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
@@ -78,17 +86,16 @@ public class LegalitySheet : Sheet
     {
         var la = AppState.Analyze(AppState.Pk, out var waived);
         bool ev = AppState.EffectiveValid(la);
-        var swp = SwitchFrlg.Problem(AppState.Pk, la);
-        var badge = T.L(swp != null ? "✖ 불법 (스위치판 FRLG 기준)" : la.Valid ? (waived ? "✔ 합법 (리본용 홈 트래커 생략 허용)" : "✔ 합법") : ev ? "✔ 합법 (끈 검사 항목만 해당)" : "✖ 불법", 20, bold: true);
+        var badge = T.L(la.Valid ? (waived ? "✔ 합법 (리본용 홈 트래커 생략 허용)" : "✔ 합법") : ev ? "✔ 합법 (끈 검사 항목만 해당)" : "✖ 불법", 20, bold: true);
         badge.LineBreakMode = LineBreakMode.WordWrap;
         badge.TextColor = ev ? T.Good : T.Bad;
         string report;
         try { report = la.Report(AppState.LangCode, true); } catch { report = la.Report(true); }
         if (AppState.LangCode == "ko") report = KoFix.Fix(report);
-        if (swp != null) report = "✖ " + swp + "\n(설정 → '스위치판 FRLG 기준 검사'를 끄면 GBA판 기준)\n\n" + report;
+        if (SwitchFrlg.Active(AppState.Sav)) report = "스위치판 FRLG 기준 (루비·사파이어·에메랄드·XD 출신과 옛 배포는 불법)\n\n" + report;
         var body = T.L(report, 13); body.LineBreakMode = LineBreakMode.WordWrap;
         var fix = T.Pill("자동 합법화 (ALM)", primary: true);
-        fix.IsVisible = !la.Valid || swp != null;
+        fix.IsVisible = !la.Valid;
         fix.Clicked += async (_, _) => { Close(); await MainPage.Legalize(); };
         Body.RowDefinitions.Add(new(GridLength.Auto)); Body.RowDefinitions.Add(new(GridLength.Star)); Body.RowDefinitions.Add(new(GridLength.Auto));
         Body.Add(badge, 0, 0); Body.Add(new ScrollView { Content = body }, 0, 1); Body.Add(fix, 0, 2);

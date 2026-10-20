@@ -95,9 +95,16 @@ public static class GenHost
     public static void AutoOT(PKM p, string ot, uint id32, byte gender, int lang)
     {
         bool shiny = p.IsShiny; bool square = shiny && p.ShinyXor == 0;
+        try { p.OriginalTrainerTrash.Clear(); } catch { }   // 긴 세이브 이름 뒤에 짧은 이름을 넣으면 남는 쓰레기 바이트 제거
         p.OriginalTrainerName = ot; p.OriginalTrainerGender = gender; p.ID32 = id32;
         if (lang > 0) { var nick = p.IsNicknamed; p.Language = lang; if (!nick) { p.Nickname = SpeciesName.GetSpeciesNameGeneration(p.Species, p.Language, p.Format); p.IsNicknamed = false; } }
-        if (p.Format >= 6) { p.HandlingTrainerName = ""; p.CurrentHandler = 0; }
+        if (p.Format >= 6)   // 교환하지 않은 상태로: 맡은 트레이너 정보(이름 쓰레기 바이트·친밀도·언어·추억)까지 비움
+        {
+            try { p.HandlingTrainerTrash.Clear(); } catch { }
+            p.HandlingTrainerName = ""; p.CurrentHandler = 0; p.HandlingTrainerFriendship = 0; p.HandlingTrainerGender = 0;
+            if (p is IHandlerLanguage hl) hl.HandlingTrainerLanguage = 0;
+            if (p is IMemoryHT mh) mh.ClearMemoriesHT();
+        }
         if (shiny && !p.IsShiny)   // ID가 바뀌어 이로치가 풀리면 같은 모양(별·네모)으로 다시 이로치
         {
             if (p.Generation >= 6) p.PID = ShinyUtil.GetShinyPID(p.TID16, p.SID16, p.PID, square ? 0u : 1u);

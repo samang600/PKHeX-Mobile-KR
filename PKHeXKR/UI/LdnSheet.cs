@@ -14,7 +14,9 @@ public class LdnSheet : Sheet
     private readonly Label giftNote = T.L("", 12, sub: true);
     private readonly Button usbB = T.Pill("USB 케이블", size: 12), bleB = T.Pill("블루투스", size: 12), hostB = T.Pill("기다리기 (호스트)", size: 12), joinB = T.Pill("찾아 들어가기 (참가)", size: 12),
         frB = T.Pill("파이어레드", size: 12), lgB = T.Pill("리프그린", size: 12), start = T.Pill("교환 시작", primary: true), stop = T.Pill("중지"), logB = T.Pill("전체 로그 보기", size: 12);
-    private readonly Switch manual = new() { OnColor = T.Accent }, lowPower = new() { OnColor = T.Accent };
+    private readonly Switch manual = new() { OnColor = T.Accent }, lowPower = new() { OnColor = T.Accent }, autoOt = new() { OnColor = T.Accent };
+    private View autoOtRow;
+    private readonly Label dexStatus = T.L("", 12, sub: true);
     private readonly Entry code = T.Input(Keyboard.Numeric);
     private readonly View versionRow, codeRow;
     private string game, mode;
@@ -61,10 +63,18 @@ public class LdnSheet : Sheet
 
         // 교환: 보낼 포켓몬
         var addCur = T.Pill("편집 중인 포켓몬 추가", size: 12); addCur.Clicked += (_, _) => AddCurrent();
-        var clear = T.Pill("비우기", size: 12); clear.Clicked += (_, _) => { LdnTrade.Offers.Clear(); Refresh(); };
-        var offerBtns = T.Cols(2, 6); offerBtns.Add(addCur, 0); offerBtns.Add(clear, 1);
+        var clear = T.Pill("비우기", size: 12); clear.Clicked += (_, _) => { LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); Refresh(); };
+        var all = T.Pill("전체 보기", size: 12); all.Clicked += (_, _) => SheetHost.Show(new LdnOffersSheet(true));
+        var offerBtns = T.Cols(3, 6); offerBtns.Add(addCur, 0); offerBtns.Add(all, 1); offerBtns.Add(clear, 2);
         tradeCard.Children.Add(T.L("보낼 포켓몬 (최대 6마리, 순서대로 교환) · 박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기'로도 넣을 수 있어요", 12, sub: true));
         tradeCard.Children.Add(offersBox); tradeCard.Children.Add(offerBtns);
+        autoOt.IsToggled = Preferences.Get("ldn_auto_ot", false); autoOt.Toggled += (_, e) => Preferences.Set("ldn_auto_ot", e.Value);
+        autoOtRow = new VerticalStackLayout { Spacing = 2, Children = { Row("자동 어버이작 (SV): 콘솔 트레이너의 이름·ID로 바꿔 보내기", autoOt),
+            T.L("앱이 방을 열 때(호스트)만. 콘솔이 먼저 포켓몬을 내밀면 그 세이브의 트레이너로 어버이·ID·성별·언어를 바꿔 보내요. 이로치 모양은 유지하고, 바꾸면 불법이 되는 개체(배포·게임 내 교환 등)는 그대로 보내요.", 11, sub: true).Also(x => x.LineBreakMode = LineBreakMode.WordWrap) } };
+        tradeCard.Children.Add(autoOtRow);
+        var dexB = T.Pill("📚 리빙덱스로 채우기", size: 12); dexB.Clicked += async (_, _) => await LivingDex();
+        dexStatus.LineBreakMode = LineBreakMode.WordWrap;
+        tradeCard.Children.Add(dexB); tradeCard.Children.Add(dexStatus);
 
         // 이상한 소포
         (var ggv, giftGroupL) = T.Chooser(async () => await PickGiftGroup());
@@ -94,7 +104,7 @@ public class LdnSheet : Sheet
                 {
                     T.L("준비", 13, sub: true), T.Card(prep), gm, versionRow, roleCard, tradeCard, giftCard, restoreCard, guide, runRow,
                     T.L("진행 상황", 13, sub: true), T.Card(new VerticalStackLayout { Spacing = 6, Children = { summary, logB, log } }),
-                    T.L("PokeLDN(github.com/Decryptu/pokeldn, AGPLv3)의 파이썬 코드로 통신합니다. 휴대폰 OTG에 ESP32-C3·C6·S3 보드(무선 펌웨어)를 꽂거나, 블루투스 무선 펌웨어 보드(ESP32-C6·클래식 ESP32)에 전원만 연결하세요.", 11, sub: true),
+                    T.L("PokeLDN(github.com/Decryptu/pokeldn, AGPLv3)의 파이썬 코드로 통신합니다. 휴대폰 OTG에 ESP32-C3·C6·S3 보드 또는 CP2102·CH340·CH9102 칩 클래식 ESP32(무선 펌웨어)를 꽂거나, 블루투스 무선 펌웨어 보드(ESP32-C6·클래식 ESP32)에 전원만 연결하세요.", 11, sub: true),
                 }
             }
         });
@@ -136,7 +146,7 @@ public class LdnSheet : Sheet
         string st; try { st = LdnTrade.Bridge.UsbState(); } catch { st = "none"; }
         (board.Text, board.TextColor) = st switch
         {
-            "ready" => ("● 보드 연결됨 (ESP32 내장 USB)", T.Good),
+            "ready" => (LdnTrade.Bridge.UsbKind() is { Length: > 0 } k && k != "native" ? $"● 보드 연결됨 (클래식 ESP32 · {k})" : "● 보드 연결됨 (ESP32 내장 USB)", T.Good),
             "permission" => ("● 보드 발견 — USB 사용 허용이 필요해요 ('보드 확인 · USB 허용')", T.Warn),
             _ => ("● 보드 없음 — 데이터용 USB-C 케이블로 꽂고, 휴대폰 설정에 OTG 항목이 있으면 켜세요.", T.Bad),
         };
@@ -165,6 +175,8 @@ public class LdnSheet : Sheet
         codeRow.IsVisible = trade && codeGame;
         code.Placeholder = IsHost ? (game is "za" or "pla" ? "비우면 00000000" : "비우면 코드 없이") : "비우면 아무 코드나 (8자리)";
         tradeCard.IsVisible = trade; giftCard.IsVisible = mode == "gift"; restoreCard.IsVisible = mode == "save_restore";
+        if (autoOtRow != null) autoOtRow.IsVisible = game == "sv";
+        dexStatus.Text = LdnTrade.QueueGame == game && LdnTrade.Offers.Count > 0 ? $"리빙덱스 대기열: {LdnTrade.Offers.Count}마리 남음 · 한 번 연결로 계속 교환하고, 끊기면 다시 시작하면 이어서 보내요 (콘솔에서 내줄 포켓몬이 같은 수만큼 필요)" : "";
         versionRow.IsVisible = frlg && !trade;
         Styles(); RefreshOffers(); RefreshGift(); RefreshRestore();
         string s = mode switch
@@ -193,14 +205,16 @@ public class LdnSheet : Sheet
         if (LdnTrade.Offers.Count == 0) { offersBox.Children.Add(T.L("없음", 13, sub: true)); return; }
         for (int i = 0; i < LdnTrade.Offers.Count; i++)
         {
+            if (i >= 8) { offersBox.Children.Add(T.L($"… 외 {LdnTrade.Offers.Count - 8}마리", 12, sub: true)); break; }
             var p = LdnTrade.Offers[i]; int k = i;
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 };
             g.Add(new Image { Source = AppState.Sprite(p), WidthRequest = 40, HeightRequest = 34 }, 0);
             var ok = LdnExport.GameOf(p)?.Game == game;
             var l = T.L($"{i + 1}. {PKHeX.Core.GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}{(ok ? "" : $"  ⚠ {GameOf(game).Name} 포켓몬이 아님")}{(AppState.IsLegal(p) ? "" : "  · 불법")}", 13);
             l.VerticalOptions = LayoutOptions.Center; g.Add(l, 1);
-            var x = T.Pill("✕", size: 12); x.WidthRequest = 40; x.Clicked += (_, _) => { LdnTrade.Offers.RemoveAt(k); Refresh(); };
+            var x = T.Pill("✕", size: 12); x.WidthRequest = 40; x.Clicked += (_, _) => { LdnTrade.Offers.RemoveAt(k); if (LdnTrade.QueueGame != null) LdnTrade.SaveQueue(); Refresh(); };
             g.Add(x, 2);
+            var tap = new TapGestureRecognizer(); tap.Tapped += async (_, _) => await LdnTrade.OfferActions(k, Close); l.GestureRecognizers.Add(tap);
             offersBox.Children.Add(g);
         }
     }
@@ -210,6 +224,7 @@ public class LdnSheet : Sheet
         var pk = AppState.Pk;
         if (pk == null || pk.Species == 0) { Note.Show("편집 중인 포켓몬이 없습니다"); return; }
         if (LdnExport.GameOf(pk) == null) { Note.Show("이 게임은 PokeLDN 교환을 지원하지 않습니다"); return; }
+        if (LdnTrade.QueueGame != null) { Note.Show("리빙덱스 대기열이 있어요 · 먼저 '비우기'를 누르세요"); return; }
         if (LdnTrade.Offers.Count >= 6) { Note.Show("최대 6마리까지 넣을 수 있습니다"); return; }
         LdnTrade.Offers.Add(pk.Clone());
         if (LdnExport.GameOf(pk)?.Game is { } g && g != game) { game = g; mode = "trade"; }
@@ -322,8 +337,8 @@ public class LdnSheet : Sheet
     {
         if (LdnTrade.Running) { Note.Show("진행 중에는 설치할 수 없어요"); return; }
         var page = Application.Current.Windows[0].Page;
-        const string normal = "무선 펌웨어 (USB 케이블로 쓸 때)", ble = "블루투스 무선 펌웨어 (ESP32-C6)";
-        var pick = await page.DisplayActionSheetAsync($"보드 펌웨어 설치 (v{LdnTrade.FwVersion})\n\n1. 보드를 휴대폰에서 뽑아요.\n2. BOOT 버튼을 누른 채로 다시 꽂고 1~2초 뒤 떼요.\n3. 아래에서 고르면 설치를 시작해요.\n\nESP32-C3·C6·S3만 돼요. 끝나면 RST를 누르거나 다시 꽂으세요. 실패해도 보드는 망가지지 않아요. 클래식 ESP32의 블루투스 펌웨어는 PC의 PokeLDN 앱에서 설치하세요.", "취소", null, normal, ble);
+        const string normal = "무선 펌웨어 (USB 케이블로 쓸 때)", ble = "블루투스 무선 펌웨어 (ESP32-C6·클래식 ESP32)";
+        var pick = await page.DisplayActionSheetAsync($"보드 펌웨어 설치 (v{LdnTrade.FwVersion})\n\nESP32-C3·C6·S3: 보드를 뽑고 BOOT 버튼을 누른 채 다시 꽂은 뒤 1~2초 뒤 떼요. 끝나면 RST를 누르거나 다시 꽂으세요.\n\n클래식 ESP32 (CP2102·CH340 칩): 그냥 꽂아 두면 앱이 알아서 다운로드 모드로 넣고, 끝나면 다시 켜요. 안 되면 BOOT를 누른 채 EN을 눌렀다 떼세요.\n\n실패해도 보드는 망가지지 않아요.", "취소", null, normal, ble);
         if (pick != normal && pick != ble) return;
         var st = LdnTrade.Bridge.UsbState();
         if (st == "none") { Note.Show("보드를 찾지 못했어요. 다시 꽂아 보세요"); return; }
@@ -402,6 +417,19 @@ public class LdnSheet : Sheet
             w.WriteString("fw_version", LdnTrade.FwVersion); w.WriteNumber("tx_power", lowPower.IsToggled ? 34 : 0);
             w.WriteString("data", Path.Combine(LdnTrade.Home, "pokeldn"));
             w.WriteString("ot", ot); w.WriteString("tid", tid); w.WriteString("sid", sid); w.WriteNumber("language", lang); w.WriteNumber("gender", gender);
+            if (mode == "trade" && game == "sv" && autoOt.IsToggled)
+            {
+                w.WriteBoolean("auto_ot", true);
+                w.WriteStartArray("auto_ot_info");
+                foreach (var p in offers)
+                {
+                    var (okOt, nick, names) = AutoOtInfo(p);
+                    w.WriteStartObject(); w.WriteBoolean("ok", okOt); w.WriteBoolean("nick", nick);
+                    w.WriteStartObject("names"); foreach (var (l, n) in names) w.WriteString(l.ToString(), n); w.WriteEndObject();
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+            }
             if (restore != null) w.WriteString("restore", restore);
             if (mode == "gift")
             {
@@ -415,6 +443,36 @@ public class LdnSheet : Sheet
         Refresh();
     }
 
+    /// <summary>자동 어버이작을 해도 합법인지 (임시 트레이너로 바꿔 PKHeX로 확인), 별명 여부, 언어별 종 이름.</summary>
+    private static (bool Ok, bool Nick, List<(int, string)> Names) AutoOtInfo(PKM p)
+    {
+        var names = new[] { 1, 2, 3, 4, 5, 7, 8, 9, 10 }.Select(l => (l, SpeciesName.GetSpeciesNameGeneration(p.Species, l, 9))).ToList();
+        if (p.IsEgg || p.FatefulEncounter) return (false, p.IsNicknamed, names);
+        try
+        {
+            var t = p.Clone();
+            GenHost.AutoOT(t, "PKHeXKR", (uint)Random.Shared.Next(1, int.MaxValue), 0, p.Language);
+            return (GenHost.IsLegal(t) || !GenHost.IsLegal(p), p.IsNicknamed, names);
+        }
+        catch { return (false, p.IsNicknamed, names); }
+    }
+
+    /// <summary>리빙덱스 교환: 이 게임 리빙덱스를 만들어 보낼 목록(대기열)으로. 콘솔 세이브는 교환으로 채움 (커펌 없이).</summary>
+    private async Task LivingDex()
+    {
+        var page = Application.Current.Windows[0].Page;
+        if (LdnTrade.Running) { Note.Show("교환 중에는 만들 수 없어요"); return; }
+        if (game == "frlg") { Note.Show("파이어레드·리프그린은 '세이브 백업 → 리빙덱스 채우기 → 세이브 복원'이 훨씬 빨라요"); return; }
+        int queued = LdnTrade.QueueCount(game);
+        if (queued > 0)
+        {
+            var pick = await page.DisplayActionSheetAsync($"남아 있는 리빙덱스 대기열 {queued}마리", "취소", null, "이어서 보내기 (불러오기)", "새로 만들기");
+            if (pick is null or "취소") return;
+            if (pick.StartsWith("이어서")) { int n0 = LdnTrade.LoadQueue(game); Note.Show($"대기열 {n0}마리를 불러왔어요 · 교환 시작을 누르세요"); Refresh(); return; }
+        }
+        SheetHost.Show(new LivingDexSheet(game));
+    }
+
     private void OnChanged() => MainThread.BeginInvokeOnMainThread(() => { Render(); Refresh(); });
 
     private void Render()
@@ -424,5 +482,63 @@ public class LdnSheet : Sheet
         if (LdnTrade.BoardLine.Length > 0) lines.Add("📶 " + LdnTrade.BoardLine);
         summary.Text = lines.Count > 0 ? string.Join("\n", lines) : (LdnTrade.Running ? "시작하는 중…" : "아직 시작하지 않았어요");
         if (log.IsVisible) { var t = LdnTrade.FullLog.ToString(); log.Text = t.Length > 20000 ? t[^20000..] : t; }
+    }
+}
+
+/// <summary>PokeLDN 교환 목록 전체 (리빙덱스 대기열 포함). 누르면 편집기로 불러오기·바꾸기·빼기.</summary>
+public class LdnOffersSheet : Sheet
+{
+    public record Cell(int Index, string Sprite, bool Shiny, string Info);
+    private readonly CollectionView grid = new() { SelectionMode = SelectionMode.None };
+    private readonly Label status = T.L("", 12, sub: true);
+
+    private readonly bool fromLdn;
+    public LdnOffersSheet(bool fromLdn = false) : base("PokeLDN 교환 목록", 0.85)
+    {
+        this.fromLdn = fromLdn;
+        grid.ItemsLayout = new GridItemsLayout(6, ItemsLayoutOrientation.Vertical) { VerticalItemSpacing = 4, HorizontalItemSpacing = 4 };
+        grid.ItemTemplate = new DataTemplate(() =>
+        {
+            var g = new Grid { HeightRequest = 58 };
+            var bg = new Border { StrokeThickness = 0, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
+            bg.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F9FAFB"), Color.FromArgb("#22262F"));
+            var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
+            var star = new Image { Source = "rare_icon.png", WidthRequest = 13, HeightRequest = 13, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Start, Margin = 3 };
+            star.SetBinding(IsVisibleProperty, "Shiny");
+            var n = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) }; T.Sub(n); n.SetBinding(Label.TextProperty, "Info");
+            g.Add(bg); g.Add(img); g.Add(star); g.Add(n);
+            var t = new TapGestureRecognizer(); t.Tapped += async (_, _) => { if (g.BindingContext is Cell c) await LdnTrade.OfferActions(c.Index, CloseAll); }; g.GestureRecognizers.Add(t);
+            return g;
+        });
+        var open = T.Pill("교환 화면 열기", primary: true); open.HorizontalOptions = LayoutOptions.Fill;
+        open.Clicked += async (_, _) => { Close(); if (!fromLdn) await LdnTrade.Open(null); };
+        var clear = T.Pill("비우기"); clear.HorizontalOptions = LayoutOptions.Fill;
+        clear.Clicked += async (_, _) =>
+        {
+            if (LdnTrade.Offers.Count == 0) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("교환 목록 비우기", $"{LdnTrade.Offers.Count}마리를 목록에서 뺄까요?" + (LdnTrade.QueueGame != null ? " (리빙덱스 대기열도 지워요)" : ""), "비우기", "취소")) return;
+            LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); LdnTrade.NotifyChanged();
+        };
+        var row = T.Cols(2, 8); row.Add(open, 0); row.Add(clear, 1);
+        var hint = T.L("순서대로 교환해요. 누르면 편집기로 불러와 확인하거나, 편집기에서 고친 포켓몬으로 바꾸거나, 목록에서 뺄 수 있어요.", 12, sub: true); hint.LineBreakMode = LineBreakMode.WordWrap;
+        Body.RowDefinitions.Add(new(GridLength.Auto)); Body.RowDefinitions.Add(new(GridLength.Star));
+        Body.Add(new VerticalStackLayout { Spacing = 8, Children = { hint, row, status } }, 0, 0);
+        Body.Add(grid, 0, 1);
+        LdnTrade.Changed += OnChanged;
+        Closed += () => LdnTrade.Changed -= OnChanged;
+        Fill();
+    }
+
+    private void CloseAll() { Close(); while (SheetHost.CloseTop()) { } }
+    private void OnChanged() => MainThread.BeginInvokeOnMainThread(Fill);
+
+    private void Fill()
+    {
+        var list = LdnTrade.Offers;
+        grid.ItemsSource = list.Select((p, i) => new Cell(i, AppState.Sprite(p), p.IsShiny, $"{i + 1}")).ToList();
+        var game = list.Count > 0 ? LdnExport.GameOf(list[0])?.Game : null;
+        var gname = game == null ? "" : LdnTrade.Games.FirstOrDefault(g => g.Key == game)?.Name ?? game;
+        status.Text = list.Count == 0 ? "교환 목록이 비어 있어요 (박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기', 또는 교환 화면의 '리빙덱스로 채우기')"
+            : $"{gname} · {list.Count}마리" + (LdnTrade.QueueGame != null ? " · 리빙덱스 대기열 (교환할 때마다 줄어들고, 다음에 이어서)" : "") + (LdnTrade.Running ? " · 교환 중" : "");
     }
 }

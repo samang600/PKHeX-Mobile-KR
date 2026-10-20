@@ -96,7 +96,7 @@ public static class QuickGen
                 if (FormInfo.IsBattleOnlyForm(o.Species, f, blank.Format)) continue;
                 blank.Species = o.Species; blank.Form = f; blank.SetGender(o.Gender >= 0 && !blank.PersonalInfo.Genderless ? (byte)o.Gender : blank.GetSaneGender());
                 EncounterMovesetGenerator.OptimizeCriteria(blank, sav);
-                list.AddRange(EncounterMovesetGenerator.GenerateEncounters(blank, sav, ReadOnlyMemory<ushort>.Empty, versions));
+                list.AddRange(EncounterMovesetGenerator.GenerateEncounters(blank, sav, o.Moves.ToArray(), versions));
             }
         }
         catch { }
@@ -120,7 +120,7 @@ public static class QuickGen
             (o.Event ? -GiftScore(e as MysteryGift, o) * 1000 : 0) + (e.Context == sav.Context ? 0 : 100)
             // 우두머리를 적지 않았으면 일반 조우(진화 전 포함)를 먼저: 갑주무사·리자몽·데덴네 등 Z-A에서 같은 종 조우가 우두머리뿐이면
             // 진화 전 일반 조우보다 앞서 뽑혀 '이로치'만 적어도 우두머리가 되던 문제. 일반 조우가 없을 때만 우두머리로.
-            + (o.Alpha < 0 && e is IAlphaReadOnly { IsAlpha: true } ? 60 : 0) + (SameGame(e.Version, sav.Version) ? 0 : 20) + (e.Species == o.Species ? 0 : 10) + e switch { MysteryGift => 50, _ when e.GetType().Name.StartsWith("EncounterGift3") => 50, IEncounterEgg => 30, _ when e.GetType().Name.StartsWith("EncounterSlot") => 0, _ => 5 };
+            + (o.Alpha < 0 && e is IAlphaReadOnly { IsAlpha: true } ? 60 : 0) + (o.OT != null && e is IFixedTrainer { IsFixedTrainer: true } ? 40 : 0) + (SameGame(e.Version, sav.Version) ? 0 : 20) + (e.Species == o.Species ? 0 : 10) + e switch { MysteryGift => 50, _ when e.GetType().Name.StartsWith("EncounterGift3") => 50, IEncounterEgg => 30, _ when e.GetType().Name.StartsWith("EncounterSlot") => 0, _ => 5 };
         var sorted = list.Distinct().Where(Ok).OrderBy(Rank).ToList();
         if (sav.Generation > 4 && !o.AllowTransfer) return sorted;
         // 3·4세대: 같은 종류·버전·종의 조우(예: 장소만 다른 야생 칸 수십 개)는 앞쪽에 3개까지만 → 알 등 다른 방식도 시도 순서 안에 들어오게
@@ -327,6 +327,7 @@ public static class QuickGen
             }
             p.ResetPartyStats(); p.RefreshChecksum();
         }
+        Extras(o, p);
         GenHost.FixEventDate(p);   // 배포 개체: 만든 방식(조우·자동 합법화)과 관계없이 배포 날짜로
         if (p is PA9 { IsAlpha: true } z && z.EV_HP + z.EV_ATK + z.EV_DEF + z.EV_SPA + z.EV_SPD + z.EV_SPE == 0) { z.EV_HP = 252; z.ResetPartyStats(); }
         var me = GenHost.TrainerOf(sav);
@@ -338,10 +339,49 @@ public static class QuickGen
             int tid = o.TID >= 0 ? o.TID : (six ? (int)(me.ID32 % 1_000_000) : me.TID16);
             int sid = o.SID >= 0 ? o.SID : Random.Shared.Next(six ? 4295 : 65536);
             uint id32 = six ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Math.Min(sid, 65535) << 16) | Math.Min(tid, 65535));
-            GenHost.AutoOT(p, o.OT ?? me.OT, id32, (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), me.Language > 0 ? me.Language : p.Language);
+            var t = p.Clone();
+            GenHost.AutoOT(t, o.OT ?? me.OT, id32, (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), me.Language > 0 ? me.Language : p.Language);
+            if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t;
+            else o.Notes.Add($"어버이가 정해진 개체(게임 내 교환 등)라 원래 어버이({p.OriginalTrainerName}) 그대로 사용");   // 게임 내 교환 등
         }
         p.RefreshChecksum();
         return p;
+    }
+
+    /// <summary>거다이맥스·테라스탈 타입·기술: 넣어 보고 합법이 깨지면 되돌리고 알림.</summary>
+    private static void Extras(OrderSpec o, PKM p)
+    {
+        var s = GenHost.Strings;
+        bool Try(Action<PKM> set, string what)
+        {
+            var t = p.Clone(); set(t); t.RefreshChecksum();
+            if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) { set(p); p.RefreshChecksum(); return true; }
+            o.Notes.Add($"{what}: 합법이 아니라 넣지 않았습니다"); return false;
+        }
+        if (o.Gmax)
+        {
+            if (p is IGigantamax g0 && !g0.CanGigantamax) Try(x => ((IGigantamax)x).CanGigantamax = true, "거다이맥스");
+            else if (p is not IGigantamax) o.Notes.Add("거다이맥스: 이 게임에는 없습니다");
+        }
+        if (o.Tera >= 0)
+        {
+            if (p is ITeraType tt0 && (int)tt0.TeraType != o.Tera)
+                Try(x => ((ITeraType)x).TeraTypeOverride = (MoveType)o.Tera, "테라스탈 타입");
+            else if (p is not ITeraType) o.Notes.Add("테라스탈 타입: 이 게임에는 없습니다");
+        }
+        if (o.Moves.Count > 0)
+        {
+            var mv = o.Moves.ToArray();
+            var names = string.Join("·", o.Moves.Select(m => s.movelist[m]));
+            void Set(PKM x)
+            {
+                x.SetMoves(mv, true);
+                try { x.SetRecordFlags(mv); } catch { }   // 기술머신·기술레코드 기록
+                try { x.SetRelearnMoves(new LegalityAnalysis(x)); } catch { }   // 떠올리기 기술 (알 기술 등)
+                x.HealPP();
+            }
+            Try(Set, "기술 " + names);
+        }
     }
 
     public static void SetEncCond(OrderSpec o, SaveFile sav)
@@ -373,6 +413,9 @@ public static class QuickGen
         if (o.Level > 0) lines.Add($"Level: {o.Level}");
         if (o.Nature >= 0) lines.Add($"{en.natures[o.Nature]} Nature");
         if (o.FlawlessIVs == 6) lines.Add("IVs: 31 HP / 31 Atk / 31 Def / 31 SpA / 31 SpD / 31 Spe");
+        if (o.Gmax) lines.Add("Gigantamax: Yes");
+        if (o.Tera >= 0) lines.Add($"Tera Type: {(o.Tera == 99 ? "Stellar" : en.types[o.Tera])}");
+        foreach (var m in o.Moves) lines.Add($"- {en.movelist[m]}");
         return string.Join("\n", lines);
     }
 

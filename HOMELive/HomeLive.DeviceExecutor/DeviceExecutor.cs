@@ -23,7 +23,7 @@ public class DeviceExecutor<T>(DeviceState cfg) : SwitchRoutineExecutor<T>(cfg) 
     private static ulong BoxStartAddress = 0;
 
     // ===== PKHeXKR: HOME 새 버전 대응 (테스트) =====
-    /// <summary>지원 버전(4.0.0)이 아니어도 연결 (데이터 위치는 OffsetOverride 또는 자동 찾기로).</summary>
+    /// <summary>지원 버전(4.1.0)이 아니어도 연결 (데이터 위치는 OffsetOverride 또는 자동 찾기로).</summary>
     public static bool AllowAnyVersion { get; set; }
     /// <summary>heap 기준 박스 시작 위치 덮어쓰기 (0이면 기본값 HomeDataOffsets.BoxStartOffset).</summary>
     public static ulong OffsetOverride { get; set; }

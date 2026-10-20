@@ -85,7 +85,7 @@ public static class AppState
         GameVersion.GP, GameVersion.GE, GameVersion.US, GameVersion.UM, GameVersion.SN, GameVersion.MN, GameVersion.OR, GameVersion.AS, GameVersion.X, GameVersion.Y,
         GameVersion.B2, GameVersion.W2, GameVersion.B, GameVersion.W, GameVersion.HG, GameVersion.SS, GameVersion.Pt, GameVersion.D, GameVersion.P,
         GameVersion.E, GameVersion.FR, GameVersion.LG, GameVersion.R, GameVersion.S, GameVersion.C, GameVersion.GD, GameVersion.SI, GameVersion.YW, GameVersion.RD, GameVersion.BU];
-    public static string GameName(GameVersion v) { if ((int)v == 56) return "파이어레드·리프그린 (HOME 56)"; var g = GameInfo.Strings.gamelist; return (int)v < g.Length && !string.IsNullOrEmpty(g[(int)v]) ? g[(int)v] : v.ToString(); }
+    public static string GameName(GameVersion v) { var g = GameInfo.Strings.gamelist; return (int)v < g.Length && !string.IsNullOrEmpty(g[(int)v]) ? g[(int)v] : v.ToString(); }
 
     // 게임별 트레이너 저장 (없으면 공통 기본값)
     private static string K(string n, GameVersion v) => $"{n}_{v}";
@@ -152,7 +152,7 @@ public static class AppState
     {
         Sav = s;
         Src = new FilteredGameDataSource(s, GameInfo.Sources, HaX);
-        ParseSettings.InitFromSaveFileData(s);
+        ParseSettings.InitFromSaveFileData(s); SwitchFrlg.Apply(s);
         // 홈 트래커 없음: 소드실드에서만 검사 생략(주의 수준), 그 외 게임은 불법
         ParseSettings.Settings.HOMETransfer.HOMETransferTrackerNotPresent = TrackerSeverity(s);
         if (!HandlerCheck) ParseSettings.ClearActiveTrainer();
@@ -198,7 +198,7 @@ public static class AppState
     public static void ReapplyTrainerKeepOT()
     {
         ClearLegalCache();
-        ParseSettings.InitFromSaveFileData(Sav);
+        ParseSettings.InitFromSaveFileData(Sav); SwitchFrlg.Apply(Sav);
         if (!HandlerCheck) ParseSettings.ClearActiveTrainer();
         RegisterTrainers(Sav);
         SaveChanged?.Invoke();
@@ -207,7 +207,7 @@ public static class AppState
     {
         ClearLegalCache();
         ApplyTrainer(Sav);
-        ParseSettings.InitFromSaveFileData(Sav);
+        ParseSettings.InitFromSaveFileData(Sav); SwitchFrlg.Apply(Sav);
         if (!HandlerCheck) ParseSettings.ClearActiveTrainer();
         RegisterTrainers(Sav);
         SaveChanged?.Invoke();
@@ -532,7 +532,6 @@ public static class AppState
     /// <summary>끈 검사 항목만 불법 사유이면 합법으로 봄.</summary>
     public static bool EffectiveValid(LegalityAnalysis la)
     {
-        if (SwitchFrlg.Enabled && EntityOf(la) is { } sw && SwitchFrlg.Problem(sw, la) != null) return false;   // 설정: 스위치판 FRLG 기준
         if (la.Valid) return true;
         var bad = la.Results.Where(r => r.Judgement == Severity.Invalid).ToList();
         if (!HTFlagCheck) bad = bad.Where(r => r.Result != LegalityCheckResultCode.TransferHandlerFlagRequired).ToList();
@@ -605,7 +604,7 @@ public static class AppState
     public static void ApplyParse()
     {
         if (Sav == null) return;
-        ParseSettings.InitFromSaveFileData(Sav);
+        ParseSettings.InitFromSaveFileData(Sav); SwitchFrlg.Apply(Sav);
         ParseSettings.Settings.HOMETransfer.HOMETransferTrackerNotPresent = TrackerSeverity(Sav);
         if (!HandlerCheck) ParseSettings.ClearActiveTrainer();   // "현재 트레이너 이름이 예상치와 일치하지 않습니다" 검사 생략
         ClearLegalCache();
@@ -631,6 +630,14 @@ public static class AppState
             var mod = c.Value is < 0 or > 24 ? "" : up == dn ? "  (보정 없음)" : $"  ({st[up]}↑ {st[dn]}↓)";
             return new ComboItem(c.Text + mod, c.Value);
         }).ToList();
+    }
+
+    /// <summary>민트(능력 성격) 목록: 보정 없는 민트는 성실뿐이라 노력·온순·수줍음·변덕은 빼고, 원래 성격(민트 안 씀)과 지금 값은 남김.</summary>
+    public static List<ComboItem> MintItems(PKM pk)
+    {
+        int orig = (int)pk.Nature, cur = (int)pk.StatAlignment;
+        return NatureItems().Where(c => c.Value is < 0 or > 24 || c.Value % 6 != 0 || c.Value == (int)Nature.Serious || c.Value == orig || c.Value == cur)
+            .Select(c => c.Value == orig ? new ComboItem(c.Text + "  · 원래 성격", c.Value) : c).ToList();
     }
 
     /// <summary>데이터 언어를 바로 적용 (재시작 없이).</summary>

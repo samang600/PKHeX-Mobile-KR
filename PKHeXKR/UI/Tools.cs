@@ -165,10 +165,11 @@ public class SettingsSheet : Sheet
         var trkS = Tog("홈 트래커 없음 검사 (소드실드)", AppState.TrackerCheckSWSH, v => AppState.TrackerCheckSWSH = v);
         var trkO = Tog("홈 트래커 없음 검사 (다른 게임)", AppState.TrackerCheckOther, v => AppState.TrackerCheckOther = v);
         var htf = Tog("'현재 트레이너는 어버이가 될 수 없음' 검사", AppState.HTFlagCheck, v => AppState.HTFlagCheck = v);
-        var swf = Tog("스위치판 FRLG 기준 검사 (FRLG 단독으로 얻을 수 없는 포켓몬 불법)", SwitchFrlg.Enabled, v => SwitchFrlg.Enabled = v);
-        var swfHint = T.L("파이어레드·리프그린 세이브에만 적용. 루비·사파이어·에메랄드·콜로세움/XD 출신, 옛 배포, 배꼽바위·탄생의섬, FRLG에 나오지 않는 호연 포켓몬 등을 불법으로 봅니다. 끄면 GBA판 기준(교환·배포 허용).", 12, sub: true); swfHint.LineBreakMode = LineBreakMode.WordWrap;
+        var swf = Tog("파일 이름과 상관없이 스위치판 FRLG 기준으로 검사", SwitchFrlg.Enabled, v => SwitchFrlg.Enabled = v);
+        var swfHint = T.L("스위치판 세이브(파일 이름 FireRed_….sav · LeafGreen_….sav)는 자동으로 스위치판 기준(PKHeX)으로 검사합니다: 루비·사파이어·에메랄드·XD 출신과 옛 배포 불가, 볼·유전 제한. 파일 이름이 main 등으로 바뀐 스위치판 세이브라면 이 항목을 켜세요.", 12, sub: true); swfHint.LineBreakMode = LineBreakMode.WordWrap;
         var chkHint = T.L("합법성 검사 항목을 켜고 끕니다. 끈 항목만 문제인 개체는 합법으로 표시됩니다.", 12, sub: true); chkHint.LineBreakMode = LineBreakMode.WordWrap;
         var upd = Tog("업데이트 알림 (GitHub 새 버전 확인)", UpdateCheck.Enabled, v => UpdateCheck.Enabled = v);
+        var bgn = Tog("작업 진행 알림 (리빙덱스·PokeLDN 교환·시드 찾기를 상단바에 표시, 앱을 내려도 계속)", BgTask.Enabled, v => BgTask.Enabled = v);
         var topLdn = Tog("위쪽 '라이브헥스' 버튼을 PokeLDN 교환으로", Preferences.Get("top_ldn", false), v => { Preferences.Set("top_ldn", v); MainPage.Instance?.UpdateLive(); });
         topLdn.IsVisible = LdnTrade.Available;
         var keep = Tog("마지막 세이브 그대로 열기 (앱을 끌 때 편집 상태 보존)", LastSession.Enabled, v => { LastSession.Enabled = v; if (!v) LastSession.Clear(); });
@@ -229,7 +230,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, bgn, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
     }
 }
 
@@ -237,16 +238,21 @@ public class SettingsSheet : Sheet
 public class LivingDexSheet : Sheet
 {
     private CancellationTokenSource cts;
-    public LivingDexSheet() : base("리빙덱스 채우기", 0.8)
+    /// <param name="ldnGame">PokeLDN 리빙덱스 교환: 그 게임 리빙덱스를 만들어 교환 목록(대기열)으로 (세이브 박스는 그대로).</param>
+    public LivingDexSheet(string ldnGame = null) : base(ldnGame == null ? "리빙덱스 채우기" : "리빙덱스 교환 목록 만들기", 0.85)
     {
-        var sav = AppState.Sav;
+        bool ldn = ldnGame != null;
+        bool same = ldn && AppState.Sav != null && LdnTrade.KeyOf(AppState.Sav) == ldnGame;
+        var sav = !ldn || same ? AppState.Sav : LdnTrade.BlankFor(ldnGame);
+        if (sav == null) { Body.Add(T.L("이 게임의 빈 세이브를 만들 수 없어요", 14)); return; }
         View Sw(string label, bool v, out Switch s) { s = new Switch { IsToggled = v, OnColor = T.Accent }; var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 }; g.Add(T.L(label, 15), 0); g.Add(s, 1); return g; }
         var shinyRow = Sw("이로치로 만들기 (불가능하면 일반 색)", false, out var shiny);
         var formRow = Sw("모든 폼 포함", false, out var forms);
-        var skipRow = Sw("이미 박스에 있는 포켓몬 건너뛰기", true, out var skip);
+        var skipRow = Sw(ldn ? "지금 세이브 박스에 이미 있는 종 건너뛰기 (콘솔과 같은 세이브일 때)" : "이미 박스에 있는 포켓몬 건너뛰기", !ldn || same, out var skip);
+        skipRow.IsVisible = !ldn || same;
         bool alphaGame = sav is SAV8LA or SAV9ZA;
         var alphaRow = Sw("우두머리로 만들기 (우두머리 조우가 없으면 일반)", false, out var alpha); alphaRow.IsVisible = alphaGame;
-        var transferRow = Sw("다른 게임에서 옮겨 온 개체 포함 (HOME·GO 등)", LivingDexOptions.DefaultTransfer(sav), out var transfer);
+        var transferRow = Sw("다른 게임에서 옮겨 온 개체 포함 (HOME·GO 등)", !ldn && LivingDexOptions.DefaultTransfer(sav), out var transfer);
         var presets = new Editor { AutoSize = EditorAutoSizeOption.TextChanges, MinimumHeightRequest = 70, FontSize = 14, Text = Preferences.Get("ldex_presets", ""),
             Placeholder = "포켓몬별 성별·볼 미리 정하기 (텍스트 생성과 같은 문법, 한 줄에 하나)\n예) 피카츄 ♀ 몬스터볼\n라이츄(알로라) ♂ 럭셔리볼" };
         presets.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
@@ -256,7 +262,7 @@ public class LivingDexSheet : Sheet
         var dateRow = T.Cols(2, 6); dateRow.Add(T.Field("만난 날짜 시작 (비우면 그대로)", dFrom), 0); dateRow.Add(T.Field("만난 날짜 끝", dTo), 1);
         var ots = new Editor { AutoSize = EditorAutoSizeOption.TextChanges, MinimumHeightRequest = 70, FontSize = 14, Placeholder = "어버이 여러 명 (한 줄에 '이름 TID'), 비우면 세이브 트레이너\n예) 새아 468686\n하늘 123456" };
         ots.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
-        var go = T.Pill("채우기 시작", primary: true); var stop = T.Pill("중지"); stop.IsVisible = false;
+        var go = T.Pill(ldn ? "교환 목록 만들기" : "채우기 시작", primary: true); var stop = T.Pill("중지"); stop.IsVisible = false;
         stop.Clicked += (_, _) => cts?.Cancel();
         go.Clicked += async (_, _) =>
         {
@@ -270,13 +276,37 @@ public class LivingDexSheet : Sheet
                 Presets = LivingDexOptions.ParsePresets(presets.Text, sav, UserDict.Load()),
             };
             Preferences.Set("ldex_presets", presets.Text ?? "");
+            if (ldn)
+            {
+                using var lb = BgTask.Begin("리빙덱스 교환 목록 만들기", cts);
+                var lastUi = DateTime.MinValue;
+                int made = await Task.Run(() => LdnTrade.BuildLivingDex(ldnGame, opt, tok, (done, total, s) =>
+                {
+                    lb.Report($"{done}/{total} · {GameInfo.Strings.Species[s]}", done, total);
+                    if ((DateTime.Now - lastUi).TotalMilliseconds < 250) return; lastUi = DateTime.Now;
+                    MainThread.BeginInvokeOnMainThread(() => { bar.Progress = total > 0 ? (double)done / total : 0; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; });
+                }));
+                var msg = made > 0 ? $"리빙덱스 {made}마리를 교환 목록에 넣었어요 · PokeLDN 교환에서 '교환 시작'" : "만든 포켓몬이 없어요 (이미 다 있거나 만들 수 없음)";
+                lb.Done(msg); status.Text = msg + (tok.IsCancellationRequested ? " · 중지함 (만든 것까지만)" : "");
+                go.IsEnabled = true; stop.IsVisible = false;
+                LdnTrade.NotifyChanged();
+                if (made > 0) { Note.Show(msg); Close(); }
+                return;
+            }
+            using var bg = BgTask.Begin("리빙덱스 채우기", cts);
             var result = await Task.Run(() => LivingDexGen.Run(sav, opt, tok, (done, total, s) =>
-                MainThread.BeginInvokeOnMainThread(() => { bar.Progress = (double)done / total; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; })));
+            {
+                bg.Report($"{done}/{total} · {GameInfo.Strings.Species[s]}", done, total);
+                MainThread.BeginInvokeOnMainThread(() => { bar.Progress = (double)done / total; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; });
+            }));
+            bg.Done($"넣음 {result.Made}마리 · 만들 수 없음 {result.Fail}{(result.Canceled ? " · 중지함" : "")}");
             AppState.NotifyBox();
             status.Text = $"넣음 {result.Made}마리 (모두 합법{(opt.Alpha ? $", 우두머리 {result.Alpha}" : "")}) · 만들 수 없음 {result.Fail} · 대상 {result.Targets}{(result.PresetMissed > 0 ? $" · 미리 정한 성별·볼이 안 돼 기본으로 만든 수 {result.PresetMissed}" : "")}{(result.BoxFull ? " · 박스가 가득 차서 멈춤" : "")}{(result.Canceled ? " · 중지함" : "")}";
             go.IsEnabled = true; stop.IsVisible = false;
         };
-        var hint = T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)·조우로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 이 게임에서 합법으로 만들 수 있는 개체만 넣고, 도구를 지니면 바뀌는 폼(아르세우스·실버디·게노세크트 등)은 기본 폼만 만듭니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
+        var hint = ldn ? T.L($"{AppState.GameName(sav.Version)} 리빙덱스를 도감 순서대로 합법 개체로 만들어 PokeLDN 교환 목록(대기열)에 넣어요. 세이브 박스는 바뀌지 않아요. "
+            + (same ? "지금 세이브의 트레이너로 만들어요." : "지금 세이브가 이 게임이 아니라 기본 트레이너(PKHeX)로 만들어요 · 어버이를 아래에 적거나 SV는 자동 어버이작을 켜세요.")
+            + " 교환은 한 번 연결로 차례로 하고, 끊기면 다시 시작해 이어서 보내요 (콘솔에서 내줄 포켓몬이 같은 수만큼 필요).", 12, sub: true) : T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)·조우로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 이 게임에서 합법으로 만들 수 있는 개체만 넣고, 도구를 지니면 바뀌는 폼(아르세우스·실버디·게노세크트 등)은 기본 폼만 만듭니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, alphaRow, transferRow, dateRow, ots, presets, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
     }
@@ -311,9 +341,12 @@ public class FavoritesSheet : Sheet
     private readonly CollectionView grid = new() { SelectionMode = SelectionMode.None };
     private readonly Label status = T.L("", 12, sub: true);
     private int page;
+    private string query = "";
 
     public FavoritesSheet() : base("즐겨찾기", 0.85)
     {
+        var search = T.Input(placeholder: "검색: 종·별명·어버이·게임 (초성 가능: ㅍㅋㅊ), 이로치");
+        search.TextChanged += (_, e) => { query = (e.NewTextValue ?? "").Trim(); page = 0; Fill(); };
         var prev = T.Pill("‹", size: 16); prev.WidthRequest = 44; prev.Padding = 0;
         var next = T.Pill("›", size: 16); next.WidthRequest = 44; next.Padding = 0;
         prev.Clicked += (_, _) => { if (page > 0) { page--; Fill(); } };
@@ -336,18 +369,27 @@ public class FavoritesSheet : Sheet
         });
         grid.HeightRequest = 5 * 60 + 16;
         var hint = T.L("만든 포켓몬을 원래 게임 형식 그대로 보관합니다. 빈 칸을 누르면 편집 중인 포켓몬을 등록하고, 편집기로 불러오면 현재 게임 형식으로 바뀝니다.", 12, sub: true); hint.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 8, Children = { hint, head, grid } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 8, Children = { hint, search, head, grid } } });
         Fill();
     }
 
     private void Fill()
     {
         var all = Favorites.All();
+        int total = all.Count;
+        if (query.Length > 0) all = all.Where(x => FavMatch(x.Pk, query)).ToList();
         int pages = Math.Max(1, (all.Count + 29) / 30); page = Math.Clamp(page, 0, pages - 1);
         var cells = all.Skip(page * 30).Take(30).Select(x => new Cell(x.Path, x.Pk, AppState.Sprite(x.Pk), x.Pk.IsShiny, x.Pk.Extension.ToUpperInvariant())).ToList();
         while (cells.Count < 30) cells.Add(new Cell(null, null, null, false, ""));
         grid.ItemsSource = cells;
-        status.Text = $"{page + 1}/{pages}쪽 · 총 {all.Count}마리";
+        status.Text = query.Length > 0 ? $"{page + 1}/{pages}쪽 · 찾은 {all.Count}마리 (전체 {total})" : $"{page + 1}/{pages}쪽 · 총 {all.Count}마리";
+    }
+
+    /// <summary>검색어 하나하나(띄어쓰기로 나눔)가 모두 맞는지: 종(초성)·별명·어버이·게임·형식·'이로치'</summary>
+    private static bool FavMatch(PKM p, string q)
+    {
+        var hay = new[] { GameInfo.Strings.Species[p.Species], p.Nickname, p.OriginalTrainerName, AppState.GameName(p.Version), p.Extension, p.IsShiny ? "이로치" : "", $"Lv{p.CurrentLevel}" };
+        return q.Split(' ', StringSplitOptions.RemoveEmptyEntries).All(w => hay.Any(h => !string.IsNullOrEmpty(h) && Korean.Match(h, w)));
     }
 
     private async Task AddCurrent()

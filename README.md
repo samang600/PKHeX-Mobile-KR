@@ -19,17 +19,21 @@
 - 인카운터 검색: 조건(성별·이로치·성격·특성·개체값·크기·증표) 탐색, 시드 순차·무작위 탐색
 - 텍스트로 빠른 생성: "빠르모트 암컷 이로치 러브볼 가장작게"처럼 적으면 합법 개체 생성
 - 라이브헥스(스위치 sys-botbase), HOME Live, 자동 어버이작
-- 스위치 세이브 무선 FTP (DBI 등)
+- 스위치 세이브 무선 FTP·HTTP (DBI 등)
+- PokeLDN 교환 내장 (ESP32 보드, 안드로이드 8 이상): 리빙덱스 교환(커펌 없이 콘솔 세이브 채우기), SV 자동 어버이작
+- 레이드 편집 (SV 테라 레이드·소드실드 맥스 레이드 굴): 보상·이벤트 레이드 미리보기, 조건으로 시드 찾기
 - 배포 데이터 자동 업데이트 (PKHeX 최신 배포 DB에서 새 카드만 받아 합법성 검사에 반영)
 - 박스 검색·정렬·여러 칸 선택·즐겨찾기·리빙덱스 채우기
 
 ## 빌드
 - 안드로이드: .NET 10 SDK + MAUI 안드로이드 워크로드
   `dotnet build PKHeXKR/PKHeXKR.csproj -f net10.0-android36.0 -c Release`
+  기본은 PokeLDN 교환 내장판 (`PKHeXKR/Platforms/Android/ldn/pokeldn-trade-kr.aar` 필요, 소스는 PokeLDN 교환 앱 저장소의 `embed`).
+  내장하지 않은 일반판: 끝에 `-p:WithLdn=false` (판을 바꿀 때는 `obj/Release`·`bin/Release`를 지우고 빌드)
   (구버전과 함께 설치하는 별도 설치판: 끝에 `-p:SideBySide=true`)
 - iOS: macOS + Xcode 필요. 저장소의 **Actions → iOS 빌드**로 서명 없는 IPA를 만들 수 있습니다.
 
-폴더 구성: `PKHeXKR`(앱), `PKHeX-Core-Dev`(PKHeX.Core 개발 버전 소스, kwsch/PKHeX master 2026-10-08 — 정식 릴리스 이후 수정 반영), `Shared/PKHeXKR.Gen`(텍스트 생성·리빙덱스 엔진, 앱과 PC 플러그인 공용), `PCPlugin`(PC용 PKHeX 플러그인), `PKHeX-Plugins`(ALM·라이브헥스 라이브러리), `HOMELive`(HOME Live 라이브러리)
+폴더 구성: `PKHeXKR`(앱), `PKHeX-Core-Dev`(PKHeX.Core 개발 버전 소스, kwsch/PKHeX master 2026-10-19 — 정식 릴리스 이후 수정 반영), `Shared/PKHeXKR.Gen`(텍스트 생성·리빙덱스 엔진, 앱과 PC 플러그인 공용), `PCPlugin`(PC용 PKHeX 플러그인), `PKHeX-Plugins`(ALM·라이브헥스 라이브러리), `HOMELive`(HOME Live 라이브러리)
 
 ## PC용 PKHeX 플러그인
 텍스트로 빠른 생성·리빙덱스 채우기를 PC용 PKHeX에서 쓰는 플러그인. 설치·빌드는 [PCPlugin/README.md](PCPlugin/README.md) 참고.
