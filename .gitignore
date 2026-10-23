@@ -20,3 +20,6 @@ keystore_pass*.txt
 # 기타
 .DS_Store
 Thumbs.db
+# PokeLDN iOS 런타임 생성물·내려받은 Python 지원 파일 (Actions가 빌드할 때 만듦, 소스에 넣지 않음)
+PKHeXKR/Platforms/iOS/PokeLDN/Generated/
+PKHeXKR/Platforms/iOS/PokeLDN/Support/

@@ -15,12 +15,19 @@ public static class QuickGen
     /// <summary>이로치 여부를 적지 않은 주문 (배포는 카드가 정하므로 제외).</summary>
     public static List<OrderSpec> NoShinySpecified(IEnumerable<OrderSpec> list) => list.Where(x => x.Species != 0 && x.Shiny == 0 && !x.Event).ToList();
 
+    /// <summary>
+    /// 인카운터 조건(EncCond)은 전역이라, 조건을 빌려 쓰는 생성(여기)과 조건을 읽는 인카운터 검색이 겹치면 안 됨
+    /// (리빙덱스를 돌려 두고 인카운터 검색을 열면 서로 조건을 덮어씀) → 한 번에 하나만.
+    /// </summary>
+    public static readonly SemaphoreSlim CondGate = new(1, 1);
+
     /// <summary>한 마리 만들기 (인카운터 조건을 잠시 빌려 쓰고 원래대로 돌려 놓음).</summary>
     public static (PKM Pk, string How) Make(OrderSpec o, SaveFile sav, CancellationToken tok)
     {
+        try { CondGate.Wait(tok); } catch (OperationCanceledException) { return (null, "중지했습니다"); }
         var snap = SnapshotEncCond();
         try { return MakeOne(o, sav, tok); }
-        finally { RestoreEncCond(snap); }
+        finally { RestoreEncCond(snap); CondGate.Release(); }
     }
 
     /// <summary>여러 마리를 시작 박스부터 빈 칸에. 반환: 넣은 수.</summary>
@@ -45,11 +52,26 @@ public static class QuickGen
         return $"\n{(p.IsShiny ? (p.ShinyXor == 0 ? "■ " : "★ ") : "")}{(p.Format >= 3 ? s.natures[(int)p.Nature] : "")} {ab} · IV {p.IV_HP}/{p.IV_ATK}/{p.IV_DEF}/{p.IV_SPA}/{p.IV_SPD}/{p.IV_SPE} · Lv{p.CurrentLevel}{sc} · {s.balllist[p.Ball]}";
     }
 
+    /// <summary>이 게임(세이브)에 그 포켓몬·폼이 있는지.</summary>
+    public static bool InGame(OrderSpec o, SaveFile sav) => InGame(o, sav.Personal);
+    public static bool InGame(OrderSpec o, GameVersion v) { try { return InGame(o, GameData.GetPersonal(v)); } catch { return false; } }
+    private static bool InGame(OrderSpec o, IPersonalTable pt)
+    {
+        try { return o.Species != 0 && o.Species <= pt.MaxSpeciesID && pt.IsSpeciesInGame(o.Species) && (o.Form <= 0 || pt.IsPresentInGame(o.Species, (byte)o.Form)); }
+        catch { return false; }
+    }
+    public const string NotInGame = "이 게임에 없는 포켓몬이라 건너뜁니다";
+    public const string NoEncounter = "조건에 맞는 조우가 없습니다";
+
+    /// <summary>이 주문을 만들 수 있는 다른 게임 (games 순서, 지금 게임과 같은 세대 묶음은 뺌).</summary>
+    public static List<GameVersion> OtherGames(OrderSpec o, SaveFile sav, IEnumerable<GameVersion> games)
+        => games.Where(v => { try { return v.Context != sav.Context && InGame(o, v); } catch { return false; } }).ToList();
+
     // ===== 한 마리 만들기 =====
     public static (PKM, string) MakeOne(OrderSpec o, SaveFile sav, CancellationToken tok)
     {
-        if (!sav.Personal.IsSpeciesInGame(o.Species) || (o.Form > 0 && !sav.Personal.IsPresentInGame(o.Species, (byte)o.Form)))
-            return (null, "이 게임에 없는 포켓몬이라 건너뜁니다");
+        if (!InGame(o, sav))
+            return (null, NotInGame);
         SetEncCond(o, sav);
         var candidates = Candidates(o, sav);
         foreach (var e in candidates.Take(o.SkipAlm ? 12 : 20))
@@ -78,7 +100,7 @@ public static class QuickGen
             }
         }
         catch { }
-        return (null, candidates.Count == 0 ? "조건에 맞는 조우가 없습니다 (볼·우두머리·증표·크기 조합 확인)" : "조건을 모두 만족하는 합법 개체를 찾지 못했습니다");
+        return (null, candidates.Count == 0 ? NoEncounter + " (볼·우두머리·증표·크기 조합 확인)" : "조건을 모두 만족하는 합법 개체를 찾지 못했습니다");
     }
 
     public static string KindName(IEncounterInfo e) => e switch { IEncounterEgg => "알", MysteryGift => "배포", _ when e.GetType().Name.StartsWith("EncounterSlot") => "야생", _ => "게임 내 입수" };
@@ -329,6 +351,7 @@ public static class QuickGen
         }
         Extras(o, p);
         GenHost.FixEventDate(p);   // 배포 개체: 만든 방식(조우·자동 합법화)과 관계없이 배포 날짜로
+        if (o.MetFrom != null) p = MetDate(o, p);
         if (p is PA9 { IsAlpha: true } z && z.EV_HP + z.EV_ATK + z.EV_DEF + z.EV_SPA + z.EV_SPD + z.EV_SPE == 0) { z.EV_HP = 252; z.ResetPartyStats(); }
         var me = GenHost.TrainerOf(sav);
         bool giftOT = o.Event && p.FatefulEncounter && !string.IsNullOrEmpty(p.OriginalTrainerName) && p.OriginalTrainerName != me.OT;
@@ -348,6 +371,33 @@ public static class QuickGen
         return p;
     }
 
+    /// <summary>만난 날짜: 정확한 날짜, 또는 구간 안의 날짜 중 합법인 것 (알에서 태어났으면 받은 날짜가 더 늦지 않게).</summary>
+    public static PKM MetDate(OrderSpec o, PKM p)
+    {
+        if (o.MetFrom is not { } from) return p;
+        var to = o.MetTo ?? from; if (to < from) (from, to) = (to, from);
+        if (p.Format < 4 || p.MetDate == null) { o.Notes.Add("만난 날짜: 이 게임 형식에는 만난 날짜가 없습니다"); return p; }
+        int span = to.DayNumber - from.DayNumber;
+        var tries = new List<DateOnly>();
+        if (span == 0) tries.Add(from);
+        else
+        {
+            var rnd = Random.Shared;
+            for (int i = 0; i < 24; i++) tries.Add(from.AddDays(rnd.Next(span + 1)));
+            tries.Add(from); tries.Add(to);
+        }
+        bool legalNow = GenHost.IsLegal(p);
+        foreach (var d in tries.Distinct())
+        {
+            var t = p.Clone(); t.MetDate = d;
+            if (t.EggMetDate is { } egg && egg > d) t.EggMetDate = d;
+            t.RefreshChecksum();
+            if (!legalNow || GenHost.IsLegal(t)) return t;
+        }
+        o.Notes.Add(span == 0 ? $"만난 날짜 {from:yyyy-MM-dd}: 합법이 아니라 바꾸지 않았습니다 (배포 기간 등 확인)" : $"만난 날짜 {from:yyyy-MM-dd}~{to:yyyy-MM-dd}: 합법인 날짜를 찾지 못해 바꾸지 않았습니다");
+        return p;
+    }
+
     /// <summary>거다이맥스·테라스탈 타입·기술: 넣어 보고 합법이 깨지면 되돌리고 알림.</summary>
     private static void Extras(OrderSpec o, PKM p)
     {
@@ -358,10 +408,42 @@ public static class QuickGen
             if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) { set(p); p.RefreshChecksum(); return true; }
             o.Notes.Add($"{what}: 합법이 아니라 넣지 않았습니다"); return false;
         }
+        // 리본·증표 여러 개 (대표 증표는 만들 때 이미 붙임): 하나씩 넣어 보고 합법이 깨지면 그것만 뺌
+        foreach (var r in o.Ribbons)
+        {
+            var name = s.Ribbons.GetNameSafe(r, out var kn) ? kn : r.Replace("Ribbon", "");
+            var pi = p.GetType().GetProperty(r);
+            if (pi == null || pi.PropertyType != typeof(bool) || !pi.CanWrite) { o.Notes.Add($"{name}: 이 게임 형식에는 없습니다"); continue; }
+            if ((bool)pi.GetValue(p)!) continue;
+            Try(x => x.GetType().GetProperty(r)!.SetValue(x, true), name);
+        }
         if (o.Gmax)
         {
             if (p is IGigantamax g0 && !g0.CanGigantamax) Try(x => ((IGigantamax)x).CanGigantamax = true, "거다이맥스");
             else if (p is not IGigantamax) o.Notes.Add("거다이맥스: 이 게임에는 없습니다");
+        }
+        if (o.HyperTrain)
+        {
+            if (p is not IHyperTrain) o.Notes.Add("특훈: 이 게임에는 없습니다 (7세대부터)");
+            else
+            {
+                int max = p.MaxIV, min = p.Context is EntityContext.Gen9 or EntityContext.Gen9a ? 50 : 100;
+                byte flags = 0;
+                for (int i = 0; i < 6; i++) if (p.GetIV(i) < max) flags |= (byte)(1 << i);   // 31인 칸은 특훈 불가(불법) → 이미 '최고'
+                if (flags == 0) o.Notes.Add("특훈: 이미 6V라 특훈할 능력치가 없습니다");
+                else
+                {
+                    bool raise = p.CurrentLevel < min;
+                    if (Try(x =>
+                    {
+                        var h = (IHyperTrain)x;
+                        h.HT_HP = (flags & 1) != 0; h.HT_ATK = (flags & 2) != 0; h.HT_DEF = (flags & 4) != 0;
+                        h.HT_SPE = (flags & 8) != 0; h.HT_SPA = (flags & 16) != 0; h.HT_SPD = (flags & 32) != 0;
+                        if (x.CurrentLevel < min) x.CurrentLevel = (byte)min;
+                        x.ResetPartyStats();
+                    }, "특훈") && raise) o.Notes.Add($"특훈: Lv{min} 이상이어야 해서 Lv{min}으로 올림");
+                }
+            }
         }
         if (o.Tera >= 0)
         {

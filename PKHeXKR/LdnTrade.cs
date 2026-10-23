@@ -1,24 +1,27 @@
 using System.Text;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using PKHeX.Core;
 
 namespace PKHeXKR;
 
 /// <summary>
-/// PokeLDN 교환 (ESP32 보드, LDN판 빌드). LDN 교환 앱(ldnapp, github.com/Decryptu/pokeldn 기반 AGPLv3)을 라이브러리(AAR)로 넣고,
-/// 화면은 이 앱 안(LdnSheet)에서. 실제 통신은 AAR 안의 파이썬(PokeLDN, Chaquopy)이 하고, 진행 상황은 LdnBridge.poll()로 가져옴.
-/// 파일은 앱 폴더의 ldn/ 아래 (prod.keys, 받은 포켓몬, 세이브 백업, 파이썬 데이터).
+/// PokeLDN 교환 (ESP32 보드, LDN판 빌드). Android는 AAR/Chaquopy, iOS는 내장 CPython/CoreBluetooth BLE 경로를 사용.
+/// 화면은 이 앱 안(LdnSheet)에서. 요청·진행 로그·결과 파일은 공통 LdnTrade 인터페이스로 전달.
+/// 파일은 앱 전용 폴더의 ldn/ 아래 (prod.keys, 받은 포켓몬, 세이브 백업, 파이썬 데이터).
 /// </summary>
 public static class LdnTrade
 {
 #if WITH_LDN
     public static bool Available => OperatingSystem.IsAndroidVersionAtLeast(26);   // 안드로이드 8 이상 (보드 USB 읽기 API)
+#elif WITH_POKELDN_IOS
+    public static bool Available => OperatingSystem.IsIOS();
 #else
     public static bool Available => false;
 #endif
     public static string Home { get { var d = Path.Combine(FileSystem.AppDataDirectory, "ldn"); Directory.CreateDirectory(d); return d; } }
     public static string KeysPath => Path.Combine(Home, "prod.keys");
-    public const string FwVersion = "1.6.2";
+    public const string FwVersion = "1.7.1";
 
     /// <summary>교환할 포켓몬 (보통 최대 6, 리빙덱스 교환은 수백 마리). 시트를 닫아도 유지.</summary>
     public static readonly List<PKM> Offers = [];
@@ -171,11 +174,15 @@ public static class LdnTrade
     public static Task Open(IReadOnlyList<PKM> mons)
     {
         if (!Available) throw new PlatformNotSupportedException("이 빌드에는 PokeLDN 교환이 없습니다 (LDN판에서 사용)");
+        // Opening the configuration/list screen must not initialize embedded Python or
+        // start CoreBluetooth. The runtime is initialized when the user starts a job.
+        // This keeps the screen usable without an ESP32 and avoids an unhandled native
+        // initialization failure during navigation.
         if (mons != null)
         {
             Offers.Clear(); QueueGame = null;   // 리빙덱스 대기열 파일은 남겨 둠 (다음에 '이어서 보내기')
             var game = mons.Count > 0 ? LdnExport.GameOf(mons[0])?.Game : null;
-            foreach (var p in mons.Take(6)) if (LdnExport.GameOf(p)?.Game == game) Offers.Add(p.Clone());
+            foreach (var p in mons) if (LdnExport.GameOf(p)?.Game == game) Offers.Add(p.Clone());
         }
         SheetHost.Show(new LdnSheet());
         return Task.CompletedTask;
@@ -239,10 +246,11 @@ public static class LdnTrade
         return list;
     }
 
-    /// <summary>AAR 안의 Java 입구(org.pkhexkr.ldntrade.LdnBridge)를 JNI로 부름.</summary>
+    /// <summary>Android AAR/JNI 또는 iOS 네이티브 BLE·CPython 호스트를 공통 인터페이스로 부름.</summary>
     public static class Bridge
     {
 #if WITH_LDN
+        public static string Error { get; private set; } = "";
         private static IntPtr cls;
         private static IntPtr Cls
         {
@@ -260,6 +268,7 @@ public static class LdnTrade
         private const string C = "Landroid/content/Context;", S = "Ljava/lang/String;";
 
         public static string UsbState() => Str(Android.Runtime.JNIEnv.CallStaticObjectMethod(Cls, M("usbState", $"({C}){S}"), Ctx));
+        public static string RadioState() => "";
         /// <summary>"native" 내장 USB, "cp210x" 클래식 ESP32, "" 없음.</summary>
         public static string UsbKind() { try { return Str(Android.Runtime.JNIEnv.CallStaticObjectMethod(Cls, M("usbKind", $"({C}){S}"), Ctx)); } catch { return ""; } }
         public static void RequestUsb() => Android.Runtime.JNIEnv.CallStaticVoidMethod(Cls, M("requestUsbPermission", $"({C})V"), Ctx);
@@ -274,14 +283,103 @@ public static class LdnTrade
         }
         public static bool Start(string request, bool ble)
         {
+            Error = "";
             var s = Android.Runtime.JNIEnv.NewString(request);
             try { return Android.Runtime.JNIEnv.CallStaticBooleanMethod(Cls, M("start", $"({C}{S}Z)Z"), Ctx, new Android.Runtime.JValue(s), new Android.Runtime.JValue(ble)); }
             finally { Android.Runtime.JNIEnv.DeleteLocalRef(s); }
         }
         public static bool Flash(bool bleFirmware) => Android.Runtime.JNIEnv.CallStaticBooleanMethod(Cls, M("flash", $"({C}Z)Z"), Ctx, new Android.Runtime.JValue(bleFirmware));
-#else
+#elif WITH_POKELDN_IOS
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_init")]
+        [return: MarshalAs(UnmanagedType.I1)] private static extern bool NativeInit();
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_error")]
+        private static extern IntPtr NativeError();
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_start")]
+        [return: MarshalAs(UnmanagedType.I1)] private static extern bool NativeStart(IntPtr requestUtf8);
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_poll")]
+        private static extern IntPtr NativePoll();
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_busy")]
+        [return: MarshalAs(UnmanagedType.I1)] private static extern bool NativeBusy();
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_cancel")]
+        private static extern void NativeCancel();
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_radio_state")]
+        private static extern IntPtr NativeRadioState();
+        [DllImport("@rpath/PokeLdnRuntime.framework/PokeLdnRuntime", EntryPoint = "pkhex_pokeldn_free")]
+        private static extern void NativeFree(IntPtr value);
+
+        private static bool initialized;
+        public static string Error { get; private set; } = "";
+        public static bool Initialize()
+        {
+            if (initialized) return true;
+            Error = "";
+            try
+            {
+                initialized = NativeInit();
+                if (!initialized)
+                {
+                    var ptr = NativeError();
+                    Error = ptr == IntPtr.Zero ? "네이티브 Python 초기화가 실패했습니다 (상세 오류 없음)." : Marshal.PtrToStringUTF8(ptr) ?? "네이티브 Python 초기화가 실패했습니다.";
+                    if (ptr != IntPtr.Zero) NativeFree(ptr);
+                }
+            }
+            catch (Exception ex)
+            {
+                initialized = false;
+                Error = $"{ex.GetType().Name}: {ex.Message}";
+            }
+            return initialized;
+        }
         public static string UsbState() => "none";
         public static string UsbKind() => "";
+        public static string RadioState()
+        {
+            if (!initialized) return "off";
+            var ptr = NativeRadioState();
+            if (ptr == IntPtr.Zero) return "off";
+            try { return Marshal.PtrToStringUTF8(ptr) ?? "off"; }
+            finally { NativeFree(ptr); }
+        }
+        public static void RequestUsb() { }
+        public static bool Busy => initialized && NativeBusy();
+        public static string Poll()
+        {
+            if (!initialized) return "{\"lines\":[],\"status\":[],\"done\":true}";
+            var ptr = NativePoll();
+            if (ptr == IntPtr.Zero) return "{\"lines\":[],\"status\":[],\"done\":true}";
+            try { return Marshal.PtrToStringUTF8(ptr) ?? "{\"lines\":[],\"status\":[],\"done\":true}"; }
+            finally { NativeFree(ptr); }
+        }
+        public static void Cancel() { if (initialized) NativeCancel(); }
+        public static string Asset(string name)
+        {
+            var file = Path.GetFileName(name);
+            using var stream = typeof(LdnTrade).Assembly.GetManifestResourceStream("PKHeXKR.PokeLDN." + file);
+            if (stream == null) return "";
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+        public static bool Start(string request, bool ble)
+        {
+            if (!ble) { Error = "iOS에서는 Bluetooth LE 연결이 필요합니다."; return false; }
+            if (!Initialize()) return false;
+            var ptr = Marshal.StringToCoTaskMemUTF8(request);
+            try
+            {
+                bool ok = NativeStart(ptr);
+                if (!ok) Error = "PokeLDN Python 작업이 시작을 거부했습니다. 이전 작업이 남아 있는지 확인하세요.";
+                return ok;
+            }
+            catch (Exception ex) { Error = $"{ex.GetType().Name}: {ex.Message}"; return false; }
+            finally { Marshal.FreeCoTaskMem(ptr); }
+        }
+        public static bool Flash(bool bleFirmware) => false;
+#else
+        public static bool Initialize() => false;
+        public static string Error => "이 빌드에는 iOS PokeLDN 런타임이 없습니다.";
+        public static string UsbState() => "none";
+        public static string UsbKind() => "";
+        public static string RadioState() => "off";
         public static void RequestUsb() { }
         public static bool Busy => false;
         public static string Poll() => "{\"lines\":[],\"status\":[],\"done\":true}";
@@ -365,5 +463,5 @@ public static class LdnTrade
             await page.OpenBytes(await File.ReadAllBytesAsync(files[0]), Path.GetFileName(files[0]));
     }
 
-    public static void Stop() { if (Running) Bridge.Cancel(); }
+    public static Task StopAsync() => Running ? Task.Run(Bridge.Cancel) : Task.CompletedTask;
 }

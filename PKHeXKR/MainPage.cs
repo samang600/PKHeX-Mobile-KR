@@ -176,7 +176,6 @@ public class MainPage : ContentPage
         AppState.SaveChanged += () => MainThread.BeginInvokeOnMainThread(() => { UpdateSaveTitle(); UpdateLive(); });
         UpdateSaveTitle();
         SelectTab(0);
-        foreach (var s in sections) s.Reload();
         UpdateSummary(); UpdateLive();
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), async () => await UpdateCheck.Run(false));
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(5), () => Task.Run(async () => { var m = await EventData.Run(false); if (m != null) MainThread.BeginInvokeOnMainThread(() => Note.Show(m)); }));   // 배포 데이터 자동 업데이트 (하루 한 번)
@@ -279,7 +278,7 @@ public class MainPage : ContentPage
 
     private void SelectTab(int i)
     {
-        tab = i; host.Content = sections[i];
+        tab = i; foreach (var s in sections) s.Visible = false; host.Content = sections[i]; sections[i].Shown();
         if (wide == true) _ = hostScroll?.ScrollToAsync(0, 0, false);
         else if (stickyScroll != null && spacer != null && stickyScroll.ScrollY > StickyTop()) _ = stickyScroll.ScrollToAsync(0, StickyTop(), false);
         for (int k = 0; k < tabs.Count; k++)
@@ -414,7 +413,7 @@ public class MainPage : ContentPage
 
     private Task Menu()
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집", ldnList = "PokeLDN 교환 목록";
+        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
         const string dexFill = "세이브 도감 일괄 등록";
         const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
         const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
@@ -425,16 +424,16 @@ public class MainPage : ContentPage
             ("파일", [("📂", open), ("🕘", recent), ("⭐", favs), ("💾", export), ("🧬", exportPk), ("📤", sharePk), ("📦", boxOne), ("⇄", showdown)]),
             ("게임 · 트레이너", [("🎮", game), ("👤", trainer), ("🤝", autoOT)]),
             ("인스턴스", [("🗂", inst), ("📋", copyPk), ("📥", pastePk)]),
-            ("도구", [("✍", quick), ("📶", ftp), .. (LdnTrade.Available ? new (string, string)[] { ("🔁", ldnTrade), ("📋", ldnList) } : []), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), .. (RaidSheet.Supported(AppState.Sav) ? new (string, string)[] { ("⚔", raid) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
+            ("도구", [("✍", quick), ("📶", ftp), .. (LdnTrade.Available ? new (string, string)[] { ("🔁", ldnTrade) } : []), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), .. (RaidSheet.Supported(AppState.Sav) ? new (string, string)[] { ("⚔", raid) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
             ("설정", [("⚠", AppState.HaX ? haxOff : haxOn), ("⚙", settings), ("ⓘ", about)]),
         };
-        SheetHost.Show(new MenuSheet(groups, k => Dispatcher.Dispatch(async () => await RunMenu(k))));
+        SheetHost.Show(new MenuSheet(groups, k => Dispatcher.Dispatch(async () => { try { await RunMenu(k); } catch (Exception ex) { Note.Show("오류: " + ex.Message); } })));
         return Task.CompletedTask;
     }
 
     private async Task RunMenu(string pick)
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집", ldnList = "PokeLDN 교환 목록";
+        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
         const string dexFill = "세이브 도감 일괄 등록";
         const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
         const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
@@ -449,7 +448,6 @@ public class MainPage : ContentPage
             case ftp: SheetHost.Show(new FtpSheet()); break;
             case mgift: SheetHost.Show(new MysteryGiftSheet()); break;
             case raid: SheetHost.Show(new RaidSheet()); break;
-            case ldnList: SheetHost.Show(new LdnOffersSheet()); break;
             case sharePk: if (AppState.Pk.Species == 0) { Note.Show("공유할 포켓몬이 없습니다"); break; } await ShareUtil.ShareBytes(ShareUtil.Stored(AppState.Pk), AppState.Pk.FileName, AppState.Pk.FileName); break;
             case dex: SheetHost.Show(new LivingDexSheet()); break;
             case dexFill: await DexFill.Run(this); break;
@@ -491,7 +489,7 @@ public class MainPage : ContentPage
                 if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); await DisplayAlertAsync("데이터 언어", $"{sel.Name}(으)로 설정했습니다. 앱을 다시 시작하면 적용됩니다.", "확인"); }
                 break;
             case about:
-                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-19 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.32.0(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
+                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-22 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.34.0(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
                 break;
         }
     }
@@ -651,6 +649,7 @@ public class MainPage : ContentPage
                         if (c == null) { skipped++; continue; }   // 이 세이브 형식으로 못 바꾸는 포켓몬은 건너뜀
                         sav.SetBoxSlotAtIndex(c, b, i % sav.BoxSlotCount); n++;
                     }
+                    AppState.AfterBulk(boxes: Enumerable.Range(start, Math.Min(sav.BoxCount - start, (set.Count + sav.BoxSlotCount - 1) / sav.BoxSlotCount)));
                     AppState.NotifyBox(); Note.Show(skipped > 0 ? $"{n}마리를 넣었습니다 (이 게임에 넣을 수 없는 {skipped}마리는 건너뜀)" : $"{n}마리를 넣었습니다"); break;
                 default: await DisplayAlertAsync("열기", "지원하지 않는 파일입니다.", "확인"); break;
             }

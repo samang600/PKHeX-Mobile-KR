@@ -1,0 +1,1220 @@
+[
+{
+"key": "event:armor-shiny-moltres-galar-2022-april-international-competition-j",
+"group": "공식 배포 · 포켓몬",
+"label": "파이어 · Lv.70 · 이로치",
+"note": "Armor Shiny Moltres (Galar) (2022 April International Competition J) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:armor-shiny-moltres-galar-2022-april-international-competition-m",
+"group": "공식 배포 · 포켓몬",
+"label": "파이어 · Lv.70 · 이로치",
+"note": "Armor Shiny Moltres (Galar) (2022 April International Competition M) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:arthur-shiny-zamazenta",
+"group": "공식 배포 · 포켓몬",
+"label": "자마젠타 · Lv.100 · 이로치 · 녹슨방패 지님",
+"note": "Arthur Shiny Zamazenta · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-alola-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Alola Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-hoenn-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Hoenn Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-kalos-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Kalos Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-original-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Original Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-partner-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Partner Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-sinnoh-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Sinnoh Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-unova-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25",
+"note": "Ash Pikachu (Unova Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ash-pikachu-world-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25 · 전기구슬 지님",
+"note": "Ash Pikachu (World Cap) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:center-happiny-pok",
+"group": "공식 배포 · 포켓몬",
+"label": "핑복 · Lv.5",
+"note": "Center Happiny (Poké) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:chansey",
+"group": "공식 배포 · 포켓몬",
+"label": "럭키 · Lv.7 · 행복의알 지님",
+"note": "Chansey (ラッキー) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:charizard",
+"group": "공식 배포 · 포켓몬",
+"label": "리자몽 · Lv.50",
+"note": "Charizard (지우) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:clefairy",
+"group": "공식 배포 · 포켓몬",
+"label": "삐삐 · Lv.15 · 달의돌 지님",
+"note": "Clefairy (おつきみ２２) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:coalossal-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "석탄산 · Lv.50 · 거다이맥스",
+"note": "Coalossal (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:corsola-galar",
+"group": "공식 배포 · 포켓몬",
+"label": "코산호 · Lv.15",
+"note": "Corsola (Galar) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:crown-shiny-articuno-galar-2022-feb-international-competition-j",
+"group": "공식 배포 · 포켓몬",
+"label": "프리져 · Lv.70 · 이로치",
+"note": "Crown Shiny Articuno (Galar) (2022 Feb International Competition J) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:crown-shiny-articuno-galar-2022-feb-international-competition-m",
+"group": "공식 배포 · 포켓몬",
+"label": "프리져 · Lv.70 · 이로치",
+"note": "Crown Shiny Articuno (Galar) (2022 Feb International Competition M) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:dialga",
+"group": "공식 배포 · 포켓몬",
+"label": "디아루가 · Lv.70 · 금강옥 지님",
+"note": "Dialga (アラモス) · 여러 번 받을 수 있음 · 실드 전용"
+},
+{
+"key": "event:dracovish",
+"group": "공식 배포 · 포켓몬",
+"label": "어래곤 · Lv.80",
+"note": "Dracovish (サトシ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:dragonite",
+"group": "공식 배포 · 포켓몬",
+"label": "망나뇽 · Lv.80",
+"note": "Dragonite (サトシ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:eevee-ver-1-dynamic-pid",
+"group": "공식 배포 · 포켓몬",
+"label": "이브이 · Lv.5",
+"note": "Eevee (Ver 1. Dynamic PID) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:eevee-ver-2-static-pid",
+"group": "공식 배포 · 포켓몬",
+"label": "이브이 · Lv.5",
+"note": "Eevee (Ver 2. Static PID) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:eric-gastrodon-east",
+"group": "공식 배포 · 포켓몬",
+"label": "트리토돈 · Lv.50 · 먹다남은음식 지님",
+"note": "Eric Gastrodon (East) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:galar-shiny-eternatus",
+"group": "공식 배포 · 포켓몬",
+"label": "무한다이노 · Lv.100 · 이로치",
+"note": "Galar Shiny Eternatus · 한 번만 받을 수 있음"
+},
+{
+"key": "event:gastrodon-east",
+"group": "공식 배포 · 포켓몬",
+"label": "트리토돈 · Lv.50 · 달인의띠 지님",
+"note": "Gastrodon (East) (カ・エール) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:genesect",
+"group": "공식 배포 · 포켓몬",
+"label": "게노세크트 · Lv.60",
+"note": "Genesect (ゲッチャレ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:genesect-2",
+"group": "공식 배포 · 포켓몬",
+"label": "게노세크트 · Lv.60",
+"note": "Genesect (어드벤처) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:gengar-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "팬텀 · Lv.80 · 거다이맥스",
+"note": "Gengar (Gmax) (サトシ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:gf-pikachu",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.25 · 전기구슬 지님",
+"note": "GF Pikachu · 한 번만 받을 수 있음"
+},
+{
+"key": "event:grimmsnarl",
+"group": "공식 배포 · 포켓몬",
+"label": "오롱털 · Lv.50 · 탈출버튼 지님",
+"note": "Grimmsnarl (정원석) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:home-bulbasaur-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "이상해씨 · Lv.14 · 거다이맥스",
+"note": "HOME Bulbasaur (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:home-squirtle-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "꼬부기 · Lv.14 · 거다이맥스",
+"note": "HOME Squirtle (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:jirachi",
+"group": "공식 배포 · 포켓몬",
+"label": "지라치 · Lv.70 · 혜성조각 지님",
+"note": "Jirachi (ネガイボシ) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jirawiwat-shiny-clefairy",
+"group": "공식 배포 · 포켓몬",
+"label": "삐삐 · Lv.50 · 이로치 · 진화의휘석 지님",
+"note": "Jirawiwat Shiny Clefairy · 한 번만 받을 수 있음"
+},
+{
+"key": "event:jungle-shiny-celebi-japanese-release",
+"group": "공식 배포 · 포켓몬",
+"label": "세레비 · Lv.60 · 이로치 · 행복의알 지님",
+"note": "Jungle Shiny Celebi (Japanese Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jungle-shiny-celebi-korean-release",
+"group": "공식 배포 · 포켓몬",
+"label": "세레비 · Lv.60 · 이로치 · 행복의알 지님",
+"note": "Jungle Shiny Celebi (Korean Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jungle-shiny-celebi-western-release",
+"group": "공식 배포 · 포켓몬",
+"label": "세레비 · Lv.60 · 이로치 · 행복의알 지님",
+"note": "Jungle Shiny Celebi (Western Release) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:jungle-zarude-dada-japanese-release",
+"group": "공식 배포 · 포켓몬",
+"label": "자루도 · Lv.70 · 구애스카프 지님",
+"note": "Jungle Zarude (Dada) (Japanese Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jungle-zarude-dada-korean-release",
+"group": "공식 배포 · 포켓몬",
+"label": "자루도 · Lv.70 · 구애스카프 지님",
+"note": "Jungle Zarude (Dada) (Korean Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jungle-zarude-dada-western-release",
+"group": "공식 배포 · 포켓몬",
+"label": "자루도 · Lv.70 · 구애스카프 지님",
+"note": "Jungle Zarude (Dada) (Western Release) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:jungle-zarude-japanese-release",
+"group": "공식 배포 · 포켓몬",
+"label": "자루도 · Lv.60 · 먹다남은음식 지님",
+"note": "Jungle Zarude (Japanese Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jungle-zarude-korean-release",
+"group": "공식 배포 · 포켓몬",
+"label": "자루도 · Lv.60 · 먹다남은음식 지님",
+"note": "Jungle Zarude (Korean Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:jungle-zarude-western-release",
+"group": "공식 배포 · 포켓몬",
+"label": "자루도 · Lv.60 · 먹다남은음식 지님",
+"note": "Jungle Zarude (Western Release) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:kibo-pikachu",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.21 · 혜성조각 지님",
+"note": "KIBO Pikachu · 한 번만 받을 수 있음"
+},
+{
+"key": "event:lancer-shiny-zacian",
+"group": "공식 배포 · 포켓몬",
+"label": "자시안 · Lv.100 · 이로치 · 녹슨검 지님",
+"note": "Lancer Shiny Zacian · 한 번만 받을 수 있음"
+},
+{
+"key": "event:lapras-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "라프라스 · Lv.50 · 거다이맥스",
+"note": "Lapras (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:latias",
+"group": "공식 배포 · 포켓몬",
+"label": "라티아스 · Lv.70 · 마음의물방울 지님",
+"note": "Latias (アルトマーレ) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:leonardo-charizard-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "리자몽 · Lv.100 · 거다이맥스 · 생명의구슬 지님",
+"note": "Leonardo Charizard (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:lucario",
+"group": "공식 배포 · 포켓몬",
+"label": "루카리오 · Lv.80",
+"note": "Lucario (サトシ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:marco-dracovish",
+"group": "공식 배포 · 포켓몬",
+"label": "어래곤 · Lv.50 · 구애스카프 지님",
+"note": "Marco Dracovish · 한 번만 받을 수 있음"
+},
+{
+"key": "event:marshadow",
+"group": "공식 배포 · 포켓몬",
+"label": "마샤도 · Lv.60",
+"note": "Marshadow (ゲッチャレ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:marshadow-2",
+"group": "공식 배포 · 포켓몬",
+"label": "마샤도 · Lv.60",
+"note": "Marshadow (어드벤처) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:meowth-galar",
+"group": "공식 배포 · 포켓몬",
+"label": "나옹 · Lv.15",
+"note": "Meowth (Galar) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:meowth-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "나옹 · Lv.5 · 거다이맥스",
+"note": "Meowth (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:mew",
+"group": "공식 배포 · 포켓몬",
+"label": "뮤 · Lv.1",
+"note": "Mew · 여러 번 받을 수 있음"
+},
+{
+"key": "event:milcery-ribbon-sweet-ver-1-no-nickname",
+"group": "공식 배포 · 포켓몬",
+"label": "마빌크 · Lv.5 · 리본사탕공예 지님",
+"note": "Milcery (Ribbon Sweet) (Ver. 1 No Nickname) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:milcery-ribbon-sweet-ver-2-nickname-set",
+"group": "공식 배포 · 포켓몬",
+"label": "마빌크 · Lv.5 · 리본사탕공예 지님",
+"note": "Milcery (Ribbon Sweet) (Ver. 2 Nickname Set) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:milcery-star-sweet-ver-1-no-nickname",
+"group": "공식 배포 · 포켓몬",
+"label": "마빌크 · Lv.5 · 스타사탕공예 지님",
+"note": "Milcery (Star Sweet) (Ver. 1 No Nickname) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:milcery-star-sweet-ver-2-set-nickname",
+"group": "공식 배포 · 포켓몬",
+"label": "마빌크 · Lv.5 · 스타사탕공예 지님",
+"note": "Milcery (Star Sweet) (Ver. 2 Set Nickname) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:mr-mime-galar",
+"group": "공식 배포 · 포켓몬",
+"label": "마임맨 · Lv.15",
+"note": "Mr. Mime (Galar) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:mythical22-genesect",
+"group": "공식 배포 · 포켓몬",
+"label": "게노세크트 · Lv.60",
+"note": "Mythical22 Genesect · 한 번만 받을 수 있음"
+},
+{
+"key": "event:mythical22-marshadow",
+"group": "공식 배포 · 포켓몬",
+"label": "마샤도 · Lv.60",
+"note": "Mythical22 Marshadow · 한 번만 받을 수 있음"
+},
+{
+"key": "event:mythical22-volcanion",
+"group": "공식 배포 · 포켓몬",
+"label": "볼케니온 · Lv.60",
+"note": "Mythical22 Volcanion · 한 번만 받을 수 있음"
+},
+{
+"key": "event:palkia",
+"group": "공식 배포 · 포켓몬",
+"label": "펄기아 · Lv.70 · 백옥 지님",
+"note": "Palkia (アラモス) · 여러 번 받을 수 있음 · 소드 전용"
+},
+{
+"key": "event:pcsg-eevee",
+"group": "공식 배포 · 포켓몬",
+"label": "이브이 · Lv.5",
+"note": "PCSG Eevee · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pcsg-milcery-ribbon-sweet",
+"group": "공식 배포 · 포켓몬",
+"label": "마빌크 · Lv.5 · 리본사탕공예 지님",
+"note": "PCSG Milcery (Ribbon Sweet) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pcsg-milcery-star-sweet",
+"group": "공식 배포 · 포켓몬",
+"label": "마빌크 · Lv.5 · 스타사탕공예 지님",
+"note": "PCSG Milcery (Star Sweet) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pcsg-pikachu",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.5",
+"note": "PCSG Pikachu · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pikachu-ver-1-dynamic-pid",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.5",
+"note": "Pikachu (Ver 1. Dynamic PID) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pikachu-ver-2-static-pid",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.5",
+"note": "Pikachu (Ver 2. Static PID) (ポケセン) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pikachu-world-cap",
+"group": "공식 배포 · 포켓몬",
+"label": "피카츄 · Lv.80 · 전기구슬 지님",
+"note": "Pikachu (World Cap) (サトシ) · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ponyta-galar",
+"group": "공식 배포 · 포켓몬",
+"label": "포니타 · Lv.15",
+"note": "Ponyta (Galar) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:porygon-z",
+"group": "공식 배포 · 포켓몬",
+"label": "폴리곤Z · Lv.50 · 실크스카프 지님",
+"note": "Porygon-Z (정상윤) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:rock-star-shiny-toxtricity",
+"group": "공식 배포 · 포켓몬",
+"label": "스트린더 · Lv.50 · 이로치 · 목스프레이 지님",
+"note": "Rock Star Shiny Toxtricity · 한 번만 받을 수 있음"
+},
+{
+"key": "event:sableye",
+"group": "공식 배포 · 포켓몬",
+"label": "깜까미 · Lv.50 · 탈출버튼 지님",
+"note": "Sableye (コウ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:shiny-amoonguss",
+"group": "공식 배포 · 포켓몬",
+"label": "뽀록나 · Lv.50 · 이로치 · 기합의띠 지님",
+"note": "Shiny Amoonguss (백종윤) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:sirfetch-d",
+"group": "공식 배포 · 포켓몬",
+"label": "창파나이트 · Lv.80 · 대파 지님",
+"note": "Sirfetch’d (サトシ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:snorlax-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "잠만보 · Lv.50 · 거다이맥스",
+"note": "Snorlax (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:torkoal",
+"group": "공식 배포 · 포켓몬",
+"label": "코터스 · Lv.50 · 자뭉열매 지님",
+"note": "Torkoal (クララ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:vgc20-porygon2",
+"group": "공식 배포 · 포켓몬",
+"label": "폴리곤2 · Lv.50 · 진화의휘석 지님",
+"note": "VGC20 Porygon2 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:victory-victini",
+"group": "공식 배포 · 포켓몬",
+"label": "비크티니 · Lv.50 · 스타열매 지님",
+"note": "Victory Victini · 한 번만 받을 수 있음"
+},
+{
+"key": "event:volcanion",
+"group": "공식 배포 · 포켓몬",
+"label": "볼케니온 · Lv.60",
+"note": "Volcanion (ゲッチャレ) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:volcanion-2",
+"group": "공식 배포 · 포켓몬",
+"label": "볼케니온 · Lv.60",
+"note": "Volcanion (어드벤처) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:wcs22-sinistea-antique",
+"group": "공식 배포 · 포켓몬",
+"label": "데인차 · Lv.50 · 튼튼밀크 지님",
+"note": "WCS22 Sinistea (Antique) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:wild-shiny-zapdos-galar-2022-march-international-competition-j",
+"group": "공식 배포 · 포켓몬",
+"label": "썬더 · Lv.70 · 이로치",
+"note": "Wild Shiny Zapdos (Galar) (2022 March International Competition J) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:wild-shiny-zapdos-galar-2022-march-international-competition-m",
+"group": "공식 배포 · 포켓몬",
+"label": "썬더 · Lv.70 · 이로치",
+"note": "Wild Shiny Zapdos (Galar) (2022 March International Competition M) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:wolfe-coalossal-gmax",
+"group": "공식 배포 · 포켓몬",
+"label": "석탄산 · Lv.50 · 거다이맥스 · 약점보험 지님",
+"note": "Wolfe Coalossal (Gmax) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:first-challenge-pichu",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "피츄 · Lv.5",
+"note": "First Challenge Pichu · 한 번만 받을 수 있음"
+},
+{
+"key": "event:first-gts-trade-rotom",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "로토무 · Lv.5",
+"note": "First GTS Trade Rotom · 한 번만 받을 수 있음"
+},
+{
+"key": "event:first-login-reward-pikachu",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "피카츄 · Lv.5",
+"note": "First Login Reward Pikachu · 한 번만 받을 수 있음"
+},
+{
+"key": "event:first-wonder-box-trade-eevee",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "이브이 · Lv.5",
+"note": "First Wonder Box Trade Eevee · 한 번만 받을 수 있음"
+},
+{
+"key": "event:hidden-ability-grookey",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "흥나숭 · Lv.5",
+"note": "Hidden Ability Grookey · 한 번만 받을 수 있음"
+},
+{
+"key": "event:hidden-ability-scorbunny",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "염버니 · Lv.5",
+"note": "Hidden Ability Scorbunny · 한 번만 받을 수 있음"
+},
+{
+"key": "event:hidden-ability-sobble",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "울머기 · Lv.5",
+"note": "Hidden Ability Sobble · 한 번만 받을 수 있음"
+},
+{
+"key": "event:home-starter-bulbasaur",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "이상해씨 · Lv.5",
+"note": "HOME Starter Bulbasaur · 한 번만 받을 수 있음"
+},
+{
+"key": "event:home-starter-charmander",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "파이리 · Lv.5",
+"note": "HOME Starter Charmander · 한 번만 받을 수 있음"
+},
+{
+"key": "event:home-starter-squirtle",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "꼬부기 · Lv.5",
+"note": "HOME Starter Squirtle · 한 번만 받을 수 있음"
+},
+{
+"key": "event:national-dex-completion-magearna",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "마기아나 · Lv.50",
+"note": "National Dex Completion Magearna · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pokemon-go-transfer-gift-melmetal",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "멜메탈 · Lv.100 · 거다이맥스",
+"note": "Pokemon GO Transfer Gift Melmetal · 한 번만 받을 수 있음"
+},
+{
+"key": "event:shiny-keldeo",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "케르디오 · Lv.50",
+"note": "Shiny Keldeo · 한 번만 받을 수 있음"
+},
+{
+"key": "event:shiny-zeraora",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "제라오라 · Lv.100",
+"note": "Shiny Zeraora · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ver-1-4-0-home-bulbasaur",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "이상해씨 · Lv.14 · 거다이맥스",
+"note": "Ver 1.4.0 HOME Bulbasaur · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ver-1-4-0-home-squirtle",
+"group": "공식 배포 · 포켓몬 HOME 배포",
+"label": "꼬부기 · Lv.14 · 거다이맥스",
+"note": "Ver 1.4.0 HOME Squirtle · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-adamant-mint-x1-modest-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 고집민트 ×1, 조심민트 ×1",
+"note": "Ability Capsule x1, Adamant Mint x1, Modest Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-armorite-ore-x5",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 갑옷광석 ×5",
+"note": "Ability Capsule x1, Armorite Ore x5 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-armorite-ore-x5-bottle-cap-x3",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 갑옷광석 ×5, 은색병뚜껑 ×3",
+"note": "Ability Capsule x1, Armorite Ore x5, Bottle Cap x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-armorite-ore-x5-dynite-ore-x5",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 갑옷광석 ×5, 맥스광석 ×5",
+"note": "Ability Capsule x1, Armorite Ore x5, Dynite Ore x5 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-bold-mint-x1-calm-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 대담민트 ×1, 차분민트 ×1",
+"note": "Ability Capsule x1, Bold Mint x1, Calm Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-bottle-cap-x3-armorite-ore-x5-dynite-ore-x5",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 은색병뚜껑 ×3, 갑옷광석 ×5, 맥스광석 ×5",
+"note": "Ability Capsule x1, Bottle Cap x3, Armorite Ore x5, Dynite Ore x5 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-careful-mint-x1-impish-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 신중민트 ×1, 장난꾸러기민트 ×1",
+"note": "Ability Capsule x1, Careful Mint x1, Impish Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-jolly-mint-x1-timid-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 명랑민트 ×1, 겁쟁이민트 ×1",
+"note": "Ability Capsule x1, Jolly Mint x1, Timid Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-naive-mint-x1-hasty-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 천진난만민트 ×1, 성급민트 ×1",
+"note": "Ability Capsule x1, Naive Mint x1, Hasty Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-quiet-mint-x1-brave-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 냉정민트 ×1, 용감민트 ×1",
+"note": "Ability Capsule x1, Quiet Mint x1, Brave Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:ability-capsule-x1-relaxed-mint-x1-sassy-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "특성캡슐 ×1, 무사태평민트 ×1, 건방민트 ×1",
+"note": "Ability Capsule x1, Relaxed Mint x1, Sassy Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:armorite-ore-x8",
+"group": "공식 배포 · 도구",
+"label": "갑옷광석 ×8",
+"note": "Armorite Ore x8 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:armorite-ore-x87-dynite-ore-x87",
+"group": "공식 배포 · 도구",
+"label": "갑옷광석 ×87, 맥스광석 ×87",
+"note": "Armorite Ore x87, Dynite Ore x87 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:beast-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "울트라볼 ×1",
+"note": "Beast Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:berry-sweet-x1-shalour-sable-x1-lumiose-galette-x1-exp-candy-l-x3",
+"group": "공식 배포 · 도구",
+"label": "베리사탕공예 ×1, 사라사블레 ×1, 미르갈레트 ×1, 경험사탕L ×3",
+"note": "Berry Sweet x1, Shalour Sable x1, Lumiose Galette x1, Exp. Candy L x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:big-nugget-x12-exp-candy-xl-x12",
+"group": "공식 배포 · 도구",
+"label": "큰금구슬 ×12, 경험사탕XL ×12",
+"note": "Big Nugget x12, Exp. Candy XL x12 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:big-nugget-x50",
+"group": "공식 배포 · 도구",
+"label": "큰금구슬 ×50",
+"note": "Big Nugget x50 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:big-nugget-x50-exp-candy-l-x100",
+"group": "공식 배포 · 도구",
+"label": "큰금구슬 ×50, 경험사탕L ×100",
+"note": "Big Nugget x50, Exp. Candy L x100 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:boiled-egg-x3-chilan-berry-x3-charti-berry-x3-passho-berry-x3-kebia-berry-x3",
+"group": "공식 배포 · 도구",
+"label": "삶은알 ×3, 카리열매 ×3, 루미열매 ×3, 꼬시개열매 ×3, 으름열매 ×3",
+"note": "Boiled Egg x3, Chilan Berry x3, Charti Berry x3, Passho Berry x3, Kebia Berry x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×1",
+"note": "Bottle Cap x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-adamant-mint-x1-modest-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 고집민트 ×1, 조심민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Adamant Mint x1, Modest Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-bold-mint-x1-calm-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 대담민트 ×1, 차분민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Bold Mint x1, Calm Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-careful-mint-x1-impish-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 신중민트 ×1, 장난꾸러기민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Careful Mint x1, Impish Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-jolly-mint-x1-timid-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 명랑민트 ×1, 겁쟁이민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Jolly Mint x1, Timid Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-naive-mint-x1-hasty-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 천진난만민트 ×1, 성급민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Naive Mint x1, Hasty Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-quiet-mint-x1-brave-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 냉정민트 ×1, 용감민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Quiet Mint x1, Brave Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:bottle-cap-x3-ability-capsule-x1-relaxed-mint-x1-sassy-mint-x1",
+"group": "공식 배포 · 도구",
+"label": "은색병뚜껑 ×3, 특성캡슐 ×1, 무사태평민트 ×1, 건방민트 ×1",
+"note": "Bottle Cap x3, Ability Capsule x1, Relaxed Mint x1, Sassy Mint x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:clover-sweet-x1-casteliacone-x1-pewter-crunchies-x1-exp-candy-l-x3",
+"group": "공식 배포 · 도구",
+"label": "네잎사탕공예 ×1, 구름아이스 ×1, 회색강정 ×1, 경험사탕L ×3",
+"note": "Clover Sweet x1, Casteliacone x1, Pewter Crunchies x1, Exp. Candy L x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:dive-ball-x10",
+"group": "공식 배포 · 도구",
+"label": "다이브볼 ×10",
+"note": "Dive Ball x10 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:dream-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "드림볼 ×1",
+"note": "Dream Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:dynite-ore-x10",
+"group": "공식 배포 · 도구",
+"label": "맥스광석 ×10",
+"note": "Dynite Ore x10 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:dynite-ore-x5",
+"group": "공식 배포 · 도구",
+"label": "맥스광석 ×5",
+"note": "Dynite Ore x5 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:fancy-apple-x3-colbur-berry-x3-payapa-berry-x3-yache-berry-x3-aspear-berry-x3",
+"group": "공식 배포 · 도구",
+"label": "특선사과 ×3, 마코열매 ×3, 야파열매 ×3, 플카열매 ×3, 배리열매 ×3",
+"note": "Fancy Apple x3, Colbur Berry x3, Payapa Berry x3, Yache Berry x3, Aspear Berry x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:fast-ball-x1-level-ball-x1-love-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "스피드볼 ×1, 레벨볼 ×1, 러브러브볼 ×1",
+"note": "Fast Ball x1, Level Ball x1, Love Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:fast-ball-x1-level-ball-x1-love-ball-x1-friend-ball-x1-beast-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "스피드볼 ×1, 레벨볼 ×1, 러브러브볼 ×1, 프렌드볼 ×1, 울트라볼 ×1",
+"note": "Fast Ball x1, Level Ball x1, Love Ball x1, Friend Ball x1, Beast Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:flame-orb-x1-toxic-orb-x1-light-ball-x1-gold-bottle-cap-x1-bottle-cap-x3-pearl-string-x3",
+"group": "공식 배포 · 도구",
+"label": "화염구슬 ×1, 맹독구슬 ×1, 전기구슬 ×1, 금색병뚜껑 ×1, 은색병뚜껑 ×3, 경단진주 ×3",
+"note": "Flame Orb x1, Toxic Orb x1, Light Ball x1, Gold Bottle Cap x1, Bottle Cap x3, Pearl String x3 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:flower-sweet-x1-moomoo-milk-x1-big-malasada-x1-exp-candy-l-x3",
+"group": "공식 배포 · 도구",
+"label": "꽃사탕공예 ×1, 튼튼밀크 ×1, 큰 말라사다 ×1, 경험사탕L ×3",
+"note": "Flower Sweet x1, Moomoo Milk x1, Big Malasada x1, Exp. Candy L x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:fruit-bunch-x3-roseli-berry-x3-kasib-berry-x3-wacan-berry-x3-shuca-berry-x3",
+"group": "공식 배포 · 도구",
+"label": "송이팩 ×3, 로셀열매 ×3, 수불열매 ×3, 초나열매 ×3, 슈캐열매 ×3",
+"note": "Fruit Bunch x3, Roseli Berry x3, Kasib Berry x3, Wacan Berry x3, Shuca Berry x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:galarica-wreath-x1",
+"group": "공식 배포 · 도구",
+"label": "가라두구머리장식 ×1",
+"note": "Galarica Wreath x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:gigantamix-x1",
+"group": "공식 배포 · 도구",
+"label": "거대파우더 ×1",
+"note": "Gigantamix x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:gold-bottle-cap-x1",
+"group": "공식 배포 · 도구",
+"label": "금색병뚜껑 ×1",
+"note": "Gold Bottle Cap x1 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:gold-bottle-cap-x1-armorite-ore-x10",
+"group": "공식 배포 · 도구",
+"label": "금색병뚜껑 ×1, 갑옷광석 ×10",
+"note": "Gold Bottle Cap x1, Armorite Ore x10 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:gold-bottle-cap-x1-armorite-ore-x10-dynite-ore-x10",
+"group": "공식 배포 · 도구",
+"label": "금색병뚜껑 ×1, 갑옷광석 ×10, 맥스광석 ×10",
+"note": "Gold Bottle Cap x1, Armorite Ore x10, Dynite Ore x10 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:gold-bottle-cap-x3",
+"group": "공식 배포 · 도구",
+"label": "금색병뚜껑 ×3",
+"note": "Gold Bottle Cap x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:gold-bottle-cap-x3-armorite-ore-x30",
+"group": "공식 배포 · 도구",
+"label": "금색병뚜껑 ×3, 갑옷광석 ×30",
+"note": "Gold Bottle Cap x3, Armorite Ore x30 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:gold-bottle-cap-x3-armorite-ore-x30-dynite-ore-x30",
+"group": "공식 배포 · 도구",
+"label": "금색병뚜껑 ×3, 갑옷광석 ×30, 맥스광석 ×30",
+"note": "Gold Bottle Cap x3, Armorite Ore x30, Dynite Ore x30 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:heal-ball-x10",
+"group": "공식 배포 · 도구",
+"label": "힐볼 ×10",
+"note": "Heal Ball x10 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:heavy-ball-x1-lure-ball-x1-beast-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "헤비볼 ×1, 루어볼 ×1, 울트라볼 ×1",
+"note": "Heavy Ball x1, Lure Ball x1, Beast Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:king-s-rock-x1",
+"group": "공식 배포 · 도구",
+"label": "왕의징표석 ×1",
+"note": "King’s Rock x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:large-leek-x3-haban-berry-x3-coba-berry-x3-rindo-berry-x3-rawst-berry-x3",
+"group": "공식 배포 · 도구",
+"label": "굵은대파 ×3, 하반열매 ×3, 바코열매 ×3, 린드열매 ×3, 복분열매 ×3",
+"note": "Large Leek x3, Haban Berry x3, Coba Berry x3, Rindo Berry x3, Rawst Berry x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:level-ball-x1-moon-ball-x1-fast-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "레벨볼 ×1, 문볼 ×1, 스피드볼 ×1",
+"note": "Level Ball x1, Moon Ball x1, Fast Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:life-orb-x1",
+"group": "공식 배포 · 도구",
+"label": "생명의구슬 ×1",
+"note": "Life Orb x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:love-ball-x1-friend-ball-x1-dream-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "러브러브볼 ×1, 프렌드볼 ×1, 드림볼 ×1",
+"note": "Love Ball x1, Friend Ball x1, Dream Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:love-sweet-x1-sweet-heart-x1-berry-juice-x1-exp-candy-l-x3",
+"group": "공식 배포 · 도구",
+"label": "하트사탕공예 ×1, 하트스위트 ×1, 나무열매쥬스 ×1, 경험사탕L ×3",
+"note": "Love Sweet x1, Sweet Heart x1, Berry Juice x1, Exp. Candy L x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:lure-ball-x1-heavy-ball-x1-friend-ball-x1-moon-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "루어볼 ×1, 헤비볼 ×1, 프렌드볼 ×1, 문볼 ×1",
+"note": "Lure Ball x1, Heavy Ball x1, Friend Ball x1, Moon Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:lure-ball-x1-heavy-ball-x1-moon-ball-x1-dream-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "루어볼 ×1, 헤비볼 ×1, 문볼 ×1, 드림볼 ×1",
+"note": "Lure Ball x1, Heavy Ball x1, Moon Ball x1, Dream Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:luxury-ball-x10",
+"group": "공식 배포 · 도구",
+"label": "럭셔리볼 ×10",
+"note": "Luxury Ball x10 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:master-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "마스터볼 ×1",
+"note": "Master Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:pok-ball-x100",
+"group": "공식 배포 · 도구",
+"label": "몬스터볼 ×100",
+"note": "Poké Ball x100 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:premier-ball-x10",
+"group": "공식 배포 · 도구",
+"label": "프리미어볼 ×10",
+"note": "Premier Ball x10 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:quick-ball-x12",
+"group": "공식 배포 · 도구",
+"label": "퀵볼 ×12",
+"note": "Quick Ball x12 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:ribbon-sweet-x1-whipped-dream-x1-exp-candy-xl-x3",
+"group": "공식 배포 · 도구",
+"label": "리본사탕공예 ×1, 휘핑팝 ×1, 경험사탕XL ×3",
+"note": "Ribbon Sweet x1, Whipped Dream x1, Exp. Candy XL x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:safari-ball-x1-sport-ball-x1",
+"group": "공식 배포 · 도구",
+"label": "사파리볼 ×1, 컴퍼티션볼 ×1",
+"note": "Safari Ball x1, Sport Ball x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:smoke-poke-tail-x3-babiri-berry-x3-tanga-berry-x3-chople-berry-x3-occa-berry-x3",
+"group": "공식 배포 · 도구",
+"label": "꼬리훈제 ×3, 바리비열매 ×3, 리체열매 ×3, 로플열매 ×3, 오카열매 ×3",
+"note": "Smoke-Poke Tail x3, Babiri Berry x3, Tanga Berry x3, Chople Berry x3, Occa Berry x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:star-sweet-x1-sachet-x1-exp-candy-xl-x3",
+"group": "공식 배포 · 도구",
+"label": "스타사탕공예 ×1, 향기주머니 ×1, 경험사탕XL ×3",
+"note": "Star Sweet x1, Sachet x1, Exp. Candy XL x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:strawberry-sweet-x1-rage-candy-bar-x1-lava-cookie-x1-exp-candy-l-x3",
+"group": "공식 배포 · 도구",
+"label": "딸기사탕공예 ×1, 분노의호두과자 ×1, 용암전병 ×1, 경험사탕L ×3",
+"note": "Strawberry Sweet x1, Rage Candy Bar x1, Lava Cookie x1, Exp. Candy L x3 · 여러 번 받을 수 있음"
+},
+{
+"key": "event:tr94-x3",
+"group": "공식 배포 · 도구",
+"label": "기술레코드94 ×3",
+"note": "TR94 x3 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:weakness-policy-x1",
+"group": "공식 배포 · 도구",
+"label": "약점보험 ×1",
+"note": "Weakness Policy x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:whipped-dream-x1-sachet-x1-sweet-apple-x1-tart-apple-x1-cracked-pot-x1-chipped-pot-x1",
+"group": "공식 배포 · 도구",
+"label": "휘핑팝 ×1, 향기주머니 ×1, 달콤한사과 ×1, 새콤한사과 ×1, 깨진포트 ×1, 이빠진포트 ×1",
+"note": "Whipped Dream x1, Sachet x1, Sweet Apple x1, Tart Apple x1, Cracked Pot x1, Chipped Pot x1 · 한 번만 받을 수 있음"
+},
+{
+"key": "event:10-battle-points",
+"group": "공식 배포 · 배틀포인트(BP)",
+"label": "배틀포인트 10",
+"note": "10 Battle Points · 여러 번 받을 수 있음"
+},
+{
+"key": "event:20-battle-points",
+"group": "공식 배포 · 배틀포인트(BP)",
+"label": "배틀포인트 20",
+"note": "20 Battle Points · 여러 번 받을 수 있음"
+},
+{
+"key": "event:50-battle-points",
+"group": "공식 배포 · 배틀포인트(BP)",
+"label": "배틀포인트 50",
+"note": "50 Battle Points · 여러 번 받을 수 있음"
+},
+{
+"key": "event:100-battle-points",
+"group": "공식 배포 · 배틀포인트(BP)",
+"label": "배틀포인트 100",
+"note": "100 Battle Points · 여러 번 받을 수 있음"
+},
+{
+"key": "event:300-battle-points",
+"group": "공식 배포 · 배틀포인트(BP)",
+"label": "배틀포인트 300",
+"note": "300 Battle Points · 여러 번 받을 수 있음"
+},
+{
+"key": "event:600-battle-points",
+"group": "공식 배포 · 배틀포인트(BP)",
+"label": "배틀포인트 600",
+"note": "600 Battle Points · 여러 번 받을 수 있음"
+},
+{
+"key": "event:casual-tee-great-ball-guy-2020-apr-international-competition-j-ver-1",
+"group": "공식 배포 · 옷",
+"label": "옷: Casual Tee (Great Ball Guy) (2020 Apr International Competition J)(Ver 1)",
+"note": "Casual Tee (Great Ball Guy) (2020 Apr International Competition J)(Ver 1) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:casual-tee-poke-ball-guy-2020-feb-international-competition-j",
+"group": "공식 배포 · 옷",
+"label": "옷: Casual Tee (Poke Ball Guy) (2020 Feb International Competition J)",
+"note": "Casual Tee (Poke Ball Guy) (2020 Feb International Competition J) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:casual-tee-pokemon-quest",
+"group": "공식 배포 · 옷",
+"label": "옷: Casual Tee (Pokemon Quest)",
+"note": "Casual Tee (Pokemon Quest) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:casual-tee-ultra-ball-guy-2020-may-international-competition-j",
+"group": "공식 배포 · 옷",
+"label": "옷: Casual Tee (Ultra Ball Guy) (2020 May International Competition J)",
+"note": "Casual Tee (Ultra Ball Guy) (2020 May International Competition J) · 한 번만 받을 수 있음"
+},
+{
+"key": "event:clothing-set-eevee-uniform",
+"group": "공식 배포 · 옷",
+"label": "옷: Clothing Set Eevee Uniform",
+"note": "Clothing Set Eevee Uniform · 한 번만 받을 수 있음"
+},
+{
+"key": "event:clothing-set-leon-s-cap-tights",
+"group": "공식 배포 · 옷",
+"label": "옷: Clothing Set Leon's Cap & Tights",
+"note": "Clothing Set Leon's Cap & Tights · 한 번만 받을 수 있음"
+},
+{
+"key": "event:clothing-set-pikachu-uniform",
+"group": "공식 배포 · 옷",
+"label": "옷: Clothing Set Pikachu Uniform",
+"note": "Clothing Set Pikachu Uniform · 한 번만 받을 수 있음"
+},
+{
+"key": "event:clothing-set-tracksuit",
+"group": "공식 배포 · 옷",
+"label": "옷: Clothing Set Tracksuit",
+"note": "Clothing Set Tracksuit · 한 번만 받을 수 있음"
+},
+{
+"key": "event:gold-studded-backpack",
+"group": "공식 배포 · 옷",
+"label": "옷: Gold Studded Backpack",
+"note": "Gold Studded Backpack · 한 번만 받을 수 있음"
+},
+{
+"key": "preset:pikachu",
+"group": "PokeLDN 기본 선물",
+"label": "피카츄 Lv.25 (닉네임 POKELDN)",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:gmax-pikachu",
+"group": "PokeLDN 기본 선물",
+"label": "거다이맥스 피카츄 Lv.25",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:egg",
+"group": "PokeLDN 기본 선물",
+"label": "피카츄 알",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:master-balls",
+"group": "PokeLDN 기본 선물",
+"label": "마스터볼 ×3",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:rare-candies",
+"group": "PokeLDN 기본 선물",
+"label": "이상한사탕 ×10",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:training-kit",
+"group": "PokeLDN 기본 선물",
+"label": "육성 세트 (이상한사탕·경험사탕XL·포인트맥스·특성캡슐·병뚜껑)",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:bp",
+"group": "PokeLDN 기본 선물",
+"label": "배틀포인트 10",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:money",
+"group": "PokeLDN 기본 선물",
+"label": "용돈 100,000원",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:pikachu-uniform",
+"group": "PokeLDN 기본 선물",
+"label": "옷: 피카츄 유니폼",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:eevee-uniform",
+"group": "PokeLDN 기본 선물",
+"label": "옷: 이브이 유니폼",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:tracksuit",
+"group": "PokeLDN 기본 선물",
+"label": "옷: 트레이닝복 세트",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:leon-cap-tights",
+"group": "PokeLDN 기본 선물",
+"label": "옷: 단델 모자·타이츠",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:gold-backpack",
+"group": "PokeLDN 기본 선물",
+"label": "옷: 금장 배낭",
+"note": "PokeLDN이 만든 선물 카드"
+},
+{
+"key": "preset:tees",
+"group": "PokeLDN 기본 선물",
+"label": "옷: 볼 티셔츠 4종",
+"note": "PokeLDN이 만든 선물 카드"
+}
+]

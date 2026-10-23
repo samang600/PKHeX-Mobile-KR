@@ -15,7 +15,17 @@ public abstract class Section : ContentView
     protected bool Loading;
     protected static PKM Pk => AppState.Pk;
     protected static Page Page => Application.Current.Windows[0].Page;
-    public void Reload() { Loading = true; try { Load(Pk); } catch (Exception ex) { Note.Show($"{GetType().Name} 표시 오류: {ex.Message}"); } finally { Loading = false; } }
+    /// <summary>보이지 않는 탭은 바로 채우지 않고 '다시 채워야 함'만 표시 → 탭을 열 때 채움 (포켓몬을 누를 때마다 7개 탭 전부 합법성 검사까지 돌리던 것을 줄임).</summary>
+    public bool Stale { get; private set; } = true;
+    public bool Visible { get; set; }
+    public void Reload()
+    {
+        if (!Visible) { Stale = true; return; }
+        Stale = false; Loading = true;
+        try { Load(Pk); } catch (Exception ex) { Note.Show($"{GetType().Name} 표시 오류: {ex.Message}"); } finally { Loading = false; }
+    }
+    /// <summary>탭이 보이게 될 때: 밀린 갱신이 있으면 채움.</summary>
+    public void Shown() { Visible = true; if (Stale) Reload(); }
     protected abstract void Load(PKM pk);
     protected void Changed(Action a)
     {
@@ -442,7 +452,7 @@ public class StatsSection : Section
             Reload();
         });
         sizeCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("크기 (0~255)", 13, sub: true), sizeRow, sizeInfo, rnd2,
-            Wrap(T.L("크기는 조우마다 정해진 방식이 있어 임의로 바꾸면 불법이 될 수 있습니다 (예: Z-A 우두머리 배율 255 고정, 시드와 연결된 값).", 11, sub: true)) } });
+            Wrap(T.L("크기는 조우마다 정해져 있어 바꾸면 불법이 될 수 있음 (Z-A 우두머리 255 고정 등)", 11, sub: true)) } });
         // 다이맥스 레벨·거다이맥스 (소드실드), 테라스탈 타입 (SV)
         dmaxE = Num(v => Changed(() => { if (Pk is IDynamaxLevel d) d.DynamaxLevel = (byte)Math.Min(v, 10); }), 10); dmaxE.HorizontalTextAlignment = TextAlignment.Center;
         var dTiny = new Button { Text = "최대", FontSize = 9, Padding = 0, WidthRequest = 34, HeightRequest = 22, CornerRadius = 6, BorderWidth = 1, BorderColor = T.Accent, TextColor = T.Accent, VerticalOptions = LayoutOptions.Center };
@@ -622,7 +632,7 @@ public class MovesSection : Section
         foreach (var b in pBtns.Children.OfType<View>()) b.Margin = new Thickness(0, 0, 6, 6);
         plusCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("기술플러스 (레전즈 Z-A) · 강조 = 합법으로 켤 수 있는 기술", 13, sub: true), pBtns, PlusFold(), plusList } });
         var ppMaxB = T.Pill("PP 최대"); ppMaxB.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 4; i++) if (GetMove(i) != 0) SetPPUp(i, 3); Pk.HealPP(); Reload(); });
-        Content = Stack(T.Card(moves), new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { sugg, suggR, ppMaxB } } }, plusCard, relearnCard, trCard);
+        Content = Stack(T.Card(moves), T.Btns(3, sugg, suggR, ppMaxB), plusCard, relearnCard, trCard);
     }
     private ushort GetMove(int i) => i switch { 0 => Pk.Move1, 1 => Pk.Move2, 2 => Pk.Move3, _ => Pk.Move4 };
     private void SetMove(int i, ushort v) { switch (i) { case 0: Pk.Move1 = v; break; case 1: Pk.Move2 = v; break; case 2: Pk.Move3 = v; break; default: Pk.Move4 = v; break; } }
@@ -825,7 +835,7 @@ public class OTSection : Section
         var trackClr = T.Pill("홈 트래커 비우기"); trackClr.Clicked += (_, _) => Changed(() => { if (Pk is IHomeTrack h) h.Tracker = 0; Reload(); });
         trackRow = new VerticalStackLayout { Spacing = 8, Children = { T.Field("홈 트래커 (16진수)", trackE), trackClr } };
         ecRow = T.Card(Stack(Two(T.Field("암호화 상수 (16진수)", ec), T.Field("PID (16진수)", pid)), reroll, trackRow));
-        noHt = T.L("현재 트레이너(HT)는 6세대(X·Y) 이후 형식에만 기록됩니다. 1~5세대 형식의 포켓몬은 교환해도 HT가 저장되지 않으니, 확인·수정할 항목이 없습니다.", 12, sub: true);
+        noHt = T.L("현재 트레이너(HT)는 6세대 이후 형식에만 기록됩니다", 12, sub: true);
         noHt.LineBreakMode = LineBreakMode.WordWrap;
         Content = Stack(T.Card(Stack(Two(T.Field("어버이 이름", ot), T.Field("성별", otG)), Two(T.Field("TID", tid), T.Field("SID", sid)), Two(mine, trash))), htCard, noHtCard = T.Card(noHt), ecRow);
         mine.FontSize = trash.FontSize = 12; mine.Padding = trash.Padding = new Thickness(4, 0);
@@ -835,7 +845,7 @@ public class OTSection : Section
     private void SetIds()
     {
         if (!int.TryParse(tid.Text, out var t) || !int.TryParse(sid.Text, out var s)) return;
-        if (G7) Pk.ID32 = (uint)(Math.Min(s, 4294) * 1_000_000L + Math.Min(t, 999999));
+        if (G7) Pk.ID32 = (uint)Math.Min(Math.Max(s, 0) * 1_000_000L + Math.Clamp(t, 0, 999999), uint.MaxValue);
         else { Pk.TID16 = (ushort)Math.Min(t, 65535); Pk.SID16 = (ushort)Math.Min(s, 65535); }
     }
 

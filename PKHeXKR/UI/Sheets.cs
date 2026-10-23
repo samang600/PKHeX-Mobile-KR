@@ -81,7 +81,7 @@ public class PickerSheet : Sheet
             t.SetBinding(Label.FontAttributesProperty, new Binding("Current", converter: new FuncConverter<bool, FontAttributes>(b => b ? FontAttributes.Bold : FontAttributes.None)));
             g.Add(img, 0); g.Add(t, 1);
             var tap = new TapGestureRecognizer(); tap.SetBinding(TapGestureRecognizer.CommandParameterProperty, ".");
-            tap.Tapped += (_, e) => { if (e.Parameter is Row r) { Close(); picked(r.Item); } };
+            tap.Tapped += (_, e) => { if (e.Parameter is Row r) { picked(r.Item); Close(); } };
             g.GestureRecognizers.Add(tap);
             return g;
         });

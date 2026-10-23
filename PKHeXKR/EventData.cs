@@ -189,13 +189,15 @@ public static class EventData
             {
                 var src = await http.GetStringAsync(WinUrl);
                 var w = ParseWindows(src);
-                if (w.Count > 50) { File.WriteAllText(WinPath, src); Windows = w; if (Inject() > 0) changed = true; }
+                if (w.Count > 50) { File.WriteAllText(WinPath, src); Windows = w; }
             }
             catch { }
             Preferences.Set("mgdb_last", DateTime.Now);
-            if (changed)
+            // PKHeX 내부 표(배포 DB·배포 기간)는 메인 스레드가 합법성 검사로 읽는 중일 수 있음 → 바꾸는 것도 메인 스레드에서
+            bool injected = false;
+            await MainThread.InvokeOnMainThreadAsync(() => { try { injected = Inject() > 0; if (changed || injected) Refresh(); } catch { } });
+            if (changed || injected)
             {
-                Refresh();
                 AppState.ClearLegalCache();
                 MainThread.BeginInvokeOnMainThread(() => { AppState.RefreshSummary(); AppState.NotifyBox(); });
             }

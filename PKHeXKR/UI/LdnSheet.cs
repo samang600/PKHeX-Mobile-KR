@@ -24,7 +24,11 @@ public class LdnSheet : Sheet
     private bool restoreCurrent;
     private readonly IDispatcherTimer boardTimer;
 
-    private static bool Ble { get => Preferences.Get("ldn_ble", false); set => Preferences.Set("ldn_ble", value); }
+    private static bool Ble
+    {
+        get => OperatingSystem.IsIOS() || Preferences.Get("ldn_ble", false);
+        set { if (!OperatingSystem.IsIOS()) Preferences.Set("ldn_ble", value); }
+    }
     private bool IsHost => manual.IsToggled ? Preferences.Get("ldn_host", false) : game == "frlg";
 
     public LdnSheet() : base("PokeLDN 교환 (ESP32 보드)", 0.9)
@@ -38,10 +42,13 @@ public class LdnSheet : Sheet
         // 준비: 보드 연결 방식·prod.keys·펌웨어
         usbB.Clicked += (_, _) => { Ble = false; Styles(); UpdateBoard(); };
         bleB.Clicked += (_, _) => { Ble = true; Styles(); UpdateBoard(); };
+        usbB.IsVisible = !OperatingSystem.IsIOS();
         var linkRow = T.Cols(2, 6); linkRow.Add(usbB, 0); linkRow.Add(bleB, 1);
         var check = T.Pill("보드 확인 · USB 허용", size: 12); check.Clicked += (_, _) => { LdnTrade.Bridge.RequestUsb(); UpdateBoard(); };
+        check.IsVisible = !OperatingSystem.IsIOS();
         var keysB = T.Pill("prod.keys 가져오기", size: 12); keysB.Clicked += async (_, _) => await PickKeys();
         var fwB = T.Pill($"보드 펌웨어 설치 (v{LdnTrade.FwVersion})", size: 12); fwB.Clicked += async (_, _) => await Flash();
+        fwB.IsVisible = !OperatingSystem.IsIOS();
         var prepRow = T.Cols(2, 6); prepRow.Add(check, 0); prepRow.Add(keysB, 1);
         lowPower.IsToggled = Preferences.Get("ldn_low_power", false); lowPower.Toggled += (_, e) => Preferences.Set("ldn_low_power", e.Value);
         var prep = new VerticalStackLayout { Spacing = 8, Children = { linkRow, board, keys, prepRow, fwB, Row("보드 송신 출력 낮추기 (8.5 dBm) — C3 Super Mini 등에서 호스트를 게임이 못 찾을 때", lowPower) } };
@@ -66,11 +73,11 @@ public class LdnSheet : Sheet
         var clear = T.Pill("비우기", size: 12); clear.Clicked += (_, _) => { LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); Refresh(); };
         var all = T.Pill("전체 보기", size: 12); all.Clicked += (_, _) => SheetHost.Show(new LdnOffersSheet(true));
         var offerBtns = T.Cols(3, 6); offerBtns.Add(addCur, 0); offerBtns.Add(all, 1); offerBtns.Add(clear, 2);
-        tradeCard.Children.Add(T.L("보낼 포켓몬 (최대 6마리, 순서대로 교환) · 박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기'로도 넣을 수 있어요", 12, sub: true));
+        tradeCard.Children.Add(T.L("보낼 포켓몬 (제한 없음, 순서대로 교환) · 박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기'", 12, sub: true));
         tradeCard.Children.Add(offersBox); tradeCard.Children.Add(offerBtns);
         autoOt.IsToggled = Preferences.Get("ldn_auto_ot", false); autoOt.Toggled += (_, e) => Preferences.Set("ldn_auto_ot", e.Value);
         autoOtRow = new VerticalStackLayout { Spacing = 2, Children = { Row("자동 어버이작 (SV): 콘솔 트레이너의 이름·ID로 바꿔 보내기", autoOt),
-            T.L("앱이 방을 열 때(호스트)만. 콘솔이 먼저 포켓몬을 내밀면 그 세이브의 트레이너로 어버이·ID·성별·언어를 바꿔 보내요. 이로치 모양은 유지하고, 바꾸면 불법이 되는 개체(배포·게임 내 교환 등)는 그대로 보내요.", 11, sub: true).Also(x => x.LineBreakMode = LineBreakMode.WordWrap) } };
+            T.L("호스트일 때만 · 콘솔 트레이너로 어버이·ID·성별·언어를 바꿔 보냄 (이로치 모양 유지, 바꾸면 불법인 개체는 그대로)", 11, sub: true).Also(x => x.LineBreakMode = LineBreakMode.WordWrap) } };
         tradeCard.Children.Add(autoOtRow);
         var dexB = T.Pill("📚 리빙덱스로 채우기", size: 12); dexB.Clicked += async (_, _) => await LivingDex();
         dexStatus.LineBreakMode = LineBreakMode.WordWrap;
@@ -91,7 +98,7 @@ public class LdnSheet : Sheet
         restoreCard.Children.Add(T.L("모두 쓰고 다시 읽어 확인한 뒤에만 게임이 불러와 저장해요. 먼저 지금 콘솔 세이브를 백업해 두세요.", 12, sub: true));
 
         start.Clicked += async (_, _) => await Start();
-        stop.Clicked += (_, _) => { LdnTrade.Stop(); stop.IsEnabled = false; };
+        stop.Clicked += async (_, _) => { stop.IsEnabled = false; await LdnTrade.StopAsync(); };
         logB.Clicked += (_, _) => { log.IsVisible = !log.IsVisible; logB.Text = log.IsVisible ? "전체 로그 접기" : "전체 로그 보기"; Render(); };
         var runRow = T.Cols(2, 6); runRow.Add(start, 0); runRow.Add(stop, 1);
 
@@ -104,7 +111,7 @@ public class LdnSheet : Sheet
                 {
                     T.L("준비", 13, sub: true), T.Card(prep), gm, versionRow, roleCard, tradeCard, giftCard, restoreCard, guide, runRow,
                     T.L("진행 상황", 13, sub: true), T.Card(new VerticalStackLayout { Spacing = 6, Children = { summary, logB, log } }),
-                    T.L("PokeLDN(github.com/Decryptu/pokeldn, AGPLv3)의 파이썬 코드로 통신합니다. 휴대폰 OTG에 ESP32-C3·C6·S3 보드 또는 CP2102·CH340·CH9102 칩 클래식 ESP32(무선 펌웨어)를 꽂거나, 블루투스 무선 펌웨어 보드(ESP32-C6·클래식 ESP32)에 전원만 연결하세요.", 11, sub: true),
+                    T.L(OperatingSystem.IsIOS() ? "PokeLDN(AGPLv3)으로 통신 · BLE 펌웨어 보드에 전원만 · 보드 연결은 화면을 켠 채로, 연결된 뒤에는 화면을 꺼도 교환이 이어짐" : "PokeLDN(AGPLv3)으로 통신 · USB: ESP32-C3·C6·S3, 클래식 ESP32(CP2102·CH340·CH9102) · 블루투스: BLE 펌웨어 보드에 전원만", 11, sub: true),
                 }
             }
         });
@@ -140,8 +147,28 @@ public class LdnSheet : Sheet
     {
         if (Ble)
         {
+            if (OperatingSystem.IsIOS())
+            {
+                (board.Text, board.TextColor) = LdnTrade.Bridge.RadioState() switch
+                {
+                    "ready" => ("● Bluetooth 연결됨 (POKELDN-RADIO)", T.Good),
+                    "connecting" => ("● ESP32 보드에 연결 중…", T.Warn),
+                    "scanning" => ("● POKELDN-RADIO 검색 중… BLE 펌웨어가 설치된 ESP32 보드에 전원을 연결하세요.", T.Warn),
+                    "off" => ("● 교환 시작을 누르면 Bluetooth 보드를 검색합니다.", T.Warn),
+                    "permission" => ("● Bluetooth 접근이 차단됐어요. 설정 → PKHeX 모바일에서 Bluetooth 권한을 허용하세요.", T.Bad),
+                    "bluetooth_off" => ("● iPhone Bluetooth가 꺼져 있어요. 설정에서 Bluetooth를 켜세요.", T.Bad),
+                    "unsupported" => ("● 이 기기에서 Bluetooth LE를 사용할 수 없어요.", T.Bad),
+                    _ => ("● Bluetooth를 사용할 수 없어요. iPhone 설정에서 Bluetooth를 켜고 권한을 확인하세요.", T.Bad),
+                };
+                T.Text(board); return;
+            }
             board.Text = "● 블루투스: 보드에 '블루투스 무선' 펌웨어가 있어야 하고, 보드는 USB로 전원만 받으면 돼요 (보조배터리·충전기). 시작하면 근처의 POKELDN-RADIO를 찾아요.";
             board.TextColor = null; T.Text(board); return;
+        }
+        if (OperatingSystem.IsIOS())
+        {
+            board.Text = "● 아이폰은 일반 ESP32 USB-시리얼 데이터 연결을 지원하지 않아요. PokeLDN BLE 펌웨어를 설치하고 블루투스 방식을 선택하세요. USB는 보드 전원 공급에만 사용할 수 있어요.";
+            board.TextColor = T.Warn; T.Text(board); return;
         }
         string st; try { st = LdnTrade.Bridge.UsbState(); } catch { st = "none"; }
         (board.Text, board.TextColor) = st switch
@@ -225,7 +252,6 @@ public class LdnSheet : Sheet
         if (pk == null || pk.Species == 0) { Note.Show("편집 중인 포켓몬이 없습니다"); return; }
         if (LdnExport.GameOf(pk) == null) { Note.Show("이 게임은 PokeLDN 교환을 지원하지 않습니다"); return; }
         if (LdnTrade.QueueGame != null) { Note.Show("리빙덱스 대기열이 있어요 · 먼저 '비우기'를 누르세요"); return; }
-        if (LdnTrade.Offers.Count >= 6) { Note.Show("최대 6마리까지 넣을 수 있습니다"); return; }
         LdnTrade.Offers.Add(pk.Clone());
         if (LdnExport.GameOf(pk)?.Game is { } g && g != game) { game = g; mode = "trade"; }
         Refresh();
@@ -335,6 +361,11 @@ public class LdnSheet : Sheet
 
     private async Task Flash()
     {
+        if (OperatingSystem.IsIOS())
+        {
+            Note.Show("아이폰에서는 USB로 보드 펌웨어를 설치할 수 없어요. 컴퓨터의 PokeLDN에서 Bluetooth 무선 펌웨어를 먼저 설치해 주세요.");
+            return;
+        }
         if (LdnTrade.Running) { Note.Show("진행 중에는 설치할 수 없어요"); return; }
         var page = Application.Current.Windows[0].Page;
         const string normal = "무선 펌웨어 (USB 케이블로 쓸 때)", ble = "블루투스 무선 펌웨어 (ESP32-C6·클래식 ESP32)";
@@ -351,6 +382,11 @@ public class LdnSheet : Sheet
     {
         var page = Application.Current.Windows[0].Page;
         if (LdnTrade.Running) return;
+        if (OperatingSystem.IsIOS() && !Ble)
+        {
+            Note.Show("아이폰은 일반 ESP32 USB-시리얼 데이터 연결을 지원하지 않아요. 블루투스 방식을 선택하세요.");
+            return;
+        }
         if (!LdnTrade.HasKeys) { await page.DisplayAlertAsync("PokeLDN 교환", "먼저 올바른 prod.keys를 가져오세요.", "확인"); return; }
         var sav = AppState.Sav;
         var offers = LdnTrade.Offers.Where(p => LdnExport.GameOf(p)?.Game == game).ToList();
@@ -359,8 +395,13 @@ public class LdnSheet : Sheet
         if (mode == "save_restore" && !restoreCurrent && restoreFile == null) { Note.Show("콘솔에 쓸 세이브를 고르세요"); return; }
         if (Ble)
         {
-            var perm = await Permissions.RequestAsync<Permissions.Bluetooth>();
-            if (perm != PermissionStatus.Granted) { Note.Show("블루투스로 보드를 찾으려면 '근처 기기' 권한이 필요해요"); return; }
+            // iOS requests Bluetooth access when the native CoreBluetooth manager starts scanning.
+            // MAUI's Permissions.Bluetooth permission is Android-only.
+            if (OperatingSystem.IsAndroid())
+            {
+                var perm = await Permissions.RequestAsync<Permissions.Bluetooth>();
+                if (perm != PermissionStatus.Granted) { Note.Show("블루투스로 보드를 찾으려면 '근처 기기' 권한이 필요해요"); return; }
+            }
         }
         else
         {
@@ -439,7 +480,13 @@ public class LdnSheet : Sheet
             }
             w.WriteEndObject();
         }
-        if (!LdnTrade.Begin(System.Text.Encoding.UTF8.GetString(ms.ToArray()), mode, game, Ble)) Note.Show("이미 진행 중입니다");
+        if (!LdnTrade.Begin(System.Text.Encoding.UTF8.GetString(ms.ToArray()), mode, game, Ble))
+        {
+            Note.Show(LdnTrade.Running || LdnTrade.Bridge.Busy
+                ? "이미 진행 중입니다"
+                : $"PokeLDN 통신 모듈을 시작하지 못했어요.\n{LdnTrade.Bridge.Error}");
+            return;
+        }
         Refresh();
     }
 

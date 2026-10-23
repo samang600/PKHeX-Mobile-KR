@@ -21,6 +21,7 @@
 - 라이브헥스(스위치 sys-botbase), HOME Live, 자동 어버이작
 - 스위치 세이브 무선 FTP·HTTP (DBI 등)
 - PokeLDN 교환 내장 (ESP32 보드, 안드로이드 8 이상): 리빙덱스 교환(커펌 없이 콘솔 세이브 채우기), SV 자동 어버이작
+  - iOS: 블루투스(BLE) 보드로 교환 (USB 연결·앱에서 펌웨어 설치는 없음 → PokeLDN 저장소의 BLE 펌웨어 .bin을 PC 등에서 설치)
 - 레이드 편집 (SV 테라 레이드·소드실드 맥스 레이드 굴): 보상·이벤트 레이드 미리보기, 조건으로 시드 찾기
 - 배포 데이터 자동 업데이트 (PKHeX 최신 배포 DB에서 새 카드만 받아 합법성 검사에 반영)
 - 박스 검색·정렬·여러 칸 선택·즐겨찾기·리빙덱스 채우기
@@ -32,8 +33,11 @@
   내장하지 않은 일반판: 끝에 `-p:WithLdn=false` (판을 바꿀 때는 `obj/Release`·`bin/Release`를 지우고 빌드)
   (구버전과 함께 설치하는 별도 설치판: 끝에 `-p:SideBySide=true`)
 - iOS: macOS + Xcode 필요. 저장소의 **Actions → iOS 빌드**로 서명 없는 IPA를 만들 수 있습니다.
+  기본은 PokeLDN 교환 포함: 빌드 중 `PKHeXKR/Platforms/iOS/PokeLDN/build_ios_runtime.py`가 파이썬 런타임을 만듦
+  (PokeLDN 코드는 안드로이드와 같은 `pokeldn-trade-kr.aar`에서 꺼냄). 실패하면 LDN 없이 빌드(`_noLDN`), 직접 실행 시 'PokeLDN 교환 포함'을 끄면 LDN 없이.
+  런타임 결과물(`Platforms/iOS/PokeLDN/Generated`·`Support`)은 빌드할 때 생기는 파일이라 저장소·소스 묶음에 넣지 않습니다.
 
-폴더 구성: `PKHeXKR`(앱), `PKHeX-Core-Dev`(PKHeX.Core 개발 버전 소스, kwsch/PKHeX master 2026-10-19 — 정식 릴리스 이후 수정 반영), `Shared/PKHeXKR.Gen`(텍스트 생성·리빙덱스 엔진, 앱과 PC 플러그인 공용), `PCPlugin`(PC용 PKHeX 플러그인), `PKHeX-Plugins`(ALM·라이브헥스 라이브러리), `HOMELive`(HOME Live 라이브러리)
+폴더 구성: `PKHeXKR`(앱), `PKHeX-Core-Dev`(PKHeX.Core 개발 버전 소스, kwsch/PKHeX master 2026-10-22 — 정식 릴리스 이후 수정 반영), `Shared/PKHeXKR.Gen`(텍스트 생성·리빙덱스 엔진, 앱과 PC 플러그인 공용), `PCPlugin`(PC용 PKHeX 플러그인), `PKHeX-Plugins`(ALM·라이브헥스 라이브러리), `HOMELive`(HOME Live 라이브러리)
 
 ## PC용 PKHeX 플러그인
 텍스트로 빠른 생성·리빙덱스 채우기를 PC용 PKHeX에서 쓰는 플러그인. 설치·빌드는 [PCPlugin/README.md](PCPlugin/README.md) 참고.

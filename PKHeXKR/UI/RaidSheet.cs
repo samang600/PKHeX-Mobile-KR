@@ -316,14 +316,24 @@ public class RaidSheet : Sheet
         foreach (var f in picked)
         {
             if (f == null) continue;
-            using var st = await f.OpenReadAsync(); using var ms = new MemoryStream(); await st.CopyToAsync(ms);
+            using var st = await f.OpenReadAsync(); using var ms = new MemoryStream();
+            if (st.CanSeek && st.Length > 32 << 20) { Note.Show($"{f.FileName}: 파일이 너무 큽니다"); continue; }
+            await st.CopyToAsync(ms);
             var data = ms.ToArray();
             if (f.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
                     using var z = new ZipArchive(new MemoryStream(data));
-                    foreach (var e in z.Entries) { if (e.Length == 0 || e.Length > 1 << 20) continue; using var es = e.Open(); using var em = new MemoryStream(); es.CopyTo(em); files[e.Name] = em.ToArray(); }
+                    foreach (var e in z.Entries)
+                    {
+                        if (e.Length == 0 || e.Length > 1 << 20) continue;
+                        using var es = e.Open(); using var em = new MemoryStream();
+                        var buf = new byte[65536]; int r;   // 선언된 크기는 믿지 않고 실제로 풀리는 양을 1MB로 제한
+                        while ((r = es.Read(buf, 0, buf.Length)) > 0) { em.Write(buf, 0, r); if (em.Length > 1 << 20) break; }
+                        if (em.Length > 1 << 20) continue;
+                        files[e.Name] = em.ToArray();
+                    }
                 }
                 catch { Note.Show("압축 파일을 읽지 못했습니다"); return; }
             }

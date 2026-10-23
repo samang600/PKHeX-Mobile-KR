@@ -42,7 +42,7 @@ public class FtpSheet : Sheet
         var connect = T.Pill("연결", primary: true); connect.Clicked += async (_, _) => await Connect();
         var up = T.Pill("상위 폴더"); up.Clicked += async (_, _) => await Safe(async () => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/'))]; } await Refresh(); });
         var dbi = T.Pill("백업 폴더"); dbi.Clicked += async (_, _) => await Safe(async () => { cwd = DbiBackup; await Refresh(); });
-        var here = T.Pill("이곳을 백업 폴더로"); here.Clicked += (_, _) => { Preferences.Set("ftp_backup", cwd); pathE.Text = cwd; Note.Show("백업 폴더로 지정했습니다"); };
+        var here = T.Pill("여기를 백업 폴더로"); here.Clicked += (_, _) => { Preferences.Set("ftp_backup", cwd); pathE.Text = cwd; Note.Show("백업 폴더로 지정했습니다"); };
         var off = T.Pill("연결 해제"); off.Clicked += (_, _) => { Drop(); list.Children.Clear(); status.Text = "연결을 해제했습니다"; pathL.Text = ""; };
         pathE.Text = DbiBackup;
         pathE.Completed += (_, _) => { var v = (pathE.Text ?? "").Trim(); if (v.Length == 0) v = "/switch/DBI/saves"; if (!v.StartsWith('/')) v = "/" + v.Replace("sdmc:/", ""); Preferences.Set("ftp_backup", v.TrimEnd('/')); pathE.Text = DbiBackup; };
@@ -51,7 +51,7 @@ public class FtpSheet : Sheet
         var ckpt = T.Pill("Checkpoint"); ckpt.Clicked += async (_, _) => await Safe(async () => { cwd = "/switch/Checkpoint/saves"; await Refresh(); });
         var mk = T.Pill("새 폴더"); mk.Clicked += async (_, _) => await Safe(NewFolder);
         pasteBtn = T.Pill("붙여넣기", primary: true); pasteBtn.Clicked += async (_, _) => await Safe(async () => { await Paste(); }); UpdatePaste();
-        var hint = T.L("스위치 DBI에서 'Run FTP server'를 켜면 화면에 IP와 포트가 나옵니다(기본 5000). 휴대폰과 스위치가 같은 와이파이에 있어야 합니다.\n• 세이브 폴더가 보이면: 파일을 눌러 바로 열고, 편집 후 같은 자리에 덮어쓸 수 있습니다.\n• SD 카드만 보이면: 스위치 DBI → Browse saves → 게임 → Backup 후, 'DBI 백업 폴더'에서 파일을 열어 편집·덮어쓰기 → 스위치 DBI에서 그 백업으로 복원(Restore).", 12, sub: true);
+        var hint = T.L("스위치 DBI → 'Run FTP server' (기본 포트 5000, 같은 와이파이)\n• 세이브 폴더가 보이면: 눌러 열고 편집 후 덮어쓰기\n• SD 카드만 보이면: DBI에서 세이브 Backup → 'DBI 백업 폴더'에서 편집·덮어쓰기 → DBI에서 Restore", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap; status.LineBreakMode = LineBreakMode.WordWrap; pathL.LineBreakMode = LineBreakMode.WordWrap;
         var form = T.Cols(2, 6); form.Add(T.Field("IP 또는 주소", hostE), 0); form.Add(T.Field("포트", portE), 1);
         var form2 = T.Cols(2, 6); form2.Add(T.Field("사용자", userE), 0); form2.Add(T.Field("비밀번호", passE), 1);
@@ -59,7 +59,7 @@ public class FtpSheet : Sheet
         var modeRow = T.Cols(2, 6); modeRow.Add(ftpB, 0); modeRow.Add(httpB, 1);
         ftpB.Clicked += (_, _) => SetMode(false); httpB.Clicked += (_, _) => SetMode(true);
         modeHint.LineBreakMode = LineBreakMode.WordWrap;
-        var tools = new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = new HorizontalStackLayout { Spacing = 8, Children = { up, root, dbi, jksv, ckpt, here, mk, pasteBtn, off } } };
+        var tools = new VerticalStackLayout { Spacing = 6, Children = { T.Btns(4, up, root, mk, pasteBtn), T.Btns(4, dbi, jksv, ckpt, off), here } };
         ftpTools = new VerticalStackLayout { Spacing = 10, Children = { hint, T.Field("백업 폴더 경로 (SD 카드 기준, sdmc:/ = /)", pathE) } };
         var up2 = T.Pill("상위 폴더"); up2.Clicked += async (_, _) => await Safe(async () => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/') + 1)]; } await Refresh(); });
         var off2 = T.Pill("연결 해제"); off2.Clicked += (_, _) => { Drop(); list.Children.Clear(); status.Text = "연결을 해제했습니다"; pathL.Text = ""; };
@@ -105,7 +105,7 @@ public class FtpSheet : Sheet
             client = new AsyncFtpClient(host, user, passE.Text ?? "", port);
             client.Encoding = Encoding.UTF8;
             client.Config.DataConnectionType = FtpDataConnectionType.AutoPassive;
-            client.Config.ConnectTimeout = 8000; client.Config.ReadTimeout = 15000; client.Config.DataConnectionConnectTimeout = 8000;
+            client.Config.ConnectTimeout = 8000; client.Config.ReadTimeout = 15000; client.Config.DataConnectionConnectTimeout = 8000; client.Config.DataConnectionReadTimeout = 15000;
             await client.Connect();
             status.Text = $"{host}:{port}에 연결했습니다"; cwd = "/";
             await Refresh();
@@ -331,8 +331,8 @@ public class FtpSheet : Sheet
     private static bool IsNet(Exception ex) => ex is TimeoutException or HttpRequestException or TaskCanceledException or IOException or System.Net.Sockets.SocketException or ObjectDisposedException or FluentFTP.Exceptions.FtpException || ex.InnerException is { } inner && IsNet(inner);
 
     /// <summary>
-    /// 스위치와 주고받는 작업은 모두 여기로: 한 번에 하나만(겹치면 무시), 30초 넘으면 끊긴 것으로 보고 정리.
-    /// 연결이 끊긴 상태에서 폴더를 눌러도 화면이 멈추거나 앱이 꺼지지 않게 함.
+    /// 스위치와 주고받는 작업은 모두 여기로: 한 번에 하나만(겹치면 무시), 통신이 끊기면 정리.
+    /// 시간 제한은 명령 하나하나에(FluentFTP ReadTimeout 15초) — 작업 전체에 걸면 큰 폴더 복사나 대화 상자에서 고민하는 동안 '끊김'으로 잘못 처리됨.
     /// </summary>
     private async Task Safe(Func<Task> op)
     {
@@ -340,7 +340,7 @@ public class FtpSheet : Sheet
         try
         {
             if (!Connected) { status.Text = "연결되어 있지 않습니다. '연결'을 눌러 주세요"; return; }
-            await op().WaitAsync(TimeSpan.FromSeconds(30));
+            await op();
         }
         catch (Exception ex) when (IsNet(ex)) { Lost(ex is TimeoutException ? "스위치가 응답하지 않습니다 (연결이 끊긴 것 같습니다). 다시 연결해 주세요" : "연결이 끊겼습니다. 다시 연결해 주세요 (" + ex.Message + ")"); }
         catch (Exception ex) { status.Text = "오류: " + ex.Message; }

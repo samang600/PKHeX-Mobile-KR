@@ -10,6 +10,8 @@ public sealed class BgTask : IDisposable
     private static int nextId = 2000;
     private static bool asked;
     public static bool Enabled { get => Preferences.Get("bg_notify", true); set => Preferences.Set("bg_notify", value); }
+    /// <summary>완료 알림 진동 (끄면 진동 없는 알림 채널로).</summary>
+    public static bool Vibrate { get => Preferences.Get("bg_vibrate", true); set => Preferences.Set("bg_vibrate", value); }
 
     public readonly string Title;
     public readonly int Id;

@@ -23,6 +23,7 @@ public class BoxPanel : ContentView
         var prev = T.Pill("‹", size: 16); prev.WidthRequest = 40; prev.Padding = 0;
         var next = T.Pill("›", size: 16); next.WidthRequest = 40; next.Padding = 0;
         prev.Clicked += (_, _) => Step(-1); next.Clicked += (_, _) => Step(1);
+        HoverStep(prev, -1); HoverStep(next, 1);
         modeBtn.Clicked += (_, _) => { AppState.PartyMode = !AppState.PartyMode; AppState.NotifyBox(); };
 
         var jump = T.Pill("⇵", size: 15); jump.WidthRequest = 40; jump.Padding = 0;
@@ -107,7 +108,39 @@ public class BoxPanel : ContentView
             LongPressCommand = new Command(() => { if (g.BindingContext is Slot s) OnLongPress(s); }),
         };
         g.Behaviors.Add(touch);
+        // 끌어서 옮기기: 칸을 끌어 다른 칸에 놓기, ‹ › 위에 잠시 올리면 박스가 넘어감
+        var drag = new DragGestureRecognizer { CanDrag = true };
+        drag.DragStarting += (_, e) =>
+        {
+            if (g.BindingContext is not Slot s || AppState.PartyMode || s.Pk.Species == 0 || AppState.IsBadEgg(s.Pk) || SelectMode) { e.Cancel = true; return; }
+            moving = (AppState.Box, s.Index); e.Data.Text = $"{AppState.Box}:{s.Index}"; Refresh();
+        };
+        drag.DropCompleted += (_, _) => { if (moving != null) { moving = null; Refresh(); } };
+        var drop = new DropGestureRecognizer { AllowDrop = true };
+        drop.Drop += (_, e) =>
+        {
+            e.Handled = true;
+            if (g.BindingContext is not Slot s || AppState.PartyMode || moving is not { } mv) return;
+            moving = null;
+            if (mv.Box == AppState.Box && mv.Index == s.Index) { Refresh(); return; }
+            AppState.MoveSlot(mv.Box, mv.Index, AppState.Box, s.Index);
+            Note.Show(s.Pk.Species != 0 ? "두 포켓몬의 자리를 바꿨습니다" : "옮겼습니다");
+        };
+        g.GestureRecognizers.Add(drag); g.GestureRecognizers.Add(drop);
         return g;
+    }
+    private DateTime lastHoverStep = DateTime.MinValue;
+    /// <summary>‹ › 버튼 위에 끌고 있으면 0.6초마다 박스를 넘김.</summary>
+    private void HoverStep(View v, int d)
+    {
+        var dz = new DropGestureRecognizer { AllowDrop = true };
+        dz.DragOver += (_, e) =>
+        {
+            if (moving == null || (DateTime.Now - lastHoverStep).TotalMilliseconds < 600) return;
+            lastHoverStep = DateTime.Now; Step(d);
+        };
+        dz.Drop += (_, e) => { e.Handled = true; };
+        v.GestureRecognizers.Add(dz);
     }
 
     public record Slot(int Index, PKM Pk, string Sprite, bool Shiny, bool Illegal, string Item, Color Stroke, double Dim = 1, bool Checked = false)
@@ -183,7 +216,8 @@ public class BoxPanel : ContentView
             bool isMoving = moving is { } m && !AppState.PartyMode && m.Box == AppState.Box && m.Index == i;
             bool sel = SelectMode && !AppState.PartyMode && Selected.Contains((AppState.Box, i));
             bool fm = BoxFilter.Active && BoxFilter.Match(p);
-            var stroke = sel ? T.Good : isMoving ? T.Warn : pickMode || moving != null ? T.Accent.WithAlpha(0.4f) : fm ? T.Good : current ? T.Accent : Colors.Transparent;
+            bool hl = BoxFilter.Highlight is { } hh && !AppState.PartyMode && hh.Box == AppState.Box && hh.Index == i;
+            var stroke = sel ? T.Good : isMoving ? T.Warn : pickMode || moving != null ? T.Accent.WithAlpha(0.4f) : hl ? T.Warn : fm ? T.Good : current ? T.Accent : Colors.Transparent;
             double dim = BoxFilter.Active && !fm ? 0.3 : 1;
             if (AppState.IsBadEgg(p)) return new Slot(i, p, "a_egg.png", false, true, null, stroke, dim, sel);   // 불량알: 알 그림 + 불법 표시
             return new Slot(i, p, AppState.Sprite(p), p.Species != 0 && p.IsShiny, p.Species != 0 && !AppState.IsLegal(p), AppState.ItemSprite(p.HeldItem), stroke, dim, sel);
@@ -206,6 +240,10 @@ public class BoxPanel : ContentView
     }
 
     private async void OnSlot(Slot s)
+    {
+        try { await OnSlotCore(s); } catch (Exception ex) { Note.Show("오류: " + ex.Message); }
+    }
+    private async Task OnSlotCore(Slot s)
     {
         if (SelectMode && !AppState.PartyMode)
         {
@@ -276,7 +314,7 @@ public class BoxPanel : ContentView
         var sav = AppState.Sav;
         var picks = Selected.Where(k => sav.GetBoxSlotAtIndex(k.Box, k.Index).Species != 0).OrderBy(k => k.Box).ThenBy(k => k.Index).ToList();
         if (picks.Count == 0) { Note.Show("선택한 칸이 없습니다"); return; }
-        const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제", ldn = "PokeLDN 교환으로 보내기 (최대 6마리)";
+        const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제", ldn = "PokeLDN 교환으로 보내기";
         var a = await Page().DisplayActionSheetAsync($"{picks.Count}칸 선택", "취소", null, move, fav, ldn, export, del, clear);
         byte[] Bin() { int size = sav.SIZE_BOXSLOT; var buf = new byte[picks.Count * size]; for (int i = 0; i < picks.Count; i++) { var p = sav.GetBoxSlotAtIndex(picks[i].Box, picks[i].Index); p.WriteEncryptedDataStored(buf.AsSpan(i * size, Math.Min(size, p.SIZE_STORED))); } return buf; }
         switch (a)
@@ -285,37 +323,41 @@ public class BoxPanel : ContentView
                 var list = Enumerable.Range(0, sav.BoxCount).Select(b => new ComboItem($"{b + 1}. {AppState.BoxName(b)}  (빈 칸 {sav.GetBoxData(b).Count(p => p.Species == 0)})", b)).ToList();
                 SheetHost.Show(new PickerSheet("옮길 박스", list, AppState.Box, c =>
                 {
-                    int moved = 0, b = c.Value;
+                    SaveStore.Snapshot("옮기기");
+                    int moved = 0, b = c.Value; var touched = new List<(int, int)>();
                     foreach (var k in picks)
                     {
                         int slot = -1; for (int i = 0; i < sav.BoxSlotCount; i++) if (sav.GetBoxSlotAtIndex(b, i).Species == 0) { slot = i; break; }
                         if (slot < 0) break;
                         if (k.Box == b) continue;
                         sav.SetBoxSlotAtIndex(sav.GetBoxSlotAtIndex(k.Box, k.Index), b, slot); sav.SetBoxSlotAtIndex(sav.BlankPKM, k.Box, k.Index); moved++;
+                        touched.Add((b, slot)); touched.Add((k.Box, k.Index));
                     }
+                    AppState.AfterBulk(touched);
                     Selected.Clear(); AppState.NotifyBox(); Note.Show(moved < picks.Count ? $"{moved}마리 옮김 (빈 칸이 부족해 나머지는 그대로)" : $"{moved}마리를 옮겼습니다");
                 }));
                 break;
             case del:
-                if (!await Page().DisplayAlertAsync("삭제", $"선택한 {picks.Count}마리를 삭제할까요? (실행 취소 불가)", "삭제", "취소")) return;
+                if (!await Page().DisplayAlertAsync("삭제", $"선택한 {picks.Count}마리를 삭제할까요? (실행 취소 불가 · 자동 백업이 켜져 있으면 작업 전 백업을 남김)", "삭제", "취소")) return;
+                SaveStore.Snapshot("삭제");
                 foreach (var k in picks) sav.SetBoxSlotAtIndex(sav.BlankPKM, k.Box, k.Index);
+                AppState.AfterBulk(picks.Select(k => (k.Box, k.Index)));
                 Selected.Clear(); AppState.NotifyBox(); Note.Show("삭제했습니다"); break;
             case export:
                 await using (var ms = new MemoryStream(Bin())) { var r = await CommunityToolkit.Maui.Storage.FileSaver.Default.SaveAsync($"selected_{picks.Count}.bin", ms, CancellationToken.None); Note.Show(r.IsSuccessful ? "저장했습니다" : "취소했습니다"); }
                 break;
             case ldn:
             {
-                var mons = picks.Take(6).Select(k => sav.GetBoxSlotAtIndex(k.Box, k.Index)).Where(p => LdnExport.GameOf(p) != null).ToList();
+                var mons = picks.Select(k => sav.GetBoxSlotAtIndex(k.Box, k.Index)).Where(p => LdnExport.GameOf(p) != null).ToList();
                 if (mons.Count == 0) { Note.Show("PokeLDN 교환을 지원하지 않는 게임입니다"); return; }
                 if (LdnTrade.Available)   // LDN판: 앱 안의 교환 화면으로 바로
                 {
                     Selected.Clear(); Refresh();
                     await LdnTrade.Open(mons);
-                    if (picks.Count > 6) Note.Show("앞의 6마리만 넣었습니다");
                     break;
                 }
                 var files = new List<ShareFile>();
-                for (int i = 0; i < mons.Count; i++)
+                for (int i = 0; i < Math.Min(6, mons.Count); i++)   // 따로 설치한 PokeLDN 앱 화면은 6마리까지
                 {
                     var path = Path.Combine(FileSystem.CacheDirectory, $"{i + 1}_" + LdnExport.FileName(mons[i]));
                     await File.WriteAllBytesAsync(path, LdnExport.Prepare(mons[i]));
@@ -353,7 +395,15 @@ public class BoxPanel : ContentView
         var where = await Page().DisplayActionSheetAsync("정렬 범위", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
         if (where == null || where == "취소") return;
         var sav = AppState.Sav;
-        if (where.StartsWith("현재")) sav.SortBoxes(AppState.Box, AppState.Box, m); else sav.SortBoxes(0, -1, m);
+        bool one = where.StartsWith("현재");
+        SaveStore.Snapshot("정렬");
+        if (how == legal)   // 합법성은 미리 계산해 두고(캐시) 정렬은 UI 스레드에서
+        {
+            Note.Show("합법성 확인 중…");
+            await Task.Run(() => { for (int b = one ? AppState.Box : 0; b <= (one ? AppState.Box : sav.BoxCount - 1); b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if (p.Species != 0) AppState.IsLegal(p); } });
+        }
+        if (one) sav.SortBoxes(AppState.Box, AppState.Box, m); else sav.SortBoxes(0, -1, m);
+        AppState.AfterBulk(boxes: one ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));
         AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show("정렬했습니다 (빈 칸은 뒤로 모임)");
     }
 
@@ -378,13 +428,14 @@ public class BoxPanel : ContentView
         if (how == null || how == "취소") return;
         bool all = where == "모든 박스", over = how == "전부 덮어쓰기";
         if (over && !await Page().DisplayAlertAsync("채우기", "기존 포켓몬을 덮어씁니다. 되돌릴 수 없습니다.", "채우기", "취소")) return;
-        int n = 0;
+        int n = 0; SaveStore.Snapshot("채우기");
         for (int bx = all ? 0 : AppState.Box; bx <= (all ? sav.BoxCount - 1 : AppState.Box); bx++)
             for (int i = 0; i < sav.BoxSlotCount; i++)
             {
                 if (!over && sav.GetBoxSlotAtIndex(bx, i).Species != 0) continue;
                 sav.SetBoxSlotAtIndex(pk.Clone(), bx, i); n++;
             }
+        AppState.AfterBulk(boxes: all ? Enumerable.Range(0, sav.BoxCount) : [AppState.Box]);
         AppState.Source = null; AppState.NotifyBox(); Note.Show($"{n}칸을 채웠습니다");
     }
 
@@ -399,15 +450,20 @@ public class BoxPanel : ContentView
         {
             int from = what == curBad ? AppState.Box : 0, to = what == curBad ? AppState.Box + 1 : sav.BoxCount;
             var bad = new List<(int, int)>();
-            for (int b = from; b < to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if ((p.Species != 0 && !AppState.IsLegal(p)) || AppState.IsBadEgg(p)) bad.Add((b, i)); }
+            Note.Show("합법성 확인 중…");
+            await Task.Run(() => { for (int b = from; b < to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if ((p.Species != 0 && !AppState.IsLegal(p)) || AppState.IsBadEgg(p)) bad.Add((b, i)); } });   // 수백 마리 검사는 UI 스레드 밖에서
             if (bad.Count == 0) { Note.Show("불법 포켓몬이 없습니다"); return; }
             if (!await Page().DisplayAlertAsync("불법 포켓몬 비우기", $"불법으로 판정된 {bad.Count}마리를 지웁니다. 되돌릴 수 없습니다.", "지우기", "취소")) return;
+            SaveStore.Snapshot("불법비우기");
             foreach (var (b, i) in bad) sav.SetBoxSlotAtIndex(sav.BlankPKM, b, i);
+            AppState.AfterBulk(bad);
             AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show($"불법 포켓몬 {bad.Count}마리를 지웠습니다");
             return;
         }
         if (!await Page().DisplayAlertAsync("비우기", $"{what}의 포켓몬을 모두 지웁니다. 되돌릴 수 없습니다.", "비우기", "취소")) return;
+        SaveStore.Snapshot("비우기");
         if (what == cur) sav.ClearBoxes(AppState.Box, AppState.Box + 1); else sav.ClearBoxes();
+        AppState.AfterBulk(boxes: what == cur ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));
         AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show("비웠습니다");
     }
 

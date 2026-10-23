@@ -91,7 +91,7 @@ public static class LivingDexGen
             var (s, f) = targets[i];
             var pre = Preset(o, s, f);
             PKM pk = null;
-            if (al && pre?.Ball is not > 0) { pk = DexAlpha(sav, s, f, o.Shiny); if (pk != null) alphaMade++; }   // 우두머리 조우(진화 전 포함)로 만들기
+            if (al && pre?.Ball is not > 0) { pk = DexAlpha(sav, s, f, o.Shiny, tok); if (pk != null) alphaMade++; }   // 우두머리 조우(진화 전 포함)로 만들기
             if (pk == null) pk = MakeOne(sav, s, f, o.Shiny, pre, tok, o.Transfer ?? LivingDexOptions.DefaultTransfer(sav));
             if (pk == null && pre != null && !tok.IsCancellationRequested) { pk = MakeOne(sav, s, f, o.Shiny, null, tok, o.Transfer ?? LivingDexOptions.DefaultTransfer(sav)); if (pk != null) presetMissed++; }   // 미리 정한 값으로 안 되면 정하지 않고
             if (pk != null && pk.GetType() != sav.PKMType) pk = EntityConverter.ConvertToType(pk, sav.PKMType, out _);
@@ -171,7 +171,7 @@ public static class LivingDexGen
     }
 
     /// <summary>우두머리 조우(진화 전 포켓몬 포함)로 합법 개체 만들기. 없으면 null.</summary>
-    public static PKM DexAlpha(SaveFile sav, ushort species, byte form, bool shiny)
+    public static PKM DexAlpha(SaveFile sav, ushort species, byte form, bool shiny, CancellationToken tok = default)
     {
         try
         {
@@ -184,11 +184,13 @@ public static class LivingDexGen
                     Seeder sd = null; try { sd = Seeder.For(e, GenHost.TrainerOf(sav)); } catch { }
                     if (sd == null) continue;
                     ulong seed = (ulong)Random.Shared.NextInt64();
-                    for (int n = 0; n < 300_000; n++, seed = seed * 6364136223846793005UL + 1442695040888963407UL)
+                    var tpl = sd.Template.Clone();   // 시드마다 새로 만들지 않고 같은 개체에 덮어씀
+                    for (int n = 0; n < 300_000 && !tok.IsCancellationRequested; n++, seed = seed * 6364136223846793005UL + 1442695040888963407UL)
                     {
-                        var p = sd.Template.Clone();
+                        var p = tpl;
                         try { if (!sd.Gen(p, seed)) continue; } catch { break; }
                         if (!p.IsShiny) continue;
+                        p = p.Clone();
                         try { p = sd.Finish(p) ?? p; } catch { }
                         p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
                         if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
@@ -200,7 +202,7 @@ public static class LivingDexGen
                 foreach (var wantShiny in shiny ? new[] { true, false } : new[] { false })
                 {
                     var crit = EncounterCriteria.Unrestricted with { Shiny = wantShiny ? PKHeX.Core.Shiny.Always : PKHeX.Core.Shiny.Random };
-                    for (int t = 0; t < 3; t++)
+                    for (int t = 0; t < 3 && !tok.IsCancellationRequested; t++)
                     {
                         PKM p; try { p = e.ConvertToPKM(GenHost.TrainerOf(sav), crit); } catch { break; }
                         p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;

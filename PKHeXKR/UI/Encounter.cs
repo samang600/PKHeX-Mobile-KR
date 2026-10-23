@@ -49,7 +49,7 @@ public class EncounterSheet : Sheet
             var ball = new Image { WidthRequest = 22, HeightRequest = 22 }; ball.SetBinding(Image.SourceProperty, "Ball");
             g.Add(imgBox, 0); g.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, t2, t3 }, VerticalOptions = LayoutOptions.Center }, 1); g.Add(ball, 2);
             var tap = new TapGestureRecognizer(); tap.SetBinding(TapGestureRecognizer.CommandParameterProperty, ".");
-            tap.Tapped += async (_, e) => { if (e.Parameter is Row r) await Choose(r); };
+            tap.Tapped += async (_, e) => { if (e.Parameter is not Row r) return; try { await Choose(r); } catch (Exception ex) { generating = false; busy.IsVisible = busy.IsRunning = false; stopBtn.IsVisible = false; status.Text = "오류: " + ex.Message; } };
             g.GestureRecognizers.Add(tap);
             return g;
         });
@@ -145,7 +145,7 @@ public class EncounterSheet : Sheet
         var maxE = T.Input(Keyboard.Numeric); maxE.Text = EncCond.MaxResults.ToString(); maxE.MaxLength = 3;
         maxE.TextChanged += (_, e) => { if (int.TryParse(e.NewTextValue, out var v)) EncCond.MaxResults = Math.Clamp(v, 1, 500); };
         s.Children.Add(T.Field("여러 개일 때 최대 개수 (1~500)", maxE));
-        var seedHint = T.L("'처음부터'는 시드로 개체가 정해지는 조우(Z-A, SV 테라 레이드, 소드실드 야생·맥스 레이드, PLA, BDSP 고정, 3·4세대 PID 연동 조우)에서 시드를 순서대로 계산합니다. 그 외 조우는 자동으로 무작위 탐색을 합니다. '전체'는 시드가 32비트인 조우(테라 레이드, 소드실드 야생, BDSP 고정, 3·4세대)에서 끝까지 훑어 조건을 만족하는 개체가 없는지까지 확정합니다(수십 분 걸릴 수 있음).", 12, sub: true);
+        var seedHint = T.L("• 처음부터: 시드로 정해지는 조우(Z-A·SV 레이드·소드실드 야생·PLA·BDSP 고정·3·4세대)는 시드를 순서대로, 그 밖은 무작위\n• 전체: 32비트 시드 조우를 끝까지 훑어 가능 여부 확정 (수십 분)", 12, sub: true);
         seedHint.LineBreakMode = LineBreakMode.WordWrap; s.Children.Add(seedHint);
         if (AppState.Sav is SAV9ZA)   // ZA 시드 파인더에서 옮겨 온 옵션
         {
@@ -169,7 +169,7 @@ public class EncounterSheet : Sheet
         var unRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         var unLab = T.L("찾을 때까지 계속 탐색 (중지 가능)", 15); unLab.LineBreakMode = LineBreakMode.WordWrap;
         unRow.Add(unLab, 0); unRow.Add(un, 1);
-        var unHint = T.L("끄면 12초까지만 찾습니다. 켜면 조건을 만족하는 개체가 나올 때까지 계속 찾고, 탐색 중에는 '중지'로 멈추거나 가장 가까운 개체를 불러올 수 있습니다. 조우에서 불가능한 조건(이로치 잠금, 고정 성격 등)이면 시작 전에 알려줍니다.", 12, sub: true);
+        var unHint = T.L("끄면 12초까지, 켜면 찾을 때까지 ('중지'·가장 가까운 개체 불러오기 가능). 불가능한 조건은 시작 전에 알려 줌", 12, sub: true);
         unHint.LineBreakMode = LineBreakMode.WordWrap;
         s.Children.Add(unRow); s.Children.Add(unHint);
         var goSearch = T.Pill("검색", primary: true); goSearch.HorizontalOptions = LayoutOptions.Fill;
@@ -344,6 +344,8 @@ public class EncounterSheet : Sheet
         var hits = new List<(ulong Seed, PKM Pk)>(); long checkedN = 0, matched = 0; var gate = new object();
         var stop = new CancellationTokenSource(); var link = CancellationTokenSource.CreateLinkedTokenSource(tok, stop.Token).Token;
         int workers = Math.Max(1, Environment.ProcessorCount - 1); var sw = System.Diagnostics.Stopwatch.StartNew();
+        status.Text = "준비 중…";
+        try { await QuickGen.CondGate.WaitAsync(tok); } catch (OperationCanceledException) { generating = false; busy.IsVisible = busy.IsRunning = false; stopBtn.IsVisible = false; return; }
         var tasks = Enumerable.Range(0, workers).Select(w => Task.Run(() =>
         {
             var p = sd.Template.Clone();
@@ -351,27 +353,32 @@ public class EncounterSheet : Sheet
             {
                 ulong seed = start + i;
                 if (seed > end || seed < start) break;
-                bool ok; try { ok = sd.Gen(p, seed); } catch { ok = false; }
-                Interlocked.Increment(ref checkedN);
-                if (!ok || !EncCond.Satisfied(p)) continue;
-                var c = sd.Finish(p.Clone()); EncCond.ApplyMark(c);
-                if (!AppState.IsLegal(c)) continue;
-                Interlocked.Increment(ref matched);
-                lock (gate)
+                try
                 {
-                    if (hits.Count < 500) hits.Add((seed, c));
-                    if (mode != 2 && hits.Count >= maxHits) stop.Cancel();
+                    bool ok; try { ok = sd.Gen(p, seed); } catch { ok = false; }
+                    Interlocked.Increment(ref checkedN);
+                    if (!ok || !EncCond.Satisfied(p)) continue;
+                    var c = sd.Finish(p.Clone()); EncCond.ApplyMark(c);
+                    if (!AppState.IsLegal(c)) continue;
+                    Interlocked.Increment(ref matched);
+                    lock (gate)
+                    {
+                        if (hits.Count < 500) hits.Add((seed, c));
+                        if (mode != 2 && hits.Count >= maxHits) stop.Cancel();
+                    }
                 }
+                catch { }   // 한 시드에서 난 오류는 건너뜀 (작업 전체가 죽지 않게)
             }
         })).ToArray();
-        while (!Task.WaitAll(tasks, 300))
+        var all = Task.WhenAll(tasks);
+        while (await Task.WhenAny(all, Task.Delay(300)) != all)   // UI 스레드를 막지 않고 진행 표시
         {
             var c = Interlocked.Read(ref checkedN); var el = sw.Elapsed; var rate = el.TotalSeconds > 0 ? c / el.TotalSeconds : 0;
             string pct = "";
             if ((sd.Is32 || EncCond.EndSeed != 0) && rate > 0) { var left = (span - c) / rate; pct = $" · {c / span:P1} · 남은 시간 약 {TimeSpan.FromSeconds(Math.Max(0, left)):hh\\:mm\\:ss}"; }
             status.Text = $"시드 {c:N0}개 확인 · {rate:N0}개/초 · 발견 {Interlocked.Read(ref matched)}{pct}";
-            await Task.Delay(1);
         }
+        QuickGen.CondGate.Release();
         EncCond.LastSeed = start + (ulong)Interlocked.Read(ref checkedN);
         bool exhausted = (sd.Is32 || EncCond.EndSeed != 0) && !tok.IsCancellationRequested && !stop.IsCancellationRequested;
         generating = false; busy.IsVisible = busy.IsRunning = false; stopBtn.IsVisible = false;
@@ -428,7 +435,9 @@ public class EncounterSheet : Sheet
         var crit = EncCond.Criteria();
         int want = EncCond.ResultMode == 0 ? 1 : EncCond.MaxResults;
         status.Text = "조건에 맞는 개체 생성 중…";
-        var made = await Task.Run(() =>
+        try { await QuickGen.CondGate.WaitAsync(tok); } catch (OperationCanceledException) { generating = false; busy.IsVisible = busy.IsRunning = false; stopBtn.IsVisible = false; return; }
+        (List<PKM>, PKM, bool) made;
+        try { made = await Task.Run(() =>
         {
             var sw = System.Diagnostics.Stopwatch.StartNew(); PKM last = null, best = null; int bestScore = -1; long tries = 0, legalN = 0, satIllegal = 0;
             var found = new List<PKM>(); bool noLegal = false; bool? sizeFree = null;
@@ -467,7 +476,8 @@ public class EncounterSheet : Sheet
                 MainThread.BeginInvokeOnMainThread(() => status.Text = $"찾는 중… {t:N0}회 · {el:mm\\:ss} · {(el.TotalSeconds > 0 ? t / el.TotalSeconds : 0):N0}회/초{(want > 1 ? $" · 발견 {fc}/{want}" : "")}{(unlimited ? " (찾을 때까지)" : "")}");
             }
             return (found, best ?? last, noLegal);
-        });
+        }); }
+        finally { QuickGen.CondGate.Release(); }
         generating = false; busy.IsVisible = busy.IsRunning = false; stopBtn.IsVisible = false;
         var (list, fallback, noLegalOnly) = made;
         if (list.Count > 1)

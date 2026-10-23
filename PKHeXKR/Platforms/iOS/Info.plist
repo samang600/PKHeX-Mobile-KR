@@ -31,6 +31,14 @@
 	<!-- 스위치·3DS와 무선 통신(라이브헥스, FTP) -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>스위치·3DS와 같은 와이파이에서 무선으로 통신(라이브헥스, FTP 세이브)하려면 로컬 네트워크 접근이 필요합니다.</string>
+	<!-- PokeLDN: 블루투스 무선 펌웨어가 올라간 ESP32 라디오 보드와 통신 -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>ESP32 라디오 보드에 블루투스로 연결해 포켓몬 교환을 진행합니다.</string>
+	<!-- 교환 중 화면을 꺼도 보드와의 블루투스 통신이 이어지게 (연결은 화면이 켜진 상태에서 먼저) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<!-- 파일 앱에서 앱 폴더 보이기, 다른 앱에서 파일 열기 -->
 	<key>UIFileSharingEnabled</key>
 	<true/>

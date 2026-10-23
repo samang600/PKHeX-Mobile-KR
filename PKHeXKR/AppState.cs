@@ -41,18 +41,24 @@ public static class AppState
         if (from.Count == 0) return;
         var a = from.Pop();
         if (a is PkAct p) { to.Push(new PkAct(Pk.Clone(), Dirty, Source)); Pk = p.Pk; Dirty = p.Dirty; Source = p.Src; lastEdit = default; PkLoaded?.Invoke(); }
-        else if (a is SlotAct sa) { SetSlotRaw(sa.Party, sa.Box, sa.Index, from == undo ? sa.Before : sa.After); to.Push(sa); BoxChanged?.Invoke(); }
+        else if (a is SlotAct sa) { SetSlotRaw(sa.Party, sa.Box, sa.Index, from == undo ? sa.Before : sa.After, insert: sa.Party && from == undo && sa.After.Species == 0); to.Push(sa); BoxChanged?.Invoke(); }
         else if (a is SwapAct sw) { SwapRaw(sw.BoxA, sw.IndexA, sw.BoxB, sw.IndexB); to.Push(sw); BoxChanged?.Invoke(); }
         HistoryChanged?.Invoke();
     }
     private static PKM GetSlot(bool party, int box, int index) => party ? (index < Sav.PartyCount ? Sav.GetPartySlotAtIndex(index) : Sav.BlankPKM) : Sav.GetBoxSlotAtIndex(box, index);
-    private static void SetSlotRaw(bool party, int box, int index, PKM p)
+    private static void SetSlotRaw(bool party, int box, int index, PKM p, bool insert = false)
     {
         if (ForSave(p) is not { } fit) return;
         p = fit;
         if (!party) { Sav.SetBoxSlotAtIndex(p, box, index); LiveSync(box, index); return; }
-        if (p.Species == 0) { if (index < Sav.PartyCount) Sav.DeletePartySlot(index); }
-        else Sav.SetPartySlotAtIndex(p, Math.Min(index, Sav.PartyCount));
+        if (p.Species == 0) { if (index < Sav.PartyCount) Sav.DeletePartySlot(index); return; }
+        // 파티 '삭제'를 되돌릴 때: DeletePartySlot은 뒤 칸을 앞으로 당기므로, 되돌리기는 덮어쓰기가 아니라 '끼워 넣기'여야 함 (뒤 포켓몬이 지워지지 않게)
+        int n = Sav.PartyCount; index = Math.Min(index, n);
+        if (insert && index < n && n < 6 && Sav.GetPartySlotAtIndex(index).Species != 0)
+        {
+            for (int i = n; i > index; i--) Sav.SetPartySlotAtIndex(Sav.GetPartySlotAtIndex(i - 1), i);
+        }
+        Sav.SetPartySlotAtIndex(p, index);
     }    // 편집기 전체 다시 채우기
     public static event Action PkEdited;    // 요약·합법성 갱신
     public static event Action BoxChanged;  // 박스 다시 그리기
@@ -148,7 +154,7 @@ public static class AppState
         if (s is IRegionOrigin r) { r.ConsoleRegion = 5; r.Country = 136; r.Region = 1; }   // 3DS: 한국 본체
     }
 
-    public static void SetSave(SaveFile s, bool notify = true)
+    public static void SetSave(SaveFile s, bool notify = true, bool keepLive = false)
     {
         Sav = s;
         Src = new FilteredGameDataSource(s, GameInfo.Sources, HaX);
@@ -164,7 +170,8 @@ public static class AppState
         Box = Math.Clamp(s.CurrentBox, 0, Math.Max(0, s.BoxCount - 1));
         PartyMode = false;
         Pk = string.IsNullOrEmpty(s.Metadata.FileName) ? Placeholder(s) : s.BlankPKM; Dirty = false; Source = null; undo.Clear(); redo.Clear(); HistoryChanged?.Invoke();
-        if (Remote != null) { var r = Remote; Remote = null; LiveSav = null; _ = Task.Run(() => { try { r.com.Disconnect(); } catch { } }); }   // 세이브를 바꾸면 연결 해제 (백그라운드)
+        // 세이브를 바꾸면 연결 해제 (백그라운드). 새 인스턴스를 추가할 때는 연결된 인스턴스가 그대로 남으므로 끊지 않음
+        if (Remote != null && !keepLive) { var r = Remote; Remote = null; LiveSav = null; _ = Task.Run(() => { try { r.com.Disconnect(); } catch { } }); }
         if (notify) { SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke(); }
     }
 
@@ -250,7 +257,7 @@ public static class AppState
     private static Instance Snapshot() => new() { Sav = Sav, Src = Src, Pk = Pk, Dirty = Dirty, Box = Box, PartyMode = PartyMode, Source = Source, Undo = undo.Reverse().ToArray(), Redo = redo.Reverse().ToArray() };
     private static void Restore(Instance i)
     {
-        Sav = i.Sav; Src = i.Src; Pk = i.Pk; Dirty = i.Dirty; Box = i.Box; PartyMode = i.PartyMode; Source = i.Source;
+        Sav = i.Sav; Src = new FilteredGameDataSource(i.Sav, GameInfo.Sources, HaX); Pk = i.Pk; Dirty = i.Dirty; Box = i.Box; PartyMode = i.PartyMode; Source = i.Source;   // PKHaX·언어가 바뀌었을 수 있어 목록은 새로
         undo.Clear(); foreach (var a in i.Undo) undo.Push(a); redo.Clear(); foreach (var a in i.Redo) redo.Push(a);
         ApplyParse();   // 세이브 주인 대조·핸들러 검사 끔 등 합법성 옵션을 이 세이브에도 적용 (예전엔 빠져서 불러오면 어버이 관련 불법이 뜸)
         RegisterTrainers(Sav);
@@ -267,7 +274,7 @@ public static class AppState
     {
         SaveActive();
         Instances.Add(null); Active = Instances.Count - 1;
-        SetSave(s);
+        SetSave(s, keepLive: true);
         Instances[Active] = Snapshot();
     }
     public static void CloseInstance(int index)
@@ -378,8 +385,9 @@ public static class AppState
     {
         if (ForSave(p) is not { } fit) { Note.Show($"{ContextName(p.Context)} 포켓몬은 이 세이브에 넣을 수 없습니다"); return; }
         p = fit;
+        if (PartyMode) index = Math.Min(index, Sav.PartyCount);   // 빈 칸을 건너뛰어 넣으면 실제로 들어가는 칸(맨 뒤)을 기록 (되돌리기·'원래 자리' 기준)
         Push(new SlotAct(PartyMode, Box, index, GetSlot(PartyMode, Box, index).Clone(), p.Clone()));
-        if (PartyMode) { if (index >= Sav.PartyCount) Sav.SetPartySlotAtIndex(p, Sav.PartyCount); else Sav.SetPartySlotAtIndex(p, index); }
+        if (PartyMode) Sav.SetPartySlotAtIndex(p, index);
         else
         {
             Sav.SetBoxSlotAtIndex(p, Box, index);
@@ -418,6 +426,49 @@ public static class AppState
             if (za && q.Species != 0) data[344] = 1;
         }
         return data;
+    }
+    /// <summary>
+    /// 여러 칸을 한꺼번에 바꾼 뒤(옮기기·삭제·채우기·비우기·정렬·박스 데이터 넣기): 되돌리기 기록은 더 이상 맞지 않으므로 비우고,
+    /// 라이브헥스가 연결돼 있으면 바뀐 칸을 게임에도 씀 (안 쓰면 박스를 넘길 때 게임 쪽 값으로 다시 읽혀 바뀐 것이 사라짐).
+    /// boxes: 통째로 다시 쓸 박스 (null이면 slots만)
+    /// </summary>
+    public static void AfterBulk(IEnumerable<(int Box, int Index)> slots = null, IEnumerable<int> boxes = null)
+    {
+        undo.Clear(); redo.Clear(); HistoryChanged?.Invoke();
+        if (!LiveConnected) return;
+        var set = new HashSet<(int, int)>(slots ?? []);
+        if (boxes != null) foreach (var b in boxes) { if (LiveSyncBox(b)) continue; for (int i = 0; i < Sav.BoxSlotCount; i++) set.Add((b, i)); }
+        // 한 박스의 칸이 많이 바뀌었으면 박스를 통째로 (명령 1번), 아니면 칸마다
+        foreach (var g in set.GroupBy(x => x.Item1).ToList())
+            if (g.Count() >= 8 && LiveSyncBox(g.Key)) foreach (var x in g) set.Remove(x);
+        foreach (var (b, i) in set) { LiveSync(b, i); if (!LiveConnected) break; }
+    }
+
+    /// <summary>
+    /// 라이브헥스: 박스 하나를 통째로 게임에 씀 (sys-botbase 명령 1번 — 칸마다 쓰면 30번). 메모리 칸 사이에 빈틈이 있거나(gap) 칸 크기가
+    /// 메모리와 다른 게임(Z-A 등)·레츠고는 칸 단위로. 반환: 통째로 썼는지.
+    /// </summary>
+    public static bool LiveSyncBox(int box)
+    {
+        if (!LiveConnected) return false;
+        try
+        {
+            var v = Remote.Version;
+            if (Remote.Injector is PKHeX.Core.Injection.LPLGPE) return false;
+            bool za = v >= PKHeX.Core.Injection.LiveHeXVersion.ZA_v101 && v <= PKHeX.Core.Injection.LiveHeXVersion.ZA_v202;
+            int slot = PKHeX.Core.Injection.RamOffsets.GetSlotSize(v), gap = PKHeX.Core.Injection.RamOffsets.GetGapSize(v);
+            if (za || gap != 0) return false;
+            var data = new byte[slot * Sav.BoxSlotCount];
+            for (int i = 0; i < Sav.BoxSlotCount; i++)
+            {
+                var d = LiveSlotBytes(Sav.GetBoxSlotAtIndex(box, i));
+                if (d.Length != slot) return false;   // 칸 크기가 메모리와 다르면 칸 단위로
+                d.CopyTo(data, i * slot);
+            }
+            lock (LiveLock) Remote.SendBox(data, box);
+            return true;
+        }
+        catch { MarkLiveLost(); return false; }
     }
     public static void LiveSync(int box, int index)
     {
@@ -533,6 +584,8 @@ public static class AppState
     public static bool EffectiveValid(LegalityAnalysis la)
     {
         if (la.Valid) return true;
+        // 기술·떠올리기 기술 판정은 la.Results가 아니라 la.Info.Moves/Relearn에 따로 있음 → 하나라도 불법이면 꺼 둔 검사와 무관하게 불법
+        if (!MovesOk(la)) return false;
         var bad = la.Results.Where(r => r.Judgement == Severity.Invalid).ToList();
         if (!HTFlagCheck) bad = bad.Where(r => r.Result != LegalityCheckResultCode.TransferHandlerFlagRequired).ToList();
         // 어버이(현재 트레이너) 검사를 끈 경우: 현재 트레이너 이름 흔적(쓰레기 바이트) 판정도 무시 (교환으로 받은 알 등)
@@ -543,6 +596,10 @@ public static class AppState
         // 배포 기간 밖: 자동 업데이트로 받은 새 배포 카드는 앱의 PKHeX.Core에 기간 정보가 없음 → 받아 둔 최신 기간표로 판단
         if (bad.All(r => r.Result == LegalityCheckResultCode.DateOutsideDistributionWindow) && la.EncounterMatch is MysteryGift g && EntityOf(la) is { } ent && EventData.DateOkByNewWindow(g, ent)) return true;
         return false;
+    }
+    public static bool MovesOk(LegalityAnalysis la)
+    {
+        try { return MoveResult.AllValid(la.Info.Moves) && MoveResult.AllValid(la.Info.Relearn); } catch { return false; }
     }
     private static PKM EntityOf(LegalityAnalysis la)
     {
@@ -677,16 +734,21 @@ public static class AppState
     /// 증표 중복, 세대에 맞지 않는 리본 등 다른 불법 사유는 그대로 불법.
     /// </summary>
     /// <summary>가능한 리본 전부: 원래 게임 출신이면 홈 트래커가 필요한 리본까지 (Analyze와 같은 기준).</summary>
-    private static readonly object settingLock = new();
+    // PKHeX 합법성 설정(HOME 트래커 검사)은 전역이라, 잠깐 느슨하게 바꾸는 동안 다른 스레드(시드 찾기 등)의 검사가 그 설정을 보면 안 됨
+    // → 보통 검사는 읽기 잠금(동시에 여러 개), 설정을 바꾸는 검사는 쓰기 잠금(혼자)
+    private static readonly ReaderWriterLockSlim settingLock = new(LockRecursionPolicy.SupportsRecursion);
     public static void SetAllRibbons(PKM p)
     {
-        var set = ParseSettings.Settings.HOMETransfer; var old = set.HOMETransferTrackerNotPresent;
+        var set = ParseSettings.Settings.HOMETransfer;
         bool native; try { native = p.Context == p.Version.Context; } catch { native = false; }
-        lock (settingLock)
+        settingLock.EnterWriteLock();
+        try
         {
+            var old = set.HOMETransferTrackerNotPresent;
             try { if (native) set.HOMETransferTrackerNotPresent = Severity.Fishy; RibbonApplicator.SetAllValidRibbons(p); }
             finally { set.HOMETransferTrackerNotPresent = old; }
         }
+        finally { settingLock.ExitWriteLock(); }
     }
 
     /// <summary>
@@ -707,7 +769,10 @@ public static class AppState
     public static LegalityAnalysis Analyze(PKM p, out bool trackerWaived)
     {
         trackerWaived = false;
-        var la = new LegalityAnalysis(p);
+        LegalityAnalysis la;
+        settingLock.EnterReadLock();
+        try { la = new LegalityAnalysis(p); }
+        finally { settingLock.ExitReadLock(); }
         if (la.Valid || p.Species == 0) return la;
         var set = ParseSettings.Settings.HOMETransfer;
         if (set.HOMETransferTrackerNotPresent != Severity.Invalid) return la;
@@ -716,7 +781,8 @@ public static class AppState
         if (!native) return la;   // 실제로 전송된 개체는 추적 ID 필요 (소드실드 제외 규칙 유지)
         var rib = RibbonInfo.GetRibbonInfo(p).Any(r => r.HasRibbon || r.RibbonCount > 0);
         if (!rib) return la;
-        lock (settingLock)
+        settingLock.EnterWriteLock();
+        try
         {
             try
             {
@@ -726,6 +792,7 @@ public static class AppState
             }
             finally { set.HOMETransferTrackerNotPresent = Severity.Invalid; }
         }
+        finally { settingLock.ExitWriteLock(); }
         return la;
     }
     public static string LangName(int lang) => (LanguageID)lang switch

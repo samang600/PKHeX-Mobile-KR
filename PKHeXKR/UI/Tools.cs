@@ -7,7 +7,9 @@ namespace PKHeXKR;
 public static class BoxFilter
 {
     public static ushort Species; public static bool Shiny, Alpha, Illegal;
-    public static bool Active => Species != 0 || Shiny || Alpha || Illegal;
+    public static string Text = "";                    // 자유 검색어 (전체 박스 검색과 같은 규칙)
+    public static (int Box, int Index)? Highlight;     // 검색 결과에서 고른 칸 (한 번 강조)
+    public static bool Active => Species != 0 || Shiny || Alpha || Illegal || Text.Length > 0;
     public static bool Match(PKM p)
     {
         if (p.Species == 0) return false;
@@ -15,6 +17,7 @@ public static class BoxFilter
         if (Shiny && !p.IsShiny) return false;
         if (Alpha && p is not IAlpha { IsAlpha: true }) return false;
         if (Illegal && AppState.IsLegal(p)) return false;
+        if (Text.Length > 0 && !BoxSearch.Match(p, Text)) return false;
         return true;
     }
     public static string Describe()
@@ -22,8 +25,79 @@ public static class BoxFilter
         var l = new List<string>();
         if (Species != 0) l.Add(GameInfo.Strings.Species[Species]);
         if (Shiny) l.Add("이로치"); if (Alpha) l.Add("우두머리"); if (Illegal) l.Add("불법");
+        if (Text.Length > 0) l.Add($"'{Text}'");
         return string.Join(" · ", l);
     }
+    public static void Clear() { Species = 0; Shiny = Alpha = Illegal = false; Text = ""; Highlight = null; }
+}
+
+/// <summary>
+/// 세이브 박스 전체 검색: 종(초성)·별명·어버이·볼·기술·특성·성격·게임·'이로치'·'우두머리'·'불법'·Lv50·6V·A31(개체값)·H252(노력치)·테라 타입.
+/// 띄어쓰기로 나눈 말이 모두 맞아야 함. 결과를 누르면 그 박스·칸으로 이동.
+/// </summary>
+public static class BoxSearch
+{
+    public static bool Match(PKM p, string q)
+    {
+        if (p.Species == 0) return false;
+        foreach (var w0 in q.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var w = w0.Trim(); if (w.Length == 0) continue;
+            if (!One(p, w)) return false;
+        }
+        return true;
+    }
+    private static readonly string[] IvKeys = ["h", "a", "b", "c", "d", "s"];
+    private static bool One(PKM p, string w)
+    {
+        var s = GameInfo.Strings; var lw = w.ToLowerInvariant();
+        switch (lw)
+        {
+            case "이로치": return p.IsShiny;
+            case "별이로치" or "별": return p.IsShiny && p.ShinyXor != 0;
+            case "네모이로치" or "네모": return p.IsShiny && p.ShinyXor == 0;
+            case "우두머리" or "알파": return p is IAlpha { IsAlpha: true };
+            case "불법": return !AppState.IsLegal(p);
+            case "합법": return AppState.IsLegal(p);
+            case "알": return p.IsEgg;
+            case "닉네임" or "별명": return p.IsNicknamed;
+            case "암컷" or "암" or "♀": return p.Gender == 1;
+            case "수컷" or "수" or "♂": return p.Gender == 0;
+            case "거다이맥스" or "거다이": return p is IGigantamax { CanGigantamax: true };
+            case "6v": return IvAll(p, 31);
+            case "0v" or "6z": return IvAll(p, 0);
+        }
+        var m = System.Text.RegularExpressions.Regex.Match(lw, @"^(?:lv\.?|레벨)(\d{1,3})$");
+        if (m.Success) return p.CurrentLevel == int.Parse(m.Groups[1].Value);
+        m = System.Text.RegularExpressions.Regex.Match(lw, @"^([habcds])(\d{1,3})$");
+        if (m.Success)
+        {
+            int i = Array.IndexOf(IvKeys, m.Groups[1].Value), v = int.Parse(m.Groups[2].Value);
+            return v > 31 ? Ev(p, i) == v : Iv(p, i) == v;
+        }
+        m = System.Text.RegularExpressions.Regex.Match(lw, @"^([0-6])v$");
+        if (m.Success) return new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(x => x == 31) >= int.Parse(m.Groups[1].Value);
+        if (lw.EndsWith("테라") && p is ITeraType tt && QuickParse.TeraOf(lw[..^2]) is int tera) return (int)tt.TeraType == tera;
+        // 이름들 (초성 가능)
+        var hay = new List<string> { s.Species[p.Species], p.Nickname, p.OriginalTrainerName, p.HandlingTrainerName ?? "" };
+        try { hay.Add(AppState.GameName(p.Version)); } catch { }
+        if (p.Ball < s.balllist.Length) hay.Add(s.balllist[p.Ball]);
+        if (p.Format >= 3)
+        {
+            if (p.Ability < s.abilitylist.Length) hay.Add(s.abilitylist[p.Ability]);
+            if ((int)p.Nature < s.natures.Length) hay.Add(s.natures[(int)p.Nature]);
+        }
+        foreach (var mv in new[] { p.Move1, p.Move2, p.Move3, p.Move4 }) if (mv > 0 && mv < s.movelist.Length) hay.Add(s.movelist[mv]);
+        if (p.HeldItem > 0 && p.HeldItem < s.itemlist.Length) hay.Add(s.itemlist[p.HeldItem]);
+        if (hay.Any(h => !string.IsNullOrEmpty(h) && (Korean.Match(h, w) || h.Replace(" ", "").Contains(w, StringComparison.OrdinalIgnoreCase)))) return true;
+        // 줄임말 사전 (빠른 생성과 같은 것: 럽볼·알나인…)
+        if (QuickParse.SpeciesOf(w, UserDict.Load()) is var sp && sp != 0 && p.Species == sp) return true;
+        if (QuickParse.BallOf(w) is var b && b > 0 && p.Ball == b) return true;
+        return false;
+    }
+    private static int Iv(PKM p, int i) => i switch { 0 => p.IV_HP, 1 => p.IV_ATK, 2 => p.IV_DEF, 3 => p.IV_SPA, 4 => p.IV_SPD, _ => p.IV_SPE };
+    private static int Ev(PKM p, int i) => i switch { 0 => p.EV_HP, 1 => p.EV_ATK, 2 => p.EV_DEF, 3 => p.EV_SPA, 4 => p.EV_SPD, _ => p.EV_SPE };
+    private static bool IvAll(PKM p, int v) => p.IV_HP == v && p.IV_ATK == v && p.IV_DEF == v && p.IV_SPA == v && p.IV_SPD == v && p.IV_SPE == v;
 }
 
 /// <summary>최근 연 세이브와 자동 백업 (앱 전용 폴더에 사본 보관).</summary>
@@ -45,6 +119,18 @@ public static class SaveStore
             File.WriteAllBytes(Path.Combine(RecentDir, $"{DateTime.Now:yyyyMMdd_HHmmss}__{n}"), data);
             Trim(RecentDir, 10);
             if (AutoBackup) Backup(data, name, "열기");
+        }
+        catch { }
+    }
+    /// <summary>되돌릴 수 없는 작업(일괄 수정·비우기·정렬·채우기·옮기기·삭제) 직전: 지금 세이브를 백업 목록에 남김 (자동 백업이 켜져 있을 때).</summary>
+    public static void Snapshot(string what)
+    {
+        if (!AutoBackup) return;
+        try
+        {
+            var sav = AppState.Sav; if (sav == null) return;
+            var data = sav.Write(sav.Metadata.GetSuggestedFlags(sav.Metadata.GetSuggestedExtension())).ToArray();
+            Backup(data, string.IsNullOrEmpty(sav.Metadata.FileName) ? $"{AppState.GameName(sav.Version)}.sav" : sav.Metadata.FileName, "작업전_" + what);
         }
         catch { }
     }
@@ -88,6 +174,7 @@ public static class ShareUtil
 {
     public static async Task ShareBytes(byte[] data, string fileName, string title)
     {
+        foreach (var c in Path.GetInvalidFileNameChars()) fileName = fileName.Replace(c, '_');   // 별명에 '/' 등이 있으면 경로가 깨짐
         var path = Path.Combine(FileSystem.CacheDirectory, fileName);
         await File.WriteAllBytesAsync(path, data);
         await Share.Default.RequestAsync(new ShareFileRequest { Title = title, File = new ShareFile(path) });
@@ -95,21 +182,102 @@ public static class ShareUtil
     public static byte[] Stored(PKM p) { var b = new byte[p.SIZE_STORED]; p.WriteDecryptedDataStored(b); return b; }
 }
 
-// ======================= 박스 검색·필터 =======================
+// ======================= 박스 검색 (이 박스 강조 + 모든 박스 결과) =======================
 public class FilterSheet : Sheet
 {
-    public FilterSheet(Action changed) : base("박스 검색 · 필터", 0.7)
+    public record Hit(int Box, int Index, PKM Pk, string Sprite, string Title, string Sub);
+    private readonly CollectionView list = new() { SelectionMode = SelectionMode.None };
+    private readonly Label status = T.L("", 12, sub: true);
+    private readonly Action changed;
+    private int serial;
+
+    public FilterSheet(Action changed) : base("박스 검색", 0.88)
     {
+        this.changed = changed;
+        var txt = T.Input(placeholder: "검색어");
+        var tip = T.L("종(초성 ㅍㅋㅊ)·별명·어버이·볼·기술·특성·성격·게임 · 이로치·우두머리·불법 · Lv50 · 6V · A31 · 불테라 (띄어쓰면 모두 맞는 것)", 11, sub: true); tip.LineBreakMode = LineBreakMode.WordWrap;
+        txt.Text = BoxFilter.Text;
+        txt.TextChanged += (_, e) => { BoxFilter.Text = (e.NewTextValue ?? "").Trim(); Later(); };
         (var sv, var sl) = T.Chooser(() => { });
         sl.Text = BoxFilter.Species == 0 ? "모든 포켓몬" : GameInfo.Strings.Species[BoxFilter.Species];
         var all = new List<ComboItem> { new("모든 포켓몬", 0) }; all.AddRange(AppState.Src.Species.Where(x => x.Value > 0));
-        var tap = new TapGestureRecognizer(); tap.Tapped += (_, _) => SheetHost.Show(new PickerSheet("포켓몬", all, BoxFilter.Species, c => { BoxFilter.Species = (ushort)c.Value; sl.Text = c.Text; }, c => c.Value == 0 ? null : AppState.Sprite((ushort)c.Value, 0, false)));
+        var tap = new TapGestureRecognizer(); tap.Tapped += (_, _) => SheetHost.Show(new PickerSheet("포켓몬", all, BoxFilter.Species, c => { BoxFilter.Species = (ushort)c.Value; sl.Text = c.Text; Later(); }, c => c.Value == 0 ? null : AppState.Sprite((ushort)c.Value, 0, false)));
         sv.GestureRecognizers.Clear(); sv.GestureRecognizers.Add(tap);
-        View Sw(string label, bool v, Action<bool> set) { var s = new Switch { IsToggled = v, OnColor = T.Accent }; s.Toggled += (_, e) => set(e.Value); var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 }; g.Add(T.L(label, 15), 0); g.Add(s, 1); return g; }
-        var apply = T.Pill("적용", primary: true); apply.Clicked += (_, _) => { Close(); changed(); };
-        var clear = T.Pill("필터 해제"); clear.Clicked += (_, _) => { BoxFilter.Species = 0; BoxFilter.Shiny = BoxFilter.Alpha = BoxFilter.Illegal = false; Close(); changed(); };
-        var hint = T.L("조건에 맞는 칸은 초록 테두리로 강조되고, 나머지는 흐리게 표시됩니다. 박스 이동 목록에도 박스별 일치 수가 나옵니다.", 12, sub: true); hint.LineBreakMode = LineBreakMode.WordWrap;
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, T.Field("포켓몬", sv), Sw("이로치만", BoxFilter.Shiny, v => BoxFilter.Shiny = v), Sw("우두머리만", BoxFilter.Alpha, v => BoxFilter.Alpha = v), Sw("불법만", BoxFilter.Illegal, v => BoxFilter.Illegal = v), new HorizontalStackLayout { Spacing = 8, Children = { apply, clear } } } } });
+        View Sw(string label, bool v, Action<bool> set)
+        {
+            var s = new Switch { IsToggled = v, OnColor = T.Accent, Scale = 0.85 }; s.Toggled += (_, e) => { set(e.Value); Later(); };
+            var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 40 }; g.Add(T.L(label, 13), 0); g.Add(s, 1); return g;
+        }
+        var opts = T.Cols(3, 6);
+        opts.Add(Sw("이로치", BoxFilter.Shiny, v => BoxFilter.Shiny = v), 0); opts.Add(Sw("우두머리", BoxFilter.Alpha, v => BoxFilter.Alpha = v), 1); opts.Add(Sw("불법", BoxFilter.Illegal, v => BoxFilter.Illegal = v), 2);
+        var apply = T.Pill("박스에서 강조", primary: true); apply.Clicked += (_, _) => { Close(); changed(); };
+        var clear = T.Pill("검색 해제"); clear.Clicked += (_, _) => { BoxFilter.Clear(); Close(); changed(); };
+        list.ItemTemplate = new DataTemplate(() =>
+        {
+            var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8, Padding = new Thickness(4, 4) };
+            var img = new Image { WidthRequest = 48, HeightRequest = 40 }; img.SetBinding(Image.SourceProperty, "Sprite");
+            var t1 = T.L("", 14, bold: true); t1.SetBinding(Label.TextProperty, "Title");
+            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, "Sub"); t2.LineBreakMode = LineBreakMode.WordWrap;
+            g.Add(img, 0); g.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, t2 }, VerticalOptions = LayoutOptions.Center }, 1);
+            var tp = new TapGestureRecognizer(); tp.Tapped += async (_, _) => { if (g.BindingContext is Hit h) await OnHit(h); }; g.GestureRecognizers.Add(tp);
+            return g;
+        });
+        Body.Add(new Grid
+        {
+            RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) }, RowSpacing = 8,
+            Children =
+            {
+                new VerticalStackLayout { Spacing = 2, Children = { tip, txt } }.Also(v => Grid.SetRow(v, 0)), sv.Also(v => Grid.SetRow(v, 1)), opts.Also(v => Grid.SetRow(v, 2)),
+                T.Btns(2, apply, clear).Also(v => Grid.SetRow(v, 3)),
+                status.Also(v => Grid.SetRow(v, 4)), list.Also(v => Grid.SetRow(v, 6)),
+            },
+        });
+        Search();
+    }
+
+    private async void Later() { var my = ++serial; await Task.Delay(250); if (my == serial) Search(); }
+
+    /// <summary>모든 박스에서 조건에 맞는 칸 (누르면 그 박스로 이동·강조, 또는 편집기로).</summary>
+    private async void Search()
+    {
+        var my = ++serial;
+        if (!BoxFilter.Active) { list.ItemsSource = null; status.Text = "조건을 넣으면 모든 박스에서 찾습니다 · 누르면 그 칸으로 이동"; return; }
+        status.Text = "찾는 중…";
+        var sav = AppState.Sav;
+        var found = await Task.Run(() =>
+        {
+            var r = new List<(int b, int i, PKM p)>();
+            for (int b = 0; b < sav.BoxCount && r.Count < 300; b++)
+                for (int i = 0; i < sav.BoxSlotCount && r.Count < 300; i++)
+                {
+                    if (my != serial) return null;
+                    var p = sav.GetBoxSlotAtIndex(b, i);
+                    bool ok; try { ok = BoxFilter.Match(p); } catch { ok = false; }
+                    if (ok) r.Add((b, i, p));
+                }
+            return r;
+        });
+        if (found == null || my != serial) return;
+        var s = GameInfo.Strings;
+        list.ItemsSource = found.Select(x => new Hit(x.b, x.i, x.p, AppState.Sprite(x.p), s.Species[x.p.Species],
+            $"{AppState.BoxName(x.b)} {x.i + 1}번 · Lv{x.p.CurrentLevel}{(x.p.IsShiny ? " ★" : "")} · {s.balllist[x.p.Ball]} · 어버이 {x.p.OriginalTrainerName}{(x.p.IsNicknamed ? $" · 별명 {x.p.Nickname}" : "")}")).ToList();
+        int here = found.Count(x => x.b == AppState.Box);
+        status.Text = found.Count == 0 ? "모든 박스에 없음" : $"모든 박스 {found.Count}마리{(found.Count >= 300 ? "+" : "")} · 이 박스 {here}마리";
+    }
+
+    private async Task OnHit(Hit h)
+    {
+        var page = Application.Current.Windows[0].Page;
+        var pick = await page.DisplayActionSheetAsync($"{h.Title} · {h.Sub}", "취소", null, "그 박스로 이동 (칸 강조)", "편집기로 불러오기");
+        if (pick == null || pick == "취소") return;
+        if (pick.StartsWith("편집기"))
+        {
+            Close();
+            if (AppState.Load(h.Pk.Clone(), (false, h.Box, h.Index))) Note.Show($"{AppState.BoxName(h.Box)} {h.Index + 1}번 칸을 불러왔습니다");
+            return;
+        }
+        AppState.PartyMode = false; AppState.Box = h.Box; BoxFilter.Highlight = (h.Box, h.Index);
+        Close(); changed();
     }
 }
 
@@ -133,9 +301,13 @@ public class SaveListSheet : Sheet
             {
                 var page = Application.Current.Windows[0].Page;
                 var pick = await page.DisplayActionSheetAsync(it.Name, "취소", null, "열기", "공유", "삭제");
-                if (pick == "열기") { Close(); await MainPage.Instance.OpenBytes(SaveStore.ReadStored(it.Path), it.Name, remember: false); }
-                else if (pick == "공유") await ShareUtil.ShareBytes(SaveStore.ReadStored(it.Path), it.Name, it.Name);
-                else if (pick == "삭제") { File.Delete(it.Path); Close(); SheetHost.Show(new SaveListSheet(backup)); }
+                try
+                {
+                    if (pick == "열기") { Close(); await MainPage.Instance.OpenBytes(SaveStore.ReadStored(it.Path), it.Name, remember: false); }
+                    else if (pick == "공유") await ShareUtil.ShareBytes(SaveStore.ReadStored(it.Path), it.Name, it.Name);
+                    else if (pick == "삭제") { File.Delete(it.Path); Close(); SheetHost.Show(new SaveListSheet(backup)); }
+                }
+                catch (Exception ex) { Note.Show("오류: " + ex.Message); }
             };
             cell.GestureRecognizers.Add(t);
             list.Children.Add(cell);
@@ -160,16 +332,18 @@ public class SettingsSheet : Sheet
         var hc = new Switch { IsToggled = AppState.HandlerCheck, OnColor = T.Accent }; hc.Toggled += (_, e) => { AppState.HandlerCheck = e.Value; AppState.RefreshSummary(); AppState.NotifyBox(); };
         var hcRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, HeightRequest = 44 };
         var hcLab = T.L("현재 트레이너를 세이브 주인과 대조", 15); hcLab.LineBreakMode = LineBreakMode.WordWrap; hcRow.Add(hcLab, 0); hcRow.Add(hc, 1);
-        var hcHint = T.L("끄면(기본) 교환받은 포켓몬의 '현재 트레이너 이름·성별이 예상과 다름' 검사를 하지 않습니다. 다른 세이브에서 가져온 합법 개체가 불법으로 표시되는 문제를 막습니다.", 12, sub: true); hcHint.LineBreakMode = LineBreakMode.WordWrap;
+        var hcHint = T.L("끄면(기본) '현재 트레이너가 예상과 다름' 검사를 건너뜀 (다른 세이브에서 가져온 개체가 불법으로 뜨는 것 방지)", 12, sub: true); hcHint.LineBreakMode = LineBreakMode.WordWrap;
         View Tog(string label, bool v, Action<bool> set) { var w = new Switch { IsToggled = v, OnColor = T.Accent }; w.Toggled += (_, e) => { set(e.Value); AppState.RefreshSummary(); AppState.NotifyBox(); }; var g = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, MinimumHeightRequest = 44 }; var l = T.L(label, 15); l.LineBreakMode = LineBreakMode.WordWrap; g.Add(l, 0); g.Add(w, 1); return g; }
         var trkS = Tog("홈 트래커 없음 검사 (소드실드)", AppState.TrackerCheckSWSH, v => AppState.TrackerCheckSWSH = v);
         var trkO = Tog("홈 트래커 없음 검사 (다른 게임)", AppState.TrackerCheckOther, v => AppState.TrackerCheckOther = v);
         var htf = Tog("'현재 트레이너는 어버이가 될 수 없음' 검사", AppState.HTFlagCheck, v => AppState.HTFlagCheck = v);
         var swf = Tog("파일 이름과 상관없이 스위치판 FRLG 기준으로 검사", SwitchFrlg.Enabled, v => SwitchFrlg.Enabled = v);
-        var swfHint = T.L("스위치판 세이브(파일 이름 FireRed_….sav · LeafGreen_….sav)는 자동으로 스위치판 기준(PKHeX)으로 검사합니다: 루비·사파이어·에메랄드·XD 출신과 옛 배포 불가, 볼·유전 제한. 파일 이름이 main 등으로 바뀐 스위치판 세이브라면 이 항목을 켜세요.", 12, sub: true); swfHint.LineBreakMode = LineBreakMode.WordWrap;
+        var swfHint = T.L("FireRed_….sav·LeafGreen_….sav는 자동으로 스위치판 기준 · 파일 이름이 바뀐 스위치판 세이브면 켜세요", 12, sub: true); swfHint.LineBreakMode = LineBreakMode.WordWrap;
         var chkHint = T.L("합법성 검사 항목을 켜고 끕니다. 끈 항목만 문제인 개체는 합법으로 표시됩니다.", 12, sub: true); chkHint.LineBreakMode = LineBreakMode.WordWrap;
         var upd = Tog("업데이트 알림 (GitHub 새 버전 확인)", UpdateCheck.Enabled, v => UpdateCheck.Enabled = v);
         var bgn = Tog("작업 진행 알림 (리빙덱스·PokeLDN 교환·시드 찾기를 상단바에 표시, 앱을 내려도 계속)", BgTask.Enabled, v => BgTask.Enabled = v);
+        var bgv = Tog("알림 진동 (작업 완료 알림이 올 때)", BgTask.Vibrate, v => BgTask.Vibrate = v);
+        bgv.IsVisible = DeviceInfo.Platform == DevicePlatform.Android;
         var topLdn = Tog("위쪽 '라이브헥스' 버튼을 PokeLDN 교환으로", Preferences.Get("top_ldn", false), v => { Preferences.Set("top_ldn", v); MainPage.Instance?.UpdateLive(); });
         topLdn.IsVisible = LdnTrade.Available;
         var keep = Tog("마지막 세이브 그대로 열기 (앱을 끌 때 편집 상태 보존)", LastSession.Enabled, v => { LastSession.Enabled = v; if (!v) LastSession.Clear(); });
@@ -184,7 +358,7 @@ public class SettingsSheet : Sheet
         var bkHint = T.L("켜면 세이브를 열 때 원본을, 내보낼 때 저장본을 앱 안에 보관합니다(최근 30개).", 12, sub: true); bkHint.LineBreakMode = LineBreakMode.WordWrap;
         var list = T.Pill("백업 목록 보기"); list.Clicked += (_, _) => { Close(); SheetHost.Show(new SaveListSheet(true)); };
         // 앱 데이터 통째로 내보내기·가져오기 (앱을 지우고 다시 설치할 때)
-        var dataHint = T.L("설정(트레이너·검사 토글 등)·즐겨찾기·세이브 백업·최근 세이브·내 사전을 한 파일로 내보내고, 앱을 지우고 새로 설치한 뒤 가져올 수 있습니다.", 12, sub: true); dataHint.LineBreakMode = LineBreakMode.WordWrap;
+        var dataHint = T.L("설정·즐겨찾기·세이브 백업·최근 세이브·내 사전을 한 파일로 (다시 설치한 뒤 가져오기)", 12, sub: true); dataHint.LineBreakMode = LineBreakMode.WordWrap;
         var dataRow = T.Cols(2, 6);
         var dataOut = T.Pill("앱 데이터 내보내기"); var dataIn = T.Pill("앱 데이터 가져오기");
         dataOut.Clicked += async (_, _) =>
@@ -230,7 +404,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, bgn, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, bgn, bgv, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
     }
 }
 
@@ -266,6 +440,12 @@ public class LivingDexSheet : Sheet
         stop.Clicked += (_, _) => cts?.Cancel();
         go.Clicked += async (_, _) =>
         {
+            try { await Go(); }
+            catch (Exception ex) { status.Text = "오류: " + ex.Message; }
+            finally { go.IsEnabled = true; stop.IsVisible = false; }
+        };
+        async Task Go()
+        {
             go.IsEnabled = false; stop.IsVisible = true; bar.IsVisible = true; cts = new CancellationTokenSource(); var tok = cts.Token;
             var opt = new LivingDexOptions
             {
@@ -297,16 +477,16 @@ public class LivingDexSheet : Sheet
             var result = await Task.Run(() => LivingDexGen.Run(sav, opt, tok, (done, total, s) =>
             {
                 bg.Report($"{done}/{total} · {GameInfo.Strings.Species[s]}", done, total);
-                MainThread.BeginInvokeOnMainThread(() => { bar.Progress = (double)done / total; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; });
+                MainThread.BeginInvokeOnMainThread(() => { bar.Progress = total > 0 ? (double)done / total : 0; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; });
             }));
             bg.Done($"넣음 {result.Made}마리 · 만들 수 없음 {result.Fail}{(result.Canceled ? " · 중지함" : "")}");
             AppState.NotifyBox();
             status.Text = $"넣음 {result.Made}마리 (모두 합법{(opt.Alpha ? $", 우두머리 {result.Alpha}" : "")}) · 만들 수 없음 {result.Fail} · 대상 {result.Targets}{(result.PresetMissed > 0 ? $" · 미리 정한 성별·볼이 안 돼 기본으로 만든 수 {result.PresetMissed}" : "")}{(result.BoxFull ? " · 박스가 가득 차서 멈춤" : "")}{(result.Canceled ? " · 중지함" : "")}";
-            go.IsEnabled = true; stop.IsVisible = false;
-        };
-        var hint = ldn ? T.L($"{AppState.GameName(sav.Version)} 리빙덱스를 도감 순서대로 합법 개체로 만들어 PokeLDN 교환 목록(대기열)에 넣어요. 세이브 박스는 바뀌지 않아요. "
-            + (same ? "지금 세이브의 트레이너로 만들어요." : "지금 세이브가 이 게임이 아니라 기본 트레이너(PKHeX)로 만들어요 · 어버이를 아래에 적거나 SV는 자동 어버이작을 켜세요.")
-            + " 교환은 한 번 연결로 차례로 하고, 끊기면 다시 시작해 이어서 보내요 (콘솔에서 내줄 포켓몬이 같은 수만큼 필요).", 12, sub: true) : T.L($"{AppState.GameName(sav.Version)}에 나오는 포켓몬을 도감 순서대로 자동 합법화(ALM)·조우로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 채웁니다. 이 게임에서 합법으로 만들 수 있는 개체만 넣고, 도구를 지니면 바뀌는 폼(아르세우스·실버디·게노세크트 등)은 기본 폼만 만듭니다. 게임과 포켓몬 수에 따라 몇 분 걸릴 수 있습니다.", 12, sub: true);
+        }
+        var hint = ldn ? T.L($"{AppState.GameName(sav.Version)} 리빙덱스를 합법 개체로 만들어 교환 대기열에 (세이브 박스는 그대로)\n• "
+            + (same ? "지금 세이브의 트레이너로" : "기본 트레이너로 · 어버이를 아래에 적거나 SV는 자동 어버이작")
+            + "\n• 한 번 연결로 차례로, 끊기면 이어서 (콘솔에서 내줄 포켓몬이 같은 수만큼 필요)", 12, sub: true)
+            : T.L($"{AppState.GameName(sav.Version)} 포켓몬을 도감 순서대로 합법 개체로 만들어 {AppState.BoxName(AppState.Box)}부터 빈 칸에 (몇 분 걸릴 수 있음)", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, shinyRow, formRow, skipRow, alphaRow, transferRow, dateRow, ots, presets, new HorizontalStackLayout { Spacing = 8, Children = { go, stop } }, bar, status } } });
     }
@@ -345,7 +525,7 @@ public class FavoritesSheet : Sheet
 
     public FavoritesSheet() : base("즐겨찾기", 0.85)
     {
-        var search = T.Input(placeholder: "검색: 종·별명·어버이·게임 (초성 가능: ㅍㅋㅊ), 이로치");
+        var search = T.Input(placeholder: "종·별명·어버이·게임·이로치 (초성 가능)");
         search.TextChanged += (_, e) => { query = (e.NewTextValue ?? "").Trim(); page = 0; Fill(); };
         var prev = T.Pill("‹", size: 16); prev.WidthRequest = 44; prev.Padding = 0;
         var next = T.Pill("›", size: 16); next.WidthRequest = 44; next.Padding = 0;
@@ -364,11 +544,11 @@ public class FavoritesSheet : Sheet
             star.SetBinding(IsVisibleProperty, "Shiny");
             var ext = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) }; T.Sub(ext); ext.SetBinding(Label.TextProperty, "Info");
             g.Add(bg); g.Add(img); g.Add(star); g.Add(ext);
-            var t = new TapGestureRecognizer(); t.Tapped += async (_, _) => { if (g.BindingContext is not Cell c) return; if (c.Pk != null) await OnCell(c); else await AddCurrent(); }; g.GestureRecognizers.Add(t);
+            var t = new TapGestureRecognizer(); t.Tapped += async (_, _) => { if (g.BindingContext is not Cell c) return; try { if (c.Pk != null) await OnCell(c); else await AddCurrent(); } catch (Exception ex) { Note.Show("오류: " + ex.Message); } }; g.GestureRecognizers.Add(t);
             return g;
         });
         grid.HeightRequest = 5 * 60 + 16;
-        var hint = T.L("만든 포켓몬을 원래 게임 형식 그대로 보관합니다. 빈 칸을 누르면 편집 중인 포켓몬을 등록하고, 편집기로 불러오면 현재 게임 형식으로 바뀝니다.", 12, sub: true); hint.LineBreakMode = LineBreakMode.WordWrap;
+        var hint = T.L("원래 게임 형식 그대로 보관 · 빈 칸을 누르면 편집 중인 포켓몬 등록", 12, sub: true); hint.LineBreakMode = LineBreakMode.WordWrap;
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 8, Children = { hint, search, head, grid } } });
         Fill();
     }
@@ -378,7 +558,7 @@ public class FavoritesSheet : Sheet
         var all = Favorites.All();
         int total = all.Count;
         if (query.Length > 0) all = all.Where(x => FavMatch(x.Pk, query)).ToList();
-        int pages = Math.Max(1, (all.Count + 29) / 30); page = Math.Clamp(page, 0, pages - 1);
+        int pages = query.Length > 0 ? Math.Max(1, (all.Count + 29) / 30) : all.Count / 30 + 1; page = Math.Clamp(page, 0, pages - 1);   // 검색이 아니면 마지막 쪽에 늘 빈 칸 (30마리째에도 빈 칸 눌러 등록)
         var cells = all.Skip(page * 30).Take(30).Select(x => new Cell(x.Path, x.Pk, AppState.Sprite(x.Pk), x.Pk.IsShiny, x.Pk.Extension.ToUpperInvariant())).ToList();
         while (cells.Count < 30) cells.Add(new Cell(null, null, null, false, ""));
         grid.ItemsSource = cells;
@@ -415,7 +595,7 @@ public class FavoritesSheet : Sheet
                 if (slot < 0) { Note.Show("현재 박스에 빈 칸이 없습니다"); break; }
                 var conv = EntityConverter.ConvertToType(c.Pk, sav.PKMType, out _);
                 if (conv == null) { Note.Show("이 게임 형식으로 바꿀 수 없습니다"); break; }
-                sav.SetBoxSlotAtIndex(conv, AppState.Box, slot); AppState.NotifyBox(); Note.Show($"{slot + 1}번 칸에 넣었습니다"); break;
+                sav.SetBoxSlotAtIndex(conv, AppState.Box, slot); AppState.LiveSync(AppState.Box, slot); AppState.NotifyBox(); Note.Show($"{slot + 1}번 칸에 넣었습니다"); break;
             case "파일로 받기":
                 await using (var ms = new MemoryStream(File.ReadAllBytes(c.Path)))
                 { var r = await FileSaver.Default.SaveAsync(c.Pk.FileName, ms, CancellationToken.None); Note.Show(r.IsSuccessful ? $"{c.Pk.FileName} 저장했습니다" : "취소했습니다"); }
@@ -674,7 +854,7 @@ public class MysteryGiftSheet : Sheet
     public MysteryGiftSheet() : base("이상한 소포 받기함")
     {
         status.LineBreakMode = LineBreakMode.WordWrap;
-        var hint = T.L("카드를 누르면 넣기(파일·배포 목록)·내보내기·비우기를 할 수 있습니다. 바꾼 뒤에는 세이브 내보내기로 저장하세요. 소드실드·SV·Z-A 등 8세대 이후는 PKHeX가 받기함 편집을 지원하지 않습니다.", 12, sub: true);
+        var hint = T.L("카드를 눌러 넣기·내보내기·비우기 · 바꾼 뒤 세이브 내보내기 (8세대 이후 받기함은 PKHeX 미지원)", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
         var clearFlags = T.Pill("받은 기록 모두 지우기");
         clearFlags.IsVisible = AppState.Sav is IMysteryGiftFlags;
@@ -725,13 +905,14 @@ public class MysteryGiftSheet : Sheet
     private async Task OnSlot(int index, DataMysteryGift cur, bool empty)
     {
         var page = Application.Current.Windows[0].Page; var st = Store; var sav = AppState.Sav;
-        const string file = "카드 파일 넣기", db = "배포 목록에서 넣기", export = "파일로 내보내기", clear = "비우기";
+        const string file = "카드 파일 넣기", db = "배포 목록에서 넣기", export = "파일로 내보내기", clear = "비우기", preview = "개체 미리보기 · 받은 날짜";
         var pick = empty ? await page.DisplayActionSheetAsync($"{index + 1}번 칸", "취소", null, db, file)
-                         : await page.DisplayActionSheetAsync(cur.CardTitle, "취소", clear, db, file, export);
+                         : await page.DisplayActionSheetAsync(cur.CardTitle, "취소", clear, preview, db, file, export);
         try
         {
             switch (pick)
             {
+                case preview: SheetHost.Show(new GiftPreviewSheet(index, cur, () => { AppState.Sav.State.Edited = true; Fill(); })); break;
                 case file:
                     var f = await FilePicker.PickAsync(); if (f == null) return;
                     byte[] data; await using (var s = await f.OpenReadAsync()) { using var ms = new MemoryStream(); await s.CopyToAsync(ms); data = ms.ToArray(); }
@@ -771,6 +952,72 @@ public class MysteryGiftSheet : Sheet
 }
 
 
+/// <summary>배포 카드 미리보기: 카드가 주는 개체를 편집기 형식으로 미리 보고(합법성 포함), 받은 날짜(카드 날짜)를 바꾸거나 개체를 편집기·박스로.</summary>
+public class GiftPreviewSheet : Sheet
+{
+    public GiftPreviewSheet(int index, DataMysteryGift g, Action changed) : base($"카드 {g.CardID} · {g.CardTitle}", 0.85)
+    {
+        var sav = AppState.Sav; var s = GameInfo.Strings;
+        var stack = new VerticalStackLayout { Spacing = 10 };
+        var info = new List<string> { $"{index + 1}번 칸 · {g.GetType().Name} · {(g.IsEntity ? "포켓몬" : g.IsItem ? "도구" : "기타")}" };
+        if (g.IsItem) { try { info.Add($"도구: {(g.ItemID < s.itemlist.Length ? s.itemlist[g.ItemID] : g.ItemID.ToString())} ×{g.Quantity}"); } catch { } }
+        var infoL = T.L(string.Join("\n", info), 13, sub: true); infoL.LineBreakMode = LineBreakMode.WordWrap;
+        stack.Children.Add(infoL);
+
+        // 받은 날짜 (카드에 날짜가 있는 형식: WC6·WC7·PGF·WB7)
+        var dateProp = g.GetType().GetProperty("Date");
+        if (dateProp != null && dateProp.PropertyType == typeof(DateOnly?) && dateProp.CanWrite)
+        {
+            var cur = dateProp.GetValue(g) as DateOnly?;
+            var dp = new DatePicker { Format = "yyyy-MM-dd", FontSize = 15, HeightRequest = 44, Date = (cur ?? DateOnly.FromDateTime(DateTime.Today)).ToDateTime(TimeOnly.MinValue) };
+            dp.SetAppThemeColor(DatePicker.TextColorProperty, Color.FromArgb("#111827"), Color.FromArgb("#F3F4F6"));
+            var apply = T.Pill("받은 날짜 적용", size: 12);
+            apply.Clicked += (_, _) =>
+            {
+                try { dateProp.SetValue(g, (DateOnly?)DateOnly.FromDateTime(dp.Date ?? DateTime.Today)); ((AppState.Sav as IMysteryGiftStorageProvider)?.MysteryGiftStorage)?.SetMysteryGift(index, g); changed(); Note.Show("받은 날짜를 바꿨습니다"); }
+                catch (Exception ex) { Note.Show("바꾸지 못했습니다: " + ex.Message); }
+            };
+            stack.Children.Add(T.Card(new VerticalStackLayout { Spacing = 6, Children = { T.L("받은 날짜 (카드 날짜 · 받을 때 만난 날짜가 됨)", 13, sub: true), dp, apply } }, 10));
+        }
+        else stack.Children.Add(T.L("이 카드 형식은 날짜를 따로 갖지 않습니다 (받을 때의 날짜가 만난 날짜)", 12, sub: true));
+
+        if (g.IsEntity)
+        {
+            PKM pk = null; string err = null;
+            try { pk = g.ConvertToPKM(sav); pk = EntityConverter.ConvertToType(pk, sav.PKMType, out _) ?? pk; } catch (Exception ex) { err = ex.Message; }
+            if (pk == null) stack.Children.Add(T.L("개체를 만들지 못했습니다" + (err != null ? ": " + err : ""), 13, sub: true));
+            else
+            {
+                var la = new LegalityAnalysis(pk);
+                var head = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 10 };
+                head.Add(new Image { WidthRequest = 64, HeightRequest = 56, Source = AppState.Sprite(pk) }, 0);
+                var name = T.L($"{s.Species[pk.Species]}{(pk.IsNicknamed ? $" '{pk.Nickname}'" : "")}{(pk.IsShiny ? " ★" : "")} · Lv{pk.CurrentLevel}", 15, bold: true);
+                var legal = T.L(la.Valid ? "✔ 합법" : "✖ 불법 (편집기로 불러와 확인)", 13, bold: true); legal.TextColor = la.Valid ? T.Good : T.Bad;
+                head.Add(new VerticalStackLayout { Spacing = 2, Children = { name, legal }, VerticalOptions = LayoutOptions.Center }, 1);
+                var lines = new List<string>
+                {
+                    $"성격 {(pk.Format >= 3 ? s.natures[(int)pk.Nature] : "-")} · 특성 {(pk.Format >= 3 && pk.Ability < s.abilitylist.Length ? s.abilitylist[pk.Ability] : "-")} · {s.balllist[pk.Ball]}",
+                    $"개체값 {pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE} · 성별 {(pk.Gender == 0 ? "♂" : pk.Gender == 1 ? "♀" : "-")}",
+                    "기술: " + string.Join(" · ", new[] { pk.Move1, pk.Move2, pk.Move3, pk.Move4 }.Where(m => m > 0).Select(m => s.movelist[m])),
+                    $"어버이 {pk.OriginalTrainerName} {pk.DisplayTID:000000} · 언어 {AppState.LangName(pk.Language)} · 만난 날짜 {pk.MetDate:yyyy-MM-dd}",
+                    pk.HeldItem > 0 ? $"지닌 물건: {s.itemlist[pk.HeldItem]}" : null,
+                };
+                var detail = T.L(string.Join("\n", lines.Where(x => x != null)), 12, sub: true); detail.LineBreakMode = LineBreakMode.WordWrap;
+                var toEditor = T.Pill("편집기로 불러오기", primary: true); toEditor.Clicked += (_, _) => { Close(); if (AppState.Load(pk)) { AppState.Edited(); Note.Show("카드 개체를 편집기로 불러왔습니다"); } };
+                var toBox = T.Pill("현재 박스 빈 칸에"); toBox.Clicked += (_, _) =>
+                {
+                    int slot = -1; for (int i = 0; i < sav.BoxSlotCount; i++) if (sav.GetBoxSlotAtIndex(AppState.Box, i).Species == 0) { slot = i; break; }
+                    if (slot < 0) { Note.Show("현재 박스에 빈 칸이 없습니다"); return; }
+                    sav.SetBoxSlotAtIndex(pk, AppState.Box, slot); AppState.LiveSync(AppState.Box, slot); AppState.NotifyBox(); Close(); Note.Show($"{slot + 1}번 칸에 넣었습니다");
+                };
+                stack.Children.Add(T.Card(new VerticalStackLayout { Spacing = 8, Children = { head, detail, new HorizontalStackLayout { Spacing = 8, Children = { toEditor, toBox } } } }, 10));
+                if (!la.Valid) { var rep = T.L(KoFix.Fix(la.Report(true)), 12, sub: true); rep.LineBreakMode = LineBreakMode.WordWrap; stack.Children.Add(rep); }
+            }
+        }
+        Body.Add(new ScrollView { Content = stack });
+    }
+}
+
 /// <summary>
 /// 마지막 세이브 보존: 앱이 백그라운드로 가거나 꺼질 때 지금 열린 세이브(편집 내용 포함)를 앱 안에 저장하고,
 /// 다음 실행 때 그대로 엽니다. 원본 파일은 건드리지 않음 (내보내기 전까지 원본은 그대로).
@@ -788,8 +1035,9 @@ public static class LastSession
             var sav = AppState.Sav; if (sav == null || string.IsNullOrEmpty(sav.Metadata.FileName)) return;
             Directory.CreateDirectory(Dir);
             var data = sav.Write(sav.Metadata.GetSuggestedFlags(sav.Metadata.GetSuggestedExtension())).ToArray();
-            File.WriteAllBytes(Path.Combine(Dir, "save.bin"), data);
-            File.WriteAllText(Path.Combine(Dir, "name.txt"), sav.Metadata.FileName + "\n" + AppState.Box);
+            // 임시 파일에 쓴 뒤 바꿔치기: 쓰는 중에 앱이 죽어도 반쪽짜리 파일이 남지 않게
+            var tmp = Path.Combine(Dir, "save.tmp"); File.WriteAllBytes(tmp, data); File.Move(tmp, Path.Combine(Dir, "save.bin"), true);
+            var tmpN = Path.Combine(Dir, "name.tmp"); File.WriteAllText(tmpN, sav.Metadata.FileName + "\n" + AppState.Box); File.Move(tmpN, Path.Combine(Dir, "name.txt"), true);
         }
         catch { }
     }

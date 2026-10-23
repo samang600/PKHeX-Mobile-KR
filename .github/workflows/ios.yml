@@ -1,6 +1,8 @@
 # iOS 빌드 (서명 없는 IPA) — GitHub의 맥 서버에서 빌드
 # 실행: 저장소 Actions 탭 → "iOS 빌드" → Run workflow
 # 릴리스를 발행(Publish)하면 자동으로 빌드해서 그 릴리스에 IPA를 첨부합니다.
+# PokeLDN 교환(블루투스 보드)이 들어간 버전이 기본: 빌드 중 파이썬 런타임(PokeLDN 코드는 안드로이드 LDN 라이브러리와 같은 것)을
+# 만들어 넣고, 런타임 만들기나 LDN 포함 빌드가 실패하면 경고를 남기고 LDN 없이 빌드합니다(파일 이름 끝 _noLDN).
 #
 # 최신 .NET iOS 도구(27.x)는 Xcode 27이 필요한데, GitHub 맥 서버의 Xcode는 서버마다 26.3~26.5로 다름.
 # (워크로드 세트 버전 표기: 패키지 10.303.1 = CLI 10.0.303.1, 10.201.0 = 10.0.201)
@@ -14,6 +16,11 @@ name: iOS 빌드
 
 on:
   workflow_dispatch:
+    inputs:
+      ldn:
+        description: 'PokeLDN 교환 포함 (끄면 LDN 없이 빌드)'
+        type: boolean
+        default: true
   release:
     types: [published]
 
@@ -27,9 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: 설정 확인 (iOS 빌드 설정 v14)
+      - name: 설정 확인 (iOS 빌드 설정 v15)
         run: |
-          echo "=== iOS 빌드 설정 v14 (Xcode 맞춤 .NET 별도 설치, 릴리스 버전 확인) ==="
+          echo "=== iOS 빌드 설정 v15 (Xcode 맞춤 .NET 별도 설치, 릴리스 버전 확인, PokeLDN 기본 포함) ==="
           echo "커밋: $GITHUB_SHA  /  이벤트: $GITHUB_EVENT_NAME  /  브랜치·태그: $GITHUB_REF"
 
       # 릴리스로 실행되면 GitHub는 '태그가 가리키는 커밋'을 빌드함. 태그를 새 파일을 올리기 전 커밋에 만들었거나
@@ -100,6 +107,33 @@ jobs:
           echo "PIN_IOSV=$IOSV" >> $GITHUB_ENV
           echo "IOS_TFM=net10.0-ios$IOSV" >> $GITHUB_ENV
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      # BeeWare Python-Apple-support 묶음(34 MB)은 한 번 받으면 캐시에서 꺼내 씀 (스크립트가 SHA-256도 확인)
+      - name: iOS 파이썬 묶음 캐시
+        uses: actions/cache@v4
+        with:
+          path: PKHeXKR/Platforms/iOS/PokeLDN/Support/Python-3.13-iOS-support.b16.tar.gz
+          key: beeware-python-3.13-iOS-b16
+
+      - name: PokeLDN iOS 런타임 만들기
+        id: ldn
+        if: github.event_name != 'workflow_dispatch' || inputs.ldn
+        continue-on-error: true
+        run: python3 PKHeXKR/Platforms/iOS/PokeLDN/build_ios_runtime.py
+
+      - name: PokeLDN 포함 여부
+        run: |
+          if [ "${{ steps.ldn.outcome }}" = "success" ]; then
+            echo "PokeLDN 교환 포함해서 빌드"; echo "LDN=true" >> $GITHUB_ENV
+          else
+            [ "${{ steps.ldn.outcome }}" = "failure" ] && echo "::warning::PokeLDN iOS 런타임을 만들지 못해 LDN 없이 빌드합니다 (위 'PokeLDN iOS 런타임 만들기' 기록 확인)"
+            rm -rf PKHeXKR/Platforms/iOS/PokeLDN/Generated
+            echo "LDN=false" >> $GITHUB_ENV
+          fi
+
       - name: .NET SDK 설치 (별도 폴더, 버전 고정)
         run: |
           curl -sSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
@@ -126,14 +160,19 @@ jobs:
           # 앱 마무리 단계 도구들을 xcrun으로 찾지 않고 경로를 직접 지정 (xcrun 조회가 서버에서 실패함: mdimport 등)
           STRIP=$(xcrun -find strip)
           echo "strip: $STRIP / mdimport: $(command -v mdimport) / ditto: $(command -v ditto) / plutil: $(command -v plutil)"
-          B() { "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f "$IOS_TFM" -r ios-arm64 -p:IosOnly=true -p:IosTfm="$IOS_TFM" \
+          B() { "$DN" build PKHeXKR/PKHeXKR.csproj -c Release -f "$IOS_TFM" -r ios-arm64 -p:IosOnly=true -p:IosTfm="$IOS_TFM" -p:WithPokeLdnIos=$LDN \
                 -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false -p:BuildIpa=false \
                 -p:MdimportPath=/usr/bin/mdimport -p:DittoPath=/usr/bin/ditto -p:PlutilPath=/usr/bin/plutil -p:StripPath="$STRIP" \
                 -p:NoDSymUtil=true "$@"; }
           B && exit 0
           echo "::warning::빌드 실패 → 한 번 더 시도 (이미 끝난 단계는 건너뜀)"
           B && exit 0
-          echo "::warning::다시 실패 → 동시 작업을 1개로 줄여 마지막 시도"
+          echo "::warning::다시 실패 → 동시 작업을 1개로 줄여 시도"
+          B -m:1 -p:BuildInParallel=false && exit 0
+          [ "$LDN" = "true" ] || exit 1
+          echo "::warning::PokeLDN 포함 빌드가 실패해 LDN 없이 빌드합니다 (위 오류 확인)"
+          rm -rf PKHeXKR/Platforms/iOS/PokeLDN/Generated PKHeXKR/bin PKHeXKR/obj
+          LDN=false; echo "LDN=false" >> $GITHUB_ENV
           B -m:1 -p:BuildInParallel=false
 
       - name: IPA 만들기
@@ -143,7 +182,15 @@ jobs:
           echo "앱: $APP"
           mkdir -p Payload && cp -R "$APP" Payload/
           VER=$(grep -o '<ApplicationDisplayVersion>[^<]*' PKHeXKR/PKHeXKR.csproj | sed 's/.*>//')
-          zip -qry "PKHeX_Mobile_iOS_v${VER}_unsigned.ipa" Payload
+          SUF=""
+          if [ "$LDN" = "true" ]; then
+            # 파이썬 확장 모듈을 프레임워크 경로로 연결 (iOS는 낱개 .so를 못 읽음)
+            python3 PKHeXKR/Platforms/iOS/PokeLDN/fix_ios_framework_links.py "Payload/$(basename "$APP")"
+          else
+            SUF="_noLDN"
+          fi
+          du -sh "Payload/$(basename "$APP")"
+          zip -qry "PKHeX_Mobile_iOS_v${VER}${SUF}_unsigned.ipa" Payload
           ls -la *.ipa
 
       - name: 결과 파일 보관 (Actions 실행 화면에서 받기)

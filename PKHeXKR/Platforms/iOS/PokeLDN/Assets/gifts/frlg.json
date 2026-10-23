@@ -1,0 +1,332 @@
+[
+{
+"key": "preset:beast-cutscene",
+"group": "이상한 카드",
+"label": "전설의 개 (스이쿤·앤테이·라이코 중 하나)",
+"note": "열매 2개·마스터볼을 받고, 처음 고른 포켓몬에 따라 정해지는 Lv.65 전설의 개와 배틀."
+},
+{
+"key": "preset:celebi",
+"group": "이상한 카드",
+"label": "세레비 Lv.50",
+"note": "배달원에게서 받아요."
+},
+{
+"key": "preset:master-ball",
+"group": "이상한 카드",
+"label": "마스터볼 1개",
+"note": ""
+},
+{
+"key": "preset:altering-cave",
+"group": "이상한 카드",
+"label": "변화의 동굴 (공식 이벤트)",
+"note": "변화의 동굴에 나오는 포켓몬이 바뀌어요."
+},
+{
+"key": "preset:wish-egg",
+"group": "이상한 카드",
+"label": "소원 알 (공식 배포)",
+"note": "소원을 배운 알 6종 중 하나."
+},
+{
+"key": "preset:pokepark-egg",
+"group": "이상한 카드",
+"label": "포켓파크 알 (공식 배포)",
+"note": "특별한 기술을 배운 알 15종 중 하나."
+},
+{
+"key": "preset:pc-japan-egg",
+"group": "이상한 카드",
+"label": "포켓몬센터 재팬 알 (공식 배포)",
+"note": "특별한 기술을 배운 알 4종 중 하나."
+},
+{
+"key": "preset:starter-egg",
+"group": "이상한 카드",
+"label": "스타팅 포켓몬 알",
+"note": "1~3세대 스타팅 9마리 중 하나의 알."
+},
+{
+"key": "preset:rare-berries",
+"group": "이상한 카드",
+"label": "희귀 열매 (의문·랑사·스타열매)",
+"note": ""
+},
+{
+"key": "preset:national-dex",
+"group": "이상한 카드",
+"label": "전국도감 열기",
+"note": "도감이 전국도감이 돼요."
+},
+{
+"key": "preset:porygon-tm-gift",
+"group": "이상한 카드",
+"label": "폴리곤 + 기술머신",
+"note": ""
+},
+{
+"key": "preset:solrock-stamp",
+"group": "이상한 카드",
+"label": "해·달 스탬프 랠리: 솔록",
+"note": ""
+},
+{
+"key": "preset:lunatone-stamp",
+"group": "이상한 카드",
+"label": "해·달 스탬프 랠리: 루나톤",
+"note": ""
+},
+{
+"key": "preset:battle-count-card",
+"group": "이상한 카드",
+"label": "배틀 카운트 카드 (공식)",
+"note": "통신 배틀 횟수를 세는 카드."
+},
+{
+"key": "preset:nature-mint",
+"group": "포켓몬 바꾸기",
+"label": "성격 민트",
+"note": "성격의 오르는 능력·내려가는 능력을 골라요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:ability-capsule",
+"group": "포켓몬 바꾸기",
+"label": "특성 캡슐",
+"note": "다른 특성으로 바꿔요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:poke-ball-changer",
+"group": "포켓몬 바꾸기",
+"label": "볼 바꾸기",
+"note": "고른 볼로 옮겨요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:pokemon-gender",
+"group": "포켓몬 바꾸기",
+"label": "성별 바꾸기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:nickname",
+"group": "포켓몬 바꾸기",
+"label": "닉네임 바꾸기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:stat-judge",
+"group": "포켓몬 바꾸기",
+"label": "개체값·노력치 보기",
+"note": "성격·개체값·노력치를 화면에 보여 줘요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:hidden-power",
+"group": "포켓몬 바꾸기",
+"label": "잠재파워 확인·개체값 최대",
+"note": "잠재파워를 보여 주고 개체값을 모두 31로 할 수 있어요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:hidden-power-type",
+"group": "포켓몬 바꾸기",
+"label": "잠재파워 타입 고르기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:ev-training",
+"group": "포켓몬 바꾸기",
+"label": "노력치 조절",
+"note": "노력치를 초기화하거나 고른 능력을 최대로. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:friendship",
+"group": "포켓몬 바꾸기",
+"label": "친밀도 확인·최대",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:pp-max",
+"group": "포켓몬 바꾸기",
+"label": "PP 최대",
+"note": "지닌 포켓몬 기술의 PP를 최대로. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:max-conditions",
+"group": "포켓몬 바꾸기",
+"label": "컨디션 최대",
+"note": "컨디션을 최대로 (빈티나가 진화 가능). 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:pokerus",
+"group": "포켓몬 바꾸기",
+"label": "포켓러스 감염",
+"note": "지닌 포켓몬이 포켓러스에 걸려요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:unown-letters",
+"group": "포켓몬 바꾸기",
+"label": "안농 글자 바꾸기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:trade-evolution",
+"group": "포켓몬 바꾸기",
+"label": "통신교환 진화",
+"note": "교환 없이 통신교환 진화를 시켜요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:espeon-umbreon",
+"group": "포켓몬 바꾸기",
+"label": "에브이·블래키 진화",
+"note": "친밀도가 높은 이브이를 골라 진화. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:move-tutor",
+"group": "포켓몬 바꾸기",
+"label": "기술 떠올리기·잊기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:speed-2",
+"group": "게임 바꾸기",
+"label": "2배속 (R로 켜고 끄기)",
+"note": "게임을 다시 켜면 꺼져요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:speed-3",
+"group": "게임 바꾸기",
+"label": "3배속 (R로 켜고 끄기)",
+"note": "게임을 다시 켜면 꺼져요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:speed-4",
+"group": "게임 바꾸기",
+"label": "4배속 (R로 켜고 끄기)",
+"note": "게임을 다시 켜면 꺼져요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:fast-text",
+"group": "게임 바꾸기",
+"label": "대사 바로 표시",
+"note": "게임을 다시 켜면 꺼져요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:travel-anywhere",
+"group": "게임 바꾸기",
+"label": "R로 공중날기·어디서나 자전거",
+"note": "게임을 다시 켜면 꺼져요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:pc-anywhere",
+"group": "게임 바꾸기",
+"label": "어디서나 PC 박스 (R)",
+"note": "게임을 다시 켜면 꺼져요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:hm-moves",
+"group": "게임 바꾸기",
+"label": "비전머신 없이 비전기술",
+"note": "배지만 있으면 풀베기·파도타기 등. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:reusable-tms",
+"group": "게임 바꾸기",
+"label": "기술머신 무한 사용",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:physical-special-split",
+"group": "게임 바꾸기",
+"label": "물리·특수 분리 (4세대식)",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:exp-share",
+"group": "게임 바꾸기",
+"label": "학습장치 전체 적용",
+"note": "모든 포켓몬이 경험치를 받아요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:shiny-hunting",
+"group": "게임 바꾸기",
+"label": "이로치 연쇄",
+"note": "같은 포켓몬을 계속 만나면 이로치가 잘 나와요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:roamer",
+"group": "게임 바꾸기",
+"label": "배회 포켓몬 위치 찾기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:no-encounters",
+"group": "게임 바꾸기",
+"label": "야생 포켓몬 안 나옴 (스프레이)",
+"note": "게임을 다시 켜기 전까지. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:legendary-respawn",
+"group": "게임 바꾸기",
+"label": "전설 포켓몬 다시 나오기",
+"note": "잡지 않고 쓰러뜨린 전설이 다시 나와요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:instant-eggs",
+"group": "게임 바꾸기",
+"label": "알 바로 부화",
+"note": "지닌 알이 부화하거나 키우미집 알이 준비돼요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:gift-box",
+"group": "기타 선물",
+"label": "선물 상자 (돈 10만·이상한사탕 99·코인 1000)",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:gift-ribbons",
+"group": "기타 선물",
+"label": "이벤트 리본 7종",
+"note": "지닌 포켓몬이 리본을 받아요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:trainer-ids",
+"group": "기타 선물",
+"label": "트레이너 ID·SID 알려 주기",
+"note": "배달원이 ID와 숨겨진 SID를 알려 줘요. 받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:gender-swap",
+"group": "기타 선물",
+"label": "주인공 이름·성별 바꾸기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:rival-name",
+"group": "기타 선물",
+"label": "라이벌 이름 바꾸기",
+"note": "받은 뒤 포켓몬센터 2층 배달원에게 말을 걸어요."
+},
+{
+"key": "preset:box-eggs",
+"group": "기타 선물",
+"label": "포켓몬 박스 알 (공식)",
+"note": "파비코·지그제구리·에나비·피츄 중 하나의 알."
+},
+{
+"key": "preset:news-pokeldn",
+"group": "이상한 뉴스",
+"label": "이상한 뉴스: 블루시티에서 열매 받기",
+"note": "이상한 카드 대신 두 번째 메뉴 '이상한 뉴스'로 받아요."
+},
+{
+"key": "preset:news-berry",
+"group": "이상한 뉴스",
+"label": "이상한 뉴스: 긴 뉴스 + 열매",
+"note": "두 번째 메뉴 '이상한 뉴스'로 받아요."
+},
+{
+"key": "preset:trainer-id",
+"group": "세이브 읽기",
+"label": "트레이너 ID·SID 보기",
+"note": "결과가 진행 상황에 나와요. 세이브는 바뀌지 않아요."
+}
+]

@@ -279,7 +279,7 @@ public sealed class LdnTradeForm : Form
             proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
             proc.OutputDataReceived += (_, e) => { if (e.Data != null) Append(e.Data); };
             proc.ErrorDataReceived += (_, e) => { if (e.Data != null) Append(e.Data); };
-            proc.Exited += (_, _) => BeginInvoke(() => Finished());
+            proc.Exited += (_, _) => { try { if (!IsDisposed && IsHandleCreated) BeginInvoke(() => { if (!IsDisposed) Finished(); }); } catch { } };   // 창을 닫은 뒤 pokeldn이 끝나도 PKHeX가 죽지 않게
             startedAt = DateTime.Now;
             proc.Start(); proc.BeginOutputReadLine(); proc.BeginErrorReadLine();
             start.Enabled = false; stop.Enabled = true; start.Text = "교환 중…";
@@ -307,8 +307,8 @@ public sealed class LdnTradeForm : Form
 
     private void Append(string line)
     {
-        if (IsDisposed) return;
-        if (InvokeRequired) { BeginInvoke(() => Append(line)); return; }
+        if (IsDisposed || !IsHandleCreated) return;
+        if (InvokeRequired) { try { BeginInvoke(() => Append(line)); } catch { } return; }
         if (log.TextLength > 200_000) log.Text = log.Text[^100_000..];
         log.AppendText(line + Environment.NewLine);
     }

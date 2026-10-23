@@ -283,6 +283,8 @@ public static class RaidData9
     public static int Import(SAV9SV sav, IReadOnlyDictionary<string, byte[]> files, out string error)
     {
         error = null; int n = 0;
+        // 먼저 전부 확인 (파일이 깨졌으면 세이브를 건드리지 않음), 그다음 한꺼번에 씀
+        var writes = new List<(string Name, SCBlock Block, byte[] Buf)>(); var picked = new Dictionary<string, byte[]>();
         foreach (var (name, key) in Files)
         {
             byte[] data = null;
@@ -293,8 +295,18 @@ public static class RaidData9
             var dst = b.Data;
             if (data.Length > dst.Length) { error = $"{name} 파일이 블록보다 큽니다 ({data.Length} > {dst.Length})"; continue; }
             var buf = new byte[dst.Length]; data.CopyTo(buf, 0);
-            b.ChangeData(buf); n++;
+            writes.Add((name, b, buf)); picked[name] = buf;
         }
+        if (writes.Count == 0) return 0;
+        byte[] Cur(uint k) { var b = sav.Accessor.GetBlockSafe(k); return b.Type == SCTypeCode.None ? null : b.Data.ToArray(); }
+        try
+        {
+            var test = Parse(picked.GetValueOrDefault("raid_enemy_array") ?? Cur(KEnemy), picked.GetValueOrDefault("fixed_reward_item_array") ?? Cur(KFixed),
+                             picked.GetValueOrDefault("lottery_reward_item_array") ?? Cur(KLottery), picked.GetValueOrDefault("raid_priority_array") ?? Cur(KPriority));
+            if (test == null || test.Rows.Count == 0) { error = "이벤트 파일 내용을 읽지 못했습니다 (레이드가 없음)"; return 0; }
+        }
+        catch (Exception ex) { error = $"이벤트 파일이 잘못되었습니다 ({ex.GetType().Name})"; return 0; }
+        foreach (var (_, b, buf) in writes) { b.ChangeData(buf); n++; }
         return n;
     }
 

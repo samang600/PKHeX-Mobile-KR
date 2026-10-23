@@ -18,8 +18,8 @@
 		<!-- 별도 설치판(구버전과 동시 설치): dotnet build ... -p:SideBySide=true → 패키지명·앱 이름만 다르게 -->
 		<ApplicationId Condition="'$(SideBySide)' == 'true'">com.pkhexkr.mobile.side</ApplicationId>
 		<ApplicationTitle Condition="'$(SideBySide)' == 'true'">PKHeX 모바일 (별도)</ApplicationTitle>
-		<ApplicationDisplayVersion>1.6.4</ApplicationDisplayVersion>
-		<ApplicationVersion>76</ApplicationVersion>
+		<ApplicationDisplayVersion>1.7.3</ApplicationDisplayVersion>
+		<ApplicationVersion>85</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>
@@ -31,6 +31,10 @@
 		<!-- 빌드 서버의 Xcode가 .NET iOS 요구 버전보다 낮아도 빌드 (새 iOS API를 쓰지 않음) -->
 		<ValidateXcodeVersion>false</ValidateXcodeVersion>
 		<CodesignKey></CodesignKey>
+		<IosPokeLdnGenerated>$(MSBuildThisFileDirectory)Platforms/iOS/PokeLDN/Generated</IosPokeLdnGenerated>
+	</PropertyGroup>
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And '$(WithPokeLdnIos)' != 'false' And Exists('$(MSBuildThisFileDirectory)Platforms/iOS/PokeLDN/Generated/Frameworks/PokeLdnRuntime.framework') And Exists('$(MSBuildThisFileDirectory)Platforms/iOS/PokeLDN/Generated/Frameworks/Python.xcframework')">
+		<DefineConstants>$(DefineConstants);WITH_POKELDN_IOS</DefineConstants>
 	</PropertyGroup>
 	<!-- 1.4.7에서 Shared/PKHeXKR.Gen으로 옮긴 파일: 저장소에 예전 파일이 남아 있어도 빌드되게 제외 -->
 	<ItemGroup>
@@ -61,6 +65,24 @@
 	</PropertyGroup>
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(WithLdn)' != 'false' And Exists('Platforms\Android\ldn\pokeldn-trade-kr.aar')">
 		<AndroidLibrary Include="Platforms\Android\ldn\pokeldn-trade-kr.aar" Bind="false" />
+	</ItemGroup>
+	<!-- Build Platforms/iOS/PokeLDN/build_ios_runtime.py before an iOS PokeLDN build. The generated
+	     native frameworks carry CPython, its iOS extensions, CoreBluetooth, and the Python bridge. -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And '$(WithPokeLdnIos)' != 'false' And Exists('$(IosPokeLdnGenerated)/Frameworks/PokeLdnRuntime.framework')">
+		<NativeReference Include="$(IosPokeLdnGenerated)/Frameworks/Python.xcframework">
+			<Kind>Framework</Kind>
+		</NativeReference>
+		<NativeReference Include="$(IosPokeLdnGenerated)/Frameworks/PokeLdnRuntime.framework">
+			<Kind>Framework</Kind>
+		</NativeReference>
+		<!-- MSBuild wildcards match files, not framework bundle directories. Use the marker file
+		     inside each generated extension framework to resolve its parent bundle path. -->
+		<_PokeLdnExtensionFramework Include="$(IosPokeLdnGenerated)/Frameworks/**/*.origin" />
+		<NativeReference Include="@(_PokeLdnExtensionFramework->'%(RootDir)%(Directory)')">
+			<Kind>Framework</Kind>
+		</NativeReference>
+		<MauiAsset Include="$(IosPokeLdnGenerated)/Resources/**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" Condition="'$(SkipPokeLdnAssetRebundle)' != 'true'" />
+		<EmbeddedResource Include="Platforms/iOS/PokeLDN/Assets/gifts/*.json" LogicalName="PKHeXKR.PokeLDN.%(Filename)%(Extension)" />
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="FluentFTP" Version="52.1.0" />

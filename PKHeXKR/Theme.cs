@@ -89,6 +89,23 @@ public static class T
         return (b, txt);
     }
 
+    /// <summary>버튼 여러 개를 한 화면에: cols칸씩 같은 너비로 줄 바꿈 (옆으로 잘리지 않게, 글자는 조금 작게).</summary>
+    public static Grid Btns(int cols, params Button[] items)
+    {
+        var g = new Grid { ColumnSpacing = 6, RowSpacing = 6 };
+        for (int i = 0; i < cols; i++) g.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        int rows = (items.Length + cols - 1) / cols;
+        for (int r = 0; r < rows; r++) g.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        for (int i = 0; i < items.Length; i++)
+        {
+            var b = items[i];
+            b.FontSize = Math.Min(b.FontSize, 12.5); b.Padding = new Thickness(6, 2); b.LineBreakMode = LineBreakMode.TailTruncation;
+            b.HorizontalOptions = LayoutOptions.Fill;
+            g.Add(b, i % cols, i / cols);
+        }
+        return g;
+    }
+
     public static Grid Cols(int n, double spacing = 10)
     {
         var g = new Grid { ColumnSpacing = spacing, RowSpacing = spacing };
