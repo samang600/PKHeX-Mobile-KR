@@ -125,8 +125,8 @@ public static class QuickParse
     // 크기 표기 → 배율 범위 (PKHeX 크기 등급 기준: XS 0~24, S 25~59, M 60~195, L 196~230, XL 231~255)
     private static readonly (string[] Words, int Min, int Max, string Name)[] Sizes =
     [
-        (["가장작게", "가장작은", "최소", "최소사이즈", "최소크기", "xxs", "초소형", "제일작게", "제일작은", "최저크기", "미니"], 0, 0, "최소 크기(배율 0)"),
-        (["가장크게", "가장큰", "최대", "최대사이즈", "최대크기", "xxl", "초대형", "제일크게", "제일큰", "점보", "거대"], 255, 255, "최대 크기(배율 255)"),
+        (["가장작게", "가장작은", "최소", "최소사이즈", "최소크기", "xxs", "초소형", "제일작게", "제일작은", "최저크기", "미니", "조그만"], 0, 0, "최소 크기(배율 0)"),
+        (["가장크게", "가장큰", "최대", "최대사이즈", "최대크기", "xxl", "초대형", "제일크게", "제일큰", "점보", "거대", "커다란"], 255, 255, "최대 크기(배율 255)"),
         (["xs", "xs사이즈"], 0, 24, "XS"), (["s", "s사이즈", "작게"], 25, 59, "S"), (["m", "m사이즈", "보통"], 60, 195, "M"),
         (["l", "l사이즈", "크게"], 196, 230, "L"), (["xl", "xl사이즈"], 231, 255, "XL"),
     ];
@@ -517,6 +517,9 @@ public static class QuickParse
     {
         var name = "Ribbon" + m;
         if (!o.Ribbons.Contains(name)) o.Ribbons.Add(name);
+        // 커다란·조그만 증표는 크기가 정해져 있음 (배율 255 / 0) — 어떤 말로 적었든 크기도 같이 맞춤 ("커다란증표"가 크기 없이 들어가 생성 실패하던 문제)
+        if (m == RibbonIndex.MarkJumbo && o.ScaleMin != 255) { o.ScaleMin = o.ScaleMax = 255; o.SizeText = "최대 크기(배율 255)"; }
+        if (m == RibbonIndex.MarkMini && o.ScaleMax != 0) { o.ScaleMin = o.ScaleMax = 0; o.SizeText = "최소 크기(배율 0)"; }
         if (o.Mark < 0 || (EncounterMarks.Contains(m) && !EncounterMarks.Contains((RibbonIndex)o.Mark))) o.Mark = (int)m;
     }
 

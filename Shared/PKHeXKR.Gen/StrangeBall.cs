@@ -113,7 +113,7 @@ public static class StrangeBall
                     if (pk == null) continue;
                     pk.Ball = (byte)Ball.Strange;
                     pk.MetDate = useDays[rnd.Next(useDays.Count)];
-                    if (pk is IHomeTrack ht && ht.Tracker == 0) ht.Tracker = (ulong)rnd.NextInt64(1, long.MaxValue);
+                    // HOME 트래커는 절대 만들어 넣지 않음 (진짜 값은 HOME 서버만 발급) → '홈 트래커 없음 검사'가 켜진 게임에선 불법으로 표시됨
                     pk.CurrentHandler = 1; pk.HandlingTrainerName = me.OT; pk.HandlingTrainerGender = me.Gender; pk.SetHTLanguage((byte)me.Language);
                     pk.SetSuggestedMemories();
                     pk.RefreshChecksum();
@@ -124,11 +124,25 @@ public static class StrangeBall
                     p.Ball = (byte)Ball.Strange; p.RefreshChecksum();
                     if (GenHost.IsLegal(p))
                         return (p, $"포켓몬 GO 와일드 에어리어({evs}) 사파리볼 → 스트레인지볼 · 만난 날짜 {p.MetDate:yyyy-MM-dd}");
+                    if (OnlyTrackerMissing(p))
+                        return (p, $"포켓몬 GO 와일드 에어리어({evs}) 사파리볼 → 스트레인지볼 · 만난 날짜 {p.MetDate:yyyy-MM-dd} · ⚠ HOME 트래커가 없어 불법 표시 (실제 HOME을 거쳐야 생김 · 설정의 '홈 트래커 없음 검사'를 끄면 이 항목만 무시)");
                 }
                 catch { }
             }
         }
         return (null, "스트레인지볼로 합법인 개체를 만들지 못했어요 (GO 출신 조건: 이로치·성별·레벨 조합 확인)");
+    }
+
+    /// <summary>불법 사유가 'HOME 트래커 없음' 하나뿐인지</summary>
+    private static bool OnlyTrackerMissing(PKM p)
+    {
+        try
+        {
+            var la = new LegalityAnalysis(p);
+            var bad = la.Results.Where(r => r.Judgement == Severity.Invalid).ToList();
+            return bad.Count > 0 && bad.All(r => r.Result == LegalityCheckResultCode.TransferTrackerMissing) && la.Info.Moves.All(m => m.Valid) && la.Info.Relearn.All(m => m.Valid);
+        }
+        catch { return false; }
     }
 
     private static List<Entry> Build(SaveFile sav)

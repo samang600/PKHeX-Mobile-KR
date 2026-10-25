@@ -233,6 +233,9 @@ public static class QuickGen
     public static PKM TryEncounter(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
         var crit = EncCond.Criteria(); var sw = System.Diagnostics.Stopwatch.StartNew(); int illegal = 0; bool fail = false, mismatch = false; bool? sizeFree = null;
+        // 6V: 조우에 개체값을 31로 정해 달라고 함 (안 그러면 무작위 개체값이 우연히 6V가 될 때까지 돌아 증표·크기 조건과 같이 쓰면 만들어지지 않았음)
+        if (o.FlawlessIVs == 6 && crit is { IV_HP: < 0, IV_ATK: < 0, IV_DEF: < 0, IV_SPA: < 0, IV_SPD: < 0, IV_SPE: < 0 })
+            crit = crit with { IV_HP = 31, IV_ATK = 31, IV_DEF = 31, IV_SPA = 31, IV_SPD = 31, IV_SPE = 31 };
         var tr = TrainerFor(e, o, sav);
         // 3·4세대 + 개체값 고정(6V·5V·개체값 전부 지정): PKHeX가 개체값에서 시드를 거꾸로 찾아 성격·성별까지 정해서 만듦 (결과가 정해져 있음)
         // → 무작위로 4초 돌리는 대신 가능한 개체값 조합만 몇 번씩 시도하고, 안 되면 바로 다음 조우로
