@@ -128,7 +128,10 @@ public class DeviceExecutor<T>(DeviceState cfg) : SwitchRoutineExecutor<T>(cfg) 
         var start = await SwitchConnection.GetHeapBaseAsync(token).ConfigureAwait(false);
 
         if (BoxStartAddress == 0)
-            BoxStartAddress = start + (OffsetOverride != 0 ? OffsetOverride : HomeDataOffsets.OffsetFor(HomeVersion));
+        {
+            if (OffsetOverride != 0) BoxStartAddress = start + OffsetOverride;
+            else BoxStartAddress = start + await PickKnownOffset(start, token).ConfigureAwait(false);
+        }
 
         return BoxStartAddress;
     }
@@ -228,6 +231,32 @@ public class DeviceExecutor<T>(DeviceState cfg) : SwitchRoutineExecutor<T>(cfg) 
                 else if (!IsEmptySlot(span)) return best;
             }
             cur = from;
+        }
+        return best;
+    }
+
+    /// <summary>PKHeXKR: 알려진 위치 후보들의 1번 박스를 읽어, 깨진 칸 없이 포켓몬이 가장 많이 보이는 위치를 고름 (같으면 기본 위치).</summary>
+    private async Task<ulong> PickKnownOffset(ulong heap, CancellationToken token)
+    {
+        ulong first = HomeDataOffsets.OffsetFor(HomeVersion);
+        var cands = new List<ulong> { first };
+        if (HomeDataOffsets.AltOffsets.TryGetValue(HomeVersion ?? "", out var alt)) foreach (var a in alt) if (!cands.Contains(a)) cands.Add(a);
+        if (cands.Count == 1) return first;
+        int slot = HomeDataOffsets.HomeSlotSize, n = HomeDataOffsets.HomeSlotCount;
+        ulong best = first; int bestScore = -1;
+        foreach (var c in cands)
+        {
+            byte[] buf;
+            try { buf = await SwitchConnection.ReadBytesAbsoluteAsync(heap + c, slot * n, token).ConfigureAwait(false); } catch { continue; }
+            int valid = 0, bad = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var sp = buf.AsSpan(i * slot, slot);
+                if (IsValidSlot(sp)) valid++; else if (!IsEmptySlot(sp)) bad++;
+            }
+            int score = bad > 0 ? -1 : valid;
+            Log($"HOME 박스 위치 후보 heap+0x{c:X}: 포켓몬 {valid} · 깨진 칸 {bad}");
+            if (score > bestScore) { bestScore = score; best = c; }
         }
         return best;
     }

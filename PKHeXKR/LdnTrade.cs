@@ -21,7 +21,7 @@ public static class LdnTrade
 #endif
     public static string Home { get { var d = Path.Combine(FileSystem.AppDataDirectory, "ldn"); Directory.CreateDirectory(d); return d; } }
     public static string KeysPath => Path.Combine(Home, "prod.keys");
-    public const string FwVersion = "1.7.1";
+    public const string FwVersion = "1.9.1";
 
     /// <summary>교환할 포켓몬 (보통 최대 6, 리빙덱스 교환은 수백 마리). 시트를 닫아도 유지.</summary>
     public static readonly List<PKM> Offers = [];

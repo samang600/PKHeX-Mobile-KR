@@ -9,7 +9,7 @@ UI를 새로 설계한 안드로이드용 PKHeX. 이미지 에셋만 PKHeXMAUI�
 - `dotnet build PKHeXKR.csproj -f net10.0-android36.0 -c Release -p:AndroidPackageFormat=apk -p:RuntimeIdentifiers=android-arm64`
 
 ## 구성
-- PKHeX.Core 26.8.26 (NuGet), PKHeX.Core.AutoMod / Injection (소스 빌드, 같은 버전 기준)
+- PKHeX.Core 개발 버전 소스(PKHeX-Core-Dev, 정식 26.10.18 이후), PKHeX.Core.AutoMod / Injection (소스 빌드, 같은 버전 기준)
 - `MainPage.cs` 단일 화면, `UI/` 박스·편집 섹션·시트, `AppState.cs` 전역 상태, `Theme.cs` 디자인 토큰
 
 - HOME Live: 같은 상위 폴더에 `git clone https://github.com/Manu098vm/HOME-Live-Plugin HOMELive`

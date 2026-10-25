@@ -13,6 +13,8 @@ public static class GenHost
     public static GameStrings Strings => StringsSource();
 
     /// <summary>합법 판정. 모바일은 설정(검사 끄기·스위치판 FRLG 등)을 반영한 판정으로 바꿔 끼움.</summary>
+    /// <summary>true면 교환·HOME 맡기기가 안 되는 조우(라이드 코라이돈·미라이돈 등)는 후보에서 뺌 (교환봇용)</summary>
+    public static bool ExcludeUntradable;
     public static Func<PKM, bool> IsLegal = p => { try { return p.Species != 0 && new LegalityAnalysis(p).Valid; } catch { return false; } };
 
     /// <summary>앱에 들어 있는 PKHeX.Core에 없는 배포 기간 (모바일: 배포 데이터 자동 업데이트).</summary>

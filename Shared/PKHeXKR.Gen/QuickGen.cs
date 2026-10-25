@@ -133,6 +133,7 @@ public static class QuickGen
             if (o.PreSpecies != 0 && e.Species != o.PreSpecies && e.Species != o.Species) return false;
             if (o.Form >= 0 && e.Species == o.Species && e.Form != o.Form && e.Form < EncounterUtil.FormDynamic) return false;   // 30·31: 무늬·폼이 정해지지 않은 조우 (비비용 등)
             if (EncCond.Impossible(e) != null) return false;
+            if (GenHost.ExcludeUntradable && TradeRestrictions.IsUntradableEncounter(e)) return false;   // 라이드 코라이돈·미라이돈 등
             if (o.Alpha == 1 && e is not IAlphaReadOnly { IsAlpha: true }) return false;
             if (o.Alpha == 0 && e is IAlphaReadOnly { IsAlpha: true }) return false;
             if (o.Ball > 0 && e is IFixedBall { FixedBall: not Ball.None } fb && (int)fb.FixedBall != o.Ball) return false;
@@ -173,6 +174,19 @@ public static class QuickGen
         return o.Keywords.Count(k => k.Length > 0 && all.Contains(k.ToLowerInvariant().Replace(" ", "")));
     }
 
+    /// <summary>
+    /// 레벨 올리기. 레전즈 Z-A는 레벨이 오르면 그 레벨까지 배운 기술의 '플러스 기술' 표시가 켜져 있어야 함
+    /// (안 켜면 'Plus Move flag ... must be set'으로 불법) → 레벨을 바꾼 뒤 지금 레벨 기준으로 다시 맞춤.
+    /// </summary>
+    public static void SetLevel(PKM p, int level)
+    {
+        p.CurrentLevel = (byte)level;
+        if (p is PA9 z && z.PersonalInfo is IPermitPlus permit)
+        {
+            try { z.SetPlusFlags(permit, PlusRecordApplicatorOption.LegalCurrent); } catch { }
+        }
+    }
+
     public static PKM TryBoth(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
         Seeder sd = null;
@@ -203,7 +217,7 @@ public static class QuickGen
             var c = sd.Finish(p.Clone());
             EncCond.ApplyMark(c);
             if (o.Ball > 0) c.Ball = (byte)o.Ball;
-            if (o.Level > 0 && o.Level >= c.MetLevel) c.CurrentLevel = (byte)o.Level;
+            if (o.Level > 0 && o.Level >= c.MetLevel) SetLevel(c, o.Level);
             if (!EncCond.Satisfied(c)) continue;
             if (c.Species != o.Species) { c = EvoUtil.Evolve(c, o.Species, o.Form); if (c.Species != o.Species) continue; }
             if (false) continue;
@@ -266,7 +280,7 @@ public static class QuickGen
             { var t = p.Clone(); t.MetDate = dd; t.RefreshChecksum(); if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t; }
             EncCond.ApplyMark(p);
             if (o.Ball > 0) p.Ball = (byte)o.Ball;
-            if (o.Level > 0 && o.Level >= p.MetLevel) p.CurrentLevel = (byte)o.Level;
+            if (o.Level > 0 && o.Level >= p.MetLevel) SetLevel(p, o.Level);
             // 조건(성별·이로치·성격·개체값·크기)은 진화해도 그대로라 진화 전에 먼저 확인 → 맞는 개체만 진화 (진화는 무거움)
             p = EncCond.FitSize(p, ref sizeFree, GenHost.IsLegal);
             if (!EncCond.Satisfied(p)) return null;
@@ -439,7 +453,7 @@ public static class QuickGen
                         var h = (IHyperTrain)x;
                         h.HT_HP = (flags & 1) != 0; h.HT_ATK = (flags & 2) != 0; h.HT_DEF = (flags & 4) != 0;
                         h.HT_SPE = (flags & 8) != 0; h.HT_SPA = (flags & 16) != 0; h.HT_SPD = (flags & 32) != 0;
-                        if (x.CurrentLevel < min) x.CurrentLevel = (byte)min;
+                        if (x.CurrentLevel < min) SetLevel(x, min);
                         x.ResetPartyStats();
                     }, "특훈") && raise) o.Notes.Add($"특훈: Lv{min} 이상이어야 해서 Lv{min}으로 올림");
                 }
