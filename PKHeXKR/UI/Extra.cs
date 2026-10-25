@@ -1,4 +1,4 @@
-﻿using PKHeX.Core;
+using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 namespace PKHeXKR;
 
@@ -225,7 +225,7 @@ public class BatchSheet : Sheet
         var page = Application.Current.Windows[0].Page; var src = AppState.Src; var s = GameInfo.Strings;
         IReadOnlyList<ComboItem> list = p switch
         {
-            "Species" => src.Species, "Ball" => src.Balls, "Nature" or "StatAlignment" => src.Natures, "Ability" => src.Abilities,
+            "Species" => src.Species, "Ball" => AppState.Balls, "Nature" or "StatAlignment" => src.Natures, "Ability" => src.Abilities,
             "Move1" or "Move2" or "Move3" or "Move4" or "RelearnMove1" or "RelearnMove2" or "RelearnMove3" or "RelearnMove4" => src.Moves,
             "HeldItem" => src.Items, "Language" => src.Languages, "Version" => src.Games,
             "Gender" or "OriginalTrainerGender" => [new("수컷 ♂", 0), new("암컷 ♀", 1), new("성별 없음", 2)],

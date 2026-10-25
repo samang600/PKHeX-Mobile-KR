@@ -1,4 +1,4 @@
-﻿using PKHeX.Core;
+using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using System.Reflection;
 namespace PKHeXKR;
@@ -72,6 +72,7 @@ public static class QuickGen
     {
         if (!InGame(o, sav))
             return (null, NotInGame);
+        if (o.Ball == StrangeBall.BallId) return StrangeBall.Make(o, sav, tok);   // 스트레인지볼: GO 와일드 에어리어 출신으로만 가능
         SetEncCond(o, sav);
         var candidates = Candidates(o, sav);
         foreach (var e in candidates.Take(o.SkipAlm ? 12 : 20))

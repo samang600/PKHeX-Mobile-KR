@@ -1,4 +1,4 @@
-﻿using PKHeX.Core;
+using PKHeX.Core;
 namespace PKHeXKR;
 
 public static class Note
@@ -134,7 +134,7 @@ public class MainSection : Section
         });
         abilityRow = T.Field("특성", av);
         (var iv, item) = T.Chooser(() => Pick("지닌 물건", HeldItems(), Pk.HeldItem, c => Changed(() => { Pk.HeldItem = c.Value; Reload(); }), c => AppState.ItemSprite(c.Value)));
-        (var bv, ball) = T.Chooser(() => { var ok = LegalTools.LegalBalls(Pk); SheetHost.Show(new PickerSheet("볼", AppState.Src.Balls, Pk.Ball, c => Changed(() => { Pk.Ball = (byte)c.Value; Reload(); }), c => AppState.BallSprite(c.Value), c => ok.Contains(c.Value) ? 0 : 2)); });
+        (var bv, ball) = T.Chooser(() => { var ok = LegalTools.LegalBalls(Pk); SheetHost.Show(new PickerSheet("볼", AppState.Balls, Pk.Ball, c => Changed(() => { Pk.Ball = (byte)c.Value; Reload(); }), c => AppState.BallSprite(c.Value), c => ok.Contains(c.Value) ? 0 : 2)); });
         ballRow = T.Field("볼", bv);
         (var lv, lang) = T.Chooser(() => Pick("언어", AppState.Src.Languages, Pk.Language, c => Changed(() => { Pk.Language = c.Value; if (!Pk.IsNicknamed) ResetNickname(); Reload(); })));
         var shinyRow = Switch("이로치", out shinySw);
@@ -325,7 +325,7 @@ public class MainSection : Section
         string AbilName(int a) => a >= 0 && a < GameInfo.Strings.abilitylist.Length ? GameInfo.Strings.abilitylist[a] : "-";
         ability.Text = pk.Format < 3 ? "-" : AppState.HaX ? AbilName(pk.Ability) : AbilityIndex() < abil.Count ? abil[AbilityIndex()].Text : AbilName(pk.Ability);
         item.Text = pk.HeldItem == 0 ? "없음" : NameOf(AppState.Src.Items, pk.HeldItem);
-        ball.Text = NameOf(AppState.Src.Balls, pk.Ball);
+        ball.Text = NameOf(AppState.Balls, pk.Ball);
         lang.Text = NameOf(AppState.Src.Languages, pk.Language);
         shinySw.IsToggled = pk.IsShiny; eggSw.IsToggled = pk.IsEgg;
 
@@ -730,7 +730,7 @@ public class MetSection : Section
         var hRow = Switch("알에서 부화", out hatched);
         hatched.Toggled += (_, e) => Changed(() => { if (!e.Value) { Pk.EggLocation = 0; Pk.EggMetDate = null; } else if (Pk.EggLocation == 0) Pk.EggLocation = Locations.LinkTrade6; Reload(); });
         dateRow = T.Field("만난 날짜", metDate);
-        (var bv, metBall) = T.Chooser(() => Pick("잡은 볼", AppState.Src.Balls, Pk.Ball, c => Changed(() => { Pk.Ball = (byte)c.Value; Reload(); AppState.ReloadEditors(); }), c => AppState.BallSprite(c.Value)));
+        (var bv, metBall) = T.Chooser(() => Pick("잡은 볼", AppState.Balls, Pk.Ball, c => Changed(() => { Pk.Ball = (byte)c.Value; Reload(); AppState.ReloadEditors(); }), c => AppState.BallSprite(c.Value)));
         metBallIcon = new Image { WidthRequest = 30, HeightRequest = 30, VerticalOptions = LayoutOptions.End, Margin = new Thickness(0, 0, 0, 6) };
         obey = Num(v => Changed(() => { if (Pk is IObedienceLevel o) o.ObedienceLevel = (byte)Math.Clamp(v, 0, 100); }), 100);
         var obeySet = T.Pill("만난 레벨로"); obeySet.VerticalOptions = LayoutOptions.End;
@@ -756,7 +756,7 @@ public class MetSection : Section
         game.Text = AppState.Src.Games.Any(x => x.Value == (int)pk.Version) ? NameOf(AppState.Src.Games, (int)pk.Version) : AppState.GameName(pk.Version);   // 목록에 없는 출신 (예: HOME 56)
         ballRow.IsVisible = pk.Format >= 3;
         obeyRow.IsVisible = pk is IObedienceLevel; if (pk is IObedienceLevel ob) obey.Text = ob.ObedienceLevel.ToString();
-        metBall.Text = NameOf(AppState.Src.Balls, pk.Ball); metBallIcon.Source = pk.Format >= 3 ? AppState.BallSprite(pk.Ball) : null;
+        metBall.Text = NameOf(AppState.Balls, pk.Ball); metBallIcon.Source = pk.Format >= 3 ? AppState.BallSprite(pk.Ball) : null;
         loc.Text = NameOf(GameInfo.GetLocationList(LocVer(pk), pk.Context, false), pk.MetLocation);
         metLevel.Text = pk.MetLevel.ToString();
         dateRow.IsVisible = pk.Format >= 4;

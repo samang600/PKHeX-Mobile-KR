@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Maui.Storage;
+using CommunityToolkit.Maui.Storage;
 using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using Microsoft.Maui.Controls.Shapes;
@@ -104,7 +104,7 @@ public class MainPage : ContentPage
         Tap(ballIcon, () =>
         {
             var p0 = AppState.Pk; if (p0.Species == 0 || p0.Format < 3) return;
-            var okBalls = LegalTools.LegalBalls(p0); SheetHost.Show(new PickerSheet("볼", AppState.Src.Balls, p0.Ball, c => Quick(p => p.Ball = (byte)c.Value, p => "볼을 바꿨습니다"), c => AppState.BallSprite(c.Value), c => okBalls.Contains(c.Value) ? 0 : 2));
+            var okBalls = LegalTools.LegalBalls(p0); SheetHost.Show(new PickerSheet("볼", AppState.Balls, p0.Ball, c => Quick(p => p.Ball = (byte)c.Value, p => "볼을 바꿨습니다"), c => AppState.BallSprite(c.Value), c => okBalls.Contains(c.Value) ? 0 : 2));
         });
         var sumGrid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 10 };
         sumGrid.Add(sprite, 0);

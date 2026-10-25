@@ -16,7 +16,7 @@ public static class LegalTools
             catch { return [(CheckIdentifier.Ball, LegalityCheckResultCode.Valid)]; }
         }
         var baseBad = Bad(pk);
-        foreach (var c in AppState.Src.Balls)
+        foreach (var c in AppState.Balls)
         {
             if (c.Value <= 0) continue;
             try

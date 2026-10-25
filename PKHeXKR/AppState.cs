@@ -1,4 +1,4 @@
-﻿using PKHeX.Core;
+using PKHeX.Core;
 using PKHeX.Core.Injection;
 using PKHeX.Core.AutoMod;
 namespace PKHeXKR;
@@ -13,6 +13,23 @@ public static class AppState
     public static bool PartyMode;
     public static (bool Party, int Box, int Index)? Source;   // 편집 중인 개체를 불러온 칸
     public static FilteredGameDataSource Src { get; private set; }
+    /// <summary>
+    /// 볼 목록. PKHeX는 소드실드 볼을 비스트볼(26)까지만 보여 주지만, GO 와일드 에어리어 출신(사파리볼 → HOME에서 스트레인지볼)은
+    /// 소드실드로 옮겨도 스트레인지볼 값이 유지되고(게임 화면에선 몬스터볼로 보임) PKHeX 합법성 검사도 통과 → 소드실드에서도 스트레인지볼을 고를 수 있게 더함.
+    /// </summary>
+    public static IReadOnlyList<ComboItem> Balls
+    {
+        get
+        {
+            var b = Src.Balls;
+            if (Sav is SAV8SWSH && !b.Any(x => x.Value == (int)Ball.Strange))
+            {
+                var st = GameInfo.Sources.BallDataSource.FirstOrDefault(x => x.Value == (int)Ball.Strange);
+                if (st != null) return b.Append(st).ToList();
+            }
+            return b;
+        }
+    }
     public static PokeSysBotMini Remote;
     public static bool LiveConnected => Remote?.Connected == true && (LiveSav == null || LiveSav == Sav);
 

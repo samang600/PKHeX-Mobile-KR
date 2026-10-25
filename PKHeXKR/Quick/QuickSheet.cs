@@ -92,9 +92,37 @@ public class QuickSheet : Sheet
                 var other = QuickGen.OtherGames(o, AppState.Sav, AppState.Games);
                 note = other.Count == 0 ? "이 게임에 없는 포켓몬입니다" : $"이 게임에 없는 포켓몬 · 만들 수 있는 게임: {string.Join(", ", other.Take(4).Select(AppState.GameName))}{(other.Count > 4 ? " 등" : "")} (만들기를 누르면 새 인스턴스로 만들지 물어봅니다)";
             }
+            if (o.Species != 0 && o.Ball == StrangeBall.BallId && !StrangeBall.IsPossible(AppState.Sav, o.Species))
+                note = (note == null ? "" : note + "\n") + "스트레인지볼은 이 포켓몬에 불가능해요 (포켓몬 GO 와일드 에어리어 사파리볼 출신만) · 아래 '스트레인지볼 가능한 포켓몬' 참고";
             preview.Children.Add(Line(o, note));
         }
+        if (StrangeHelp(list) is { } sh) preview.Children.Add(sh);
         status.Text = $"{list.Count}마리로 해석했습니다" + (list.Any(x => x.Unknown.Count > 0) ? " · '?' 표시 단어는 알아보지 못해 무시합니다" : "");
+    }
+
+    /// <summary>주문에 스트레인지볼이 있으면 '가능한 포켓몬' 버튼 (증표 가능한 포켓몬 보기처럼). 고르면 그 포켓몬 줄을 입력란에 더함</summary>
+    private View StrangeHelp(List<OrderSpec> list)
+    {
+        if (!list.Any(o => o.Ball == StrangeBall.BallId)) return null;
+        var sav = AppState.Sav;
+        var poss = StrangeBall.Possible(sav);
+        var b = T.Pill($"스트레인지볼 가능한 포켓몬 {poss.Select(e => e.Species).Distinct().Count()}종 보기", size: 12);
+        b.HorizontalOptions = LayoutOptions.Start;
+        b.Clicked += (_, _) =>
+        {
+            if (poss.Count == 0) { Note.Show("이 게임에서 스트레인지볼이 가능한 포켓몬이 없어요"); return; }
+            var s = GameInfo.Strings;
+            var items = poss.Select((e, i) => new ComboItem($"{s.Species[e.Species]}{RaidSearchSheet.FormText(e.Species, e.Form)}{(e.Evolved ? " · 진화" : "")} · {e.Events}", i)).ToList();
+            SheetHost.Show(new PickerSheet($"스트레인지볼 가능 {items.Count}가지 (GO 와일드 에어리어)", items, -1, c =>
+            {
+                var e = poss[c.Value];
+                var name = s.Species[e.Species] + (e.Form > 0 ? RaidSearchSheet.FormText(e.Species, e.Form).Replace(" (", "(") : "");
+                var cur = (input.Text ?? "").TrimEnd();
+                input.Text = (cur.Length > 0 ? cur + "\n" : "") + $"{name} 스트레인지볼";
+                status.Text = $"'{name} 스트레인지볼' 줄을 더했어요 · 만난 날짜는 이벤트 기간({e.Events})으로 정해져요";
+            }, c => AppState.Sprite(poss[c.Value].Species, poss[c.Value].Form, false)));
+        };
+        return b;
     }
 
     private static View Line(OrderSpec o, string result, bool? ok = null)
@@ -144,6 +172,7 @@ public class QuickSheet : Sheet
             }
         }
         finally { makeBtn.IsEnabled = parseBtn.IsEnabled = true; stopBtn.IsVisible = false; parseBtn.IsVisible = true; }
+        if (StrangeHelp(list) is { } shv) preview.Children.Add(shv);
         QuickHistory.Add(lastText, $"{AppState.GameName(sav.Version)} · {made.Count}/{total}마리{(failed.Count > 0 ? $" · 이 게임에 없음 {failed.Count}" : "")}");
         // 이 게임에서 만들 수 없던 포켓몬 (게임에 없음·이 게임 조우 없음) → 만들 수 있는 게임으로 새 인스턴스
         var away = failed.Where(x => !tok.IsCancellationRequested && QuickGen.OtherGames(x.O, sav, AppState.Games).Count > 0).ToList();
