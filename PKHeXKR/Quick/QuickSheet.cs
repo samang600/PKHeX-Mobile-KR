@@ -92,8 +92,8 @@ public class QuickSheet : Sheet
                 var other = QuickGen.OtherGames(o, AppState.Sav, AppState.Games);
                 note = other.Count == 0 ? "이 게임에 없는 포켓몬입니다" : $"이 게임에 없는 포켓몬 · 만들 수 있는 게임: {string.Join(", ", other.Take(4).Select(AppState.GameName))}{(other.Count > 4 ? " 등" : "")} (만들기를 누르면 새 인스턴스로 만들지 물어봅니다)";
             }
-            if (o.Species != 0 && o.Ball == StrangeBall.BallId && !StrangeBall.IsPossible(AppState.Sav, o.Species))
-                note = (note == null ? "" : note + "\n") + "스트레인지볼은 이 포켓몬에 불가능해요 (포켓몬 GO 와일드 에어리어 사파리볼 출신만) · 아래 '스트레인지볼 가능한 포켓몬' 참고";
+            if (o.Species != 0 && o.Ball == StrangeBall.BallId && !StrangeBall.IsPossible(AppState.Sav, o.Species, o.Form))
+                note = (note == null ? "" : note + "\n") + "스트레인지볼은 이 포켓몬(폼)에 불가능해요 (포켓몬 GO 와일드 에어리어 사파리볼 출신만) · 아래 '스트레인지볼 가능한 포켓몬' 참고";
             preview.Children.Add(Line(o, note));
         }
         if (StrangeHelp(list) is { } sh) preview.Children.Add(sh);

@@ -39,7 +39,7 @@ public static class StrangeBall
         }
     }
 
-    public static bool IsPossible(SaveFile sav, ushort species) => Possible(sav).Any(e => e.Species == species);
+    public static bool IsPossible(SaveFile sav, ushort species, int form = -1) => Possible(sav).Any(e => e.Species == species && (form < 0 || e.Form == form));
 
     private static IEnumerable<EncounterSlot8GO> GoSlots()
     {
@@ -82,8 +82,8 @@ public static class StrangeBall
     /// </summary>
     public static (PKM Pk, string How) Make(OrderSpec o, SaveFile sav, CancellationToken tok)
     {
-        if (!IsPossible(sav, o.Species))
-            return (null, "스트레인지볼은 이 포켓몬에 불가능해요 (포켓몬 GO 와일드 에어리어에서 사파리볼로 잡은 포켓몬만 · '스트레인지볼 가능한 포켓몬' 목록 참고)");
+        if (!IsPossible(sav, o.Species, o.Form))
+            return (null, (o.Form >= 0 && IsPossible(sav, o.Species) ? "스트레인지볼은 이 폼에 불가능해요" : "스트레인지볼은 이 포켓몬에 불가능해요") + " (포켓몬 GO 와일드 에어리어에서 사파리볼로 잡은 포켓몬만 · '스트레인지볼 가능한 포켓몬' 목록 참고)");
         var line = new HashSet<ushort> { o.Species };
         try
         {
@@ -95,7 +95,9 @@ public static class StrangeBall
         var shiny = o.Shiny switch { 1 or 3 or 4 => Shiny.Always, 2 => Shiny.Never, _ => Shiny.Random };
         var me = GenHost.TrainerOf(sav);
         var rnd = Random.Shared;
-        var srcs = StrangeSlots(sav).Where(x => line.Contains(x.Slot.Species)).OrderBy(x => x.Slot.Species == o.Species ? 0 : 1).ToList();
+        // 폼(리전폼 등)을 정했으면: 같은 종의 조우는 그 폼만, 진화 전 조우는 진화 뒤 폼이 맞는지 아래에서 확인 (폼을 무시하고 원종이 나오던 문제)
+        var srcs = StrangeSlots(sav).Where(x => line.Contains(x.Slot.Species) && (o.Form < 0 || x.Slot.Species != o.Species || x.Slot.Form == o.Form))
+            .OrderBy(x => x.Slot.Species == o.Species ? 0 : 1).ToList();
         foreach (var (slot, days, evs) in srcs)
         {
             if (shiny == Shiny.Always && slot.Shiny == Shiny.Never) continue;
@@ -118,7 +120,7 @@ public static class StrangeBall
                     pk.SetSuggestedMemories();
                     pk.RefreshChecksum();
                     var p = EvoUtil.ToTarget(pk, o.Species, o.Form);
-                    if (p == null || p.Species != o.Species) continue;
+                    if (p == null || p.Species != o.Species || (o.Form >= 0 && p.Form != o.Form)) continue;
                     var keepDate = o.MetFrom; o.MetFrom = null;   // 날짜는 위에서 이벤트 기간으로 정함
                     try { p = QuickGen.Finish(o, p, sav); } finally { o.MetFrom = keepDate; }
                     p.Ball = (byte)Ball.Strange; p.RefreshChecksum();

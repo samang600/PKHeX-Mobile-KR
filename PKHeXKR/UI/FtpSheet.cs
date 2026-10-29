@@ -49,9 +49,12 @@ public class FtpSheet : Sheet
         var root = T.Pill("맨 위"); root.Clicked += async (_, _) => await Safe(async () => { cwd = "/"; await Refresh(); });
         var jksv = T.Pill("JKSV"); jksv.Clicked += async (_, _) => await Safe(async () => { cwd = "/JKSV"; await Refresh(); });
         var ckpt = T.Pill("Checkpoint"); ckpt.Clicked += async (_, _) => await Safe(async () => { cwd = "/switch/Checkpoint/saves"; await Refresh(); });
+        // ftpsrv(sysmodule): 게임을 켜지 않고 스위치에 저장된 세이브를 바로 열고 덮어씀 (/save:/사용자 [UID]/files/게임 [타이틀ID]/main)
+        var fsrv = T.Pill("ftpsrv 세이브", primary: true); fsrv.Clicked += async (_, _) => await Safe(async () => { cwd = await SaveRoot() ?? "/"; if (cwd == "/") status.Text = "save: 폴더가 없습니다 (ftpsrv config.ini [Nx] mount_devices=1 확인)"; await Refresh(); });
+        var fport = T.Pill("ftpsrv 포트(21)"); fport.Clicked += (_, _) => { portE.Text = "21"; Note.Show("포트를 21로 바꿨습니다. '연결'을 눌러 주세요"); };
         var mk = T.Pill("새 폴더"); mk.Clicked += async (_, _) => await Safe(NewFolder);
         pasteBtn = T.Pill("붙여넣기", primary: true); pasteBtn.Clicked += async (_, _) => await Safe(async () => { await Paste(); }); UpdatePaste();
-        var hint = T.L("스위치 DBI → 'Run FTP server' (기본 포트 5000, 같은 와이파이)\n• 세이브 폴더가 보이면: 눌러 열고 편집 후 덮어쓰기\n• SD 카드만 보이면: DBI에서 세이브 Backup → 'DBI 백업 폴더'에서 편집·덮어쓰기 → DBI에서 Restore", 12, sub: true);
+        var hint = T.L("스위치 DBI → 'Run FTP server' (기본 포트 5000, 같은 와이파이)\n• 세이브 폴더가 보이면: 눌러 열고 편집 후 덮어쓰기\n• SD 카드만 보이면: DBI에서 세이브 Backup → 'DBI 백업 폴더'에서 편집·덮어쓰기 → DBI에서 Restore\n\nftpsrv(시스템 모듈, 포트 21): 'ftpsrv 세이브' → 사용자 → files → 게임 → main 등을 눌러 열고, 편집 후 같은 파일을 눌러 '덮어쓰기'. 백업·복원 없이 바로 바뀝니다. 그 게임은 꺼 둔 상태에서 하세요. (config.ini [Nx] mount_devices=1·save_writable=1, 쓰기가 고쳐진 ftpsrv 필요)", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap; status.LineBreakMode = LineBreakMode.WordWrap; pathL.LineBreakMode = LineBreakMode.WordWrap;
         var form = T.Cols(2, 6); form.Add(T.Field("IP 또는 주소", hostE), 0); form.Add(T.Field("포트", portE), 1);
         var form2 = T.Cols(2, 6); form2.Add(T.Field("사용자", userE), 0); form2.Add(T.Field("비밀번호", passE), 1);
@@ -59,7 +62,7 @@ public class FtpSheet : Sheet
         var modeRow = T.Cols(2, 6); modeRow.Add(ftpB, 0); modeRow.Add(httpB, 1);
         ftpB.Clicked += (_, _) => SetMode(false); httpB.Clicked += (_, _) => SetMode(true);
         modeHint.LineBreakMode = LineBreakMode.WordWrap;
-        var tools = new VerticalStackLayout { Spacing = 6, Children = { T.Btns(4, up, root, mk, pasteBtn), T.Btns(4, dbi, jksv, ckpt, off), here } };
+        var tools = new VerticalStackLayout { Spacing = 6, Children = { T.Btns(4, up, root, mk, pasteBtn), T.Btns(4, dbi, jksv, ckpt, off), T.Btns(2, fsrv, fport), here } };
         ftpTools = new VerticalStackLayout { Spacing = 10, Children = { hint, T.Field("백업 폴더 경로 (SD 카드 기준, sdmc:/ = /)", pathE) } };
         var up2 = T.Pill("상위 폴더"); up2.Clicked += async (_, _) => await Safe(async () => { if (cwd != "/") { cwd = cwd.TrimEnd('/'); cwd = cwd[..Math.Max(1, cwd.LastIndexOf('/') + 1)]; } await Refresh(); });
         var off2 = T.Pill("연결 해제"); off2.Clicked += (_, _) => { Drop(); list.Children.Clear(); status.Text = "연결을 해제했습니다"; pathL.Text = ""; };
@@ -173,6 +176,20 @@ public class FtpSheet : Sheet
         }
         return r.OrderByDescending(x => x.Dir).ThenBy(x => x.Name).ToList();
     }
+
+    /// <summary>ftpsrv의 세이브 장치(맨 위의 'save:') 경로. 없으면 null</summary>
+    private static async Task<string> SaveRoot()
+    {
+        try
+        {
+            foreach (var it in await ListDir("/"))
+                if (it.Name.TrimEnd(':', '/').Equals("save", StringComparison.OrdinalIgnoreCase)) return "/" + it.Name.TrimEnd('/').TrimEnd(':') + ":";
+        }
+        catch { }
+        return null;
+    }
+    /// <summary>ftpsrv 세이브 장치 안의 실제 세이브 파일 (덮어쓰면 바로 적용 — 백업·복원 단계 없음)</summary>
+    private static bool IsLiveSave(string path) => path.StartsWith("/save:", StringComparison.OrdinalIgnoreCase) && path.Contains("/files/", StringComparison.OrdinalIgnoreCase);
 
     private static (string Dir, string Name) Split(string path) { var i = path.TrimEnd('/').LastIndexOf('/'); return i <= 0 ? ("/", path.Trim('/')) : (path[..i], path[(i + 1)..]); }
     private static async Task<byte[]> Get(string path)
@@ -294,7 +311,8 @@ public class FtpSheet : Sheet
                 case put:
                     var sav = AppState.Sav;
                     if (string.IsNullOrEmpty(sav.Metadata.FileName)) { status.Text = "앱에 열린 세이브가 없습니다"; break; }
-                    if (!await page.DisplayAlertAsync("덮어쓰기", $"'{path}'을(를) 지금 편집 중인 {AppState.GameName(sav.Version)} 세이브로 바꿉니다.{(zip ? " zip은 원래 구성 그대로 다시 묶고 세이브 파일만 바꿉니다." : "")} 원본은 먼저 앱 백업 목록에 저장합니다. 계속할까요?", "덮어쓰기", "취소")) break;
+                    bool live = IsLiveSave(path);
+                    if (!await page.DisplayAlertAsync("덮어쓰기", $"'{path}'을(를) 지금 편집 중인 {AppState.GameName(sav.Version)} 세이브로 바꿉니다.{(zip ? " zip은 원래 구성 그대로 다시 묶고 세이브 파일만 바꿉니다." : "")}{(live ? " 스위치에 저장된 세이브가 바로 바뀝니다. 그 게임이 켜져 있으면 먼저 꺼 주세요 (켜진 채로 하면 게임이 저장할 때 되돌아가거나 세이브가 꼬일 수 있음)." : "")} 원본은 먼저 앱 백업 목록에 저장합니다. 계속할까요?", "덮어쓰기", "취소")) break;
                     status.Text = "원본 백업 중…";
                     var orig = await Get(path);
                     if (orig != null) SaveStore.Backup(orig, path.Trim('/').Replace('/', '_'), "스위치FTP 원본");
@@ -313,9 +331,16 @@ public class FtpSheet : Sheet
                     else if (orig != null && bytes.Length != orig.Length && !await page.DisplayAlertAsync("크기 다름", $"원본 {orig.Length:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 크기가 다릅니다. 다른 게임이나 파일일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
                     status.Text = "올리는 중…";
                     var r = await Put(bytes, path);
-                    if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")"; Note.Show("업로드 실패: " + name); break; }
+                    if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")" + (live ? " · ftpsrv라면 config.ini의 save_writable=1과 쓰기가 고쳐진 ftpsrv인지 확인하세요" : ""); Note.Show("업로드 실패: " + name); break; }
+                    if (live)
+                    {
+                        // ftpsrv: 다시 받아 그대로 들어갔는지 확인 (다르면 원본으로 되돌릴 수 있게 알림)
+                        var back = await Get(path);
+                        if (back == null || !back.AsSpan().SequenceEqual(bytes)) { status.Text = "올린 뒤 다시 받아 보니 내용이 다릅니다. 백업 목록의 '스위치FTP 원본'으로 되돌리세요"; Note.Show("확인 실패: " + name); break; }
+                    }
                     Note.Show($"업로드 완료: {name} ({bytes.Length:N0}바이트)");
-                    status.Text = zip || path.StartsWith(DbiBackup, StringComparison.OrdinalIgnoreCase)
+                    status.Text = live ? "스위치 세이브를 바로 바꿨습니다 (다시 받아 확인함). 게임을 켜서 확인하세요. 문제가 있으면 백업 목록의 '스위치FTP 원본'으로 되돌리세요."
+                        : zip || path.StartsWith(DbiBackup, StringComparison.OrdinalIgnoreCase)
                         ? "백업에 덮어썼습니다. 이제 스위치에서 이 백업으로 복원(DBI: Browse saves → Backups → Restore / JKSV·Checkpoint: Restore)하세요."
                         : "덮어썼습니다. 게임을 실행해 확인하세요 (문제가 있으면 백업 목록의 '스위치FTP 원본'으로 되돌리세요).";
                     await Refresh();

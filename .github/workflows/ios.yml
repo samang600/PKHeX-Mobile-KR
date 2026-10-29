@@ -21,6 +21,10 @@ on:
         description: 'PokeLDN 교환 포함 (끄면 LDN 없이 빌드)'
         type: boolean
         default: true
+      release_tag:
+        description: '이 태그의 릴리스에 IPA 첨부 (비우면 첨부 안 함)'
+        type: string
+        default: ''
   release:
     types: [published]
 
@@ -199,8 +203,9 @@ jobs:
           name: PKHeX_Mobile_iOS_unsigned
           path: "*.ipa"
 
-      - name: 릴리스에 첨부 (릴리스 발행으로 실행된 경우)
-        if: github.event_name == 'release'
+      - name: 릴리스에 첨부 (릴리스 발행으로 실행됐거나 release_tag를 준 경우)
+        if: github.event_name == 'release' || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           files: "*.ipa"
