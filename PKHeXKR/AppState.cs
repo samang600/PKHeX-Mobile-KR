@@ -325,6 +325,10 @@ public static class AppState
         try
         {
             EntityTemplates.TemplateFields(p, s);
+            // 이름·언어는 데이터 언어로 (한국어판이 없는 게임은 그 게임의 기본 언어)
+            var dl = LangCode switch { "ja" => (int)LanguageID.Japanese, "en" => (int)LanguageID.English, "fr" => (int)LanguageID.French, "it" => (int)LanguageID.Italian,
+                "de" => (int)LanguageID.German, "es" => (int)LanguageID.Spanish, "zh-Hans" => (int)LanguageID.ChineseS, "zh-Hant" => (int)LanguageID.ChineseT, _ => (int)LanguageID.Korean };
+            try { p.Language = (byte)SafeLangFor(s.Version, dl); } catch { }
             if (s.Personal.IsSpeciesInGame((ushort)PKHeX.Core.Species.Pikachu)) p.Species = (ushort)PKHeX.Core.Species.Pikachu;
             p.Form = 0; p.SetGender(p.GetSaneGender());
             if (p.Format >= 3) p.RefreshAbility(0);
@@ -332,8 +336,10 @@ public static class AppState
             p.RefreshChecksum();
         }
         catch { }
+        placeholder = p;
         return p;
     }
+    private static PKM placeholder;
 
     // ===== 배포 기간: 공통 엔진(GenHost)으로 =====
     public static async Task LoadCardWindowsAsync()
@@ -724,6 +730,7 @@ public static class AppState
         Lexicon.Language = LangCode;
         Loc.SetLanguage(LangCode);
         Src = new FilteredGameDataSource(Sav, GameInfo.Sources, HaX);
+        if (Pk != null && ReferenceEquals(Pk, placeholder) && !Dirty) Pk = Placeholder(Sav);   // 손대지 않은 빈 피카츄는 새 언어 이름으로
         ClearLegalCache();
         SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke();
         Loc.Refresh();                                // 열려 있는 화면 글자도 새 언어로
