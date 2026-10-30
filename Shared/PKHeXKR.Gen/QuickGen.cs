@@ -202,7 +202,7 @@ public static class QuickGen
     public static PKM TryBoth(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
         Seeder sd = null;
-        try { sd = Seeder.For(e, GenHost.TrainerOf(sav)); } catch { }   // 시드로 만들 수 있는 조우(SV 레이드·소드실드 야생 등)는 순차·무작위 동시
+        try { sd = Seeder.For(e, TrainerFor(e, o, sav)); } catch { }   // 시드로 만들 수 있는 조우(SV 레이드·소드실드 야생 등)는 순차·무작위 동시
         // 3·4세대 개체값 고정 주문: 개체값→시드 역산으로 가능한 경우를 모두 확인하므로 시드 순차 탐색(최대 4초)은 할 필요 없음
         if (sd == null || (sav.Generation is 3 or 4 && IvVectors(o, EncCond.Criteria()) != null)) return TryEncounter(o, e, sav, tok, seconds);
         using var race = CancellationTokenSource.CreateLinkedTokenSource(tok);
@@ -315,9 +315,29 @@ public static class QuickGen
     /// 조우에 쓸 트레이너. 3DS(6·7세대) 비비용 계열은 무늬가 3DS 본체의 나라·지역으로 정해지므로,
     /// 원하는 무늬가 나오는 나라·지역·본체 지역을 골라 줌 (트레이너 언어와 별개).
     /// </summary>
+    /// <summary>어버이를 적었으면 처음부터 그 어버이로 만듦: 소드실드 고정 조우(코바르온 등)처럼 이로치가 ID와 시드에 묶인 조우는
+    /// 다 만든 뒤 어버이만 바꾸면 불법이 되어 봇 어버이로 남았음 (#5773). 배포(어버이가 정해진 것)는 그대로.</summary>
+    public static ITrainerInfo OrderTrainer(OrderSpec o, SaveFile sav)
+    {
+        var me = GenHost.TrainerOf(sav);
+        if (o.Event || (o.OT == null && o.TID < 0)) return me;
+        bool six = sav.Generation >= 7;
+        int tid = o.TID >= 0 ? o.TID : (six ? (int)(me.ID32 % 1_000_000) : me.TID16);
+        if (o.SID < 0) o.SID = Random.Shared.Next(six ? 4295 : 65536);   // 정해 두어 마무리(Finish)에서도 같은 값
+        int sid = o.SID;
+        uint id32 = six ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Math.Min(sid, 65535) << 16) | Math.Min(tid, 65535));
+        var ro = me as IRegionOrigin;
+        return new SimpleTrainerInfo(sav.Version)
+        {
+            OT = o.OT ?? me.OT, TID16 = (ushort)(id32 & 0xFFFF), SID16 = (ushort)(id32 >> 16),
+            Gender = (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), Language = me.Language > 0 ? me.Language : 2,
+            ConsoleRegion = ro?.ConsoleRegion ?? 1, Country = ro?.Country ?? 49, Region = ro?.Region ?? 7,
+        };
+    }
+
     public static ITrainerInfo TrainerFor(IEncounterInfo e, OrderSpec o, SaveFile sav)
     {
-        var tr = GenHost.TrainerOf(sav);
+        var tr = OrderTrainer(o, sav);
         if (o.Form < 0 || e.Generation is not (6 or 7) || o.Species is not ((int)Species.Vivillon or (int)Species.Spewpa or (int)Species.Scatterbug)) return tr;
         if (o.Species == (int)Species.Vivillon && o.Form > 17) return tr;   // 나비(18)·몬스터볼(19) 무늬는 배포 전용
         var geo = VivillonGeo((byte)Math.Max(0, o.Form));
