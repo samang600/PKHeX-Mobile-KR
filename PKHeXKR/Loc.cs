@@ -186,6 +186,9 @@ public static class Loc
     /// <summary>앱 시작 때 한 번 (MauiProgram): 글자가 바뀔 때마다 번역해서 다시 넣음.</summary>
     public static void Install()
     {
+        // MAUI는 컨트롤별 매핑(Controls용 ReplaceMapping)을 그 컨트롤을 처음 만들 때 함 → 먼저 하나씩 만들어 두고 그 뒤에 덧붙임
+        // (안 그러면 Label의 Text 매핑이 나중에 통째로 바뀌어 번역이 빠짐)
+        _ = new Label(); _ = new Button(); _ = new Entry(); _ = new Editor(); _ = new SearchBar(); _ = new Span();
         LabelHandler.Mapper.AppendToMapping(nameof(ILabel.Text), (h, v) => { if (v is Label l && l.FormattedText == null) Apply(l, Label.TextProperty); });
         LabelHandler.Mapper.AppendToMapping(nameof(Label.FormattedText), (h, v) => { if (v is Label l) ApplySpans(l); });
         ButtonHandler.Mapper.AppendToMapping(nameof(IText.Text), (h, v) => { if (v is Button b) Apply(b, Button.TextProperty); });

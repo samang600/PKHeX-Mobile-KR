@@ -18,6 +18,9 @@
 		<!-- 별도 설치판(구버전과 동시 설치): dotnet build ... -p:SideBySide=true → 패키지명·앱 이름만 다르게 -->
 		<ApplicationId Condition="'$(SideBySide)' == 'true'">com.pkhexkr.mobile.side</ApplicationId>
 		<ApplicationTitle Condition="'$(SideBySide)' == 'true'">PKHeX 모바일 (별도)</ApplicationTitle>
+		<!-- 안드로이드 런처 이름은 기기 언어를 따라 (Platforms/Android/Resources/values*/strings.xml) -->
+		<ApplicationTitle Condition="$(TargetFramework.Contains('-android')) And '$(SideBySide)' != 'true'">@string/app_name</ApplicationTitle>
+		<ApplicationTitle Condition="$(TargetFramework.Contains('-android')) And '$(SideBySide)' == 'true'">@string/app_name_side</ApplicationTitle>
 		<ApplicationDisplayVersion>1.7.9</ApplicationDisplayVersion>
 		<ApplicationVersion>91</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
