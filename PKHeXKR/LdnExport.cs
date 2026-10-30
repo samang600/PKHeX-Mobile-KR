@@ -47,6 +47,10 @@ public static class LdnExport
         return data;
     }
 
+    /// <summary>소드·실드: 다른 게임 출신(HOME을 거쳐 온 꼴)인데 HOME 트래커가 없는 포켓몬.
+    /// PKHeX 설정에 따라 합법으로 보여도 소드·실드 콘솔이 교환 중에 거부해서 끊길 수 있음 (트래커는 만들어 넣지 않음).</summary>
+    public static bool SwshNoTracker(PKM pk) => pk is PK8 pk8 && !pk8.IsEgg && pk8.Version is not (GameVersion.SW or GameVersion.SH) && pk8.Tracker == 0;
+
     public static string FileName(PKM pk)
     {
         var ext = GameOf(pk)?.Ext ?? "bin";

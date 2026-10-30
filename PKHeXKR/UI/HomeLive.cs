@@ -52,7 +52,7 @@ public class HomeLiveSheet : Sheet
                 if (c.Pk != null) { Close(); if (AppState.Load(c.Pk)) Note.Show("HOME 개체를 불러왔습니다"); }
             };
             g.GestureRecognizers.Add(tap);
-            var pos = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.End }; pos.SetBinding(Label.TextProperty, "Pos");
+            var pos = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.End }; pos.SetBinding(Label.TextProperty, new Binding("Pos", converter: Loc.Conv));
             pos.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#6B7280"), Color.FromArgb("#9CA3AF"));
             g.Add(pos); return g;
         });
@@ -212,7 +212,7 @@ public class HomeLiveSheet : Sheet
             int n = loaded.Count(x => x != null && x.Species != 0);
             status.Text = $"HOME {ex.HomeVersion} · 찾은 위치 heap+0x{rel:X} · 1번 박스 {n}마리";
             var page = Application.Current.Windows[0].Page;
-            if (await page.DisplayAlertAsync("데이터 위치", $"HOME {ex.HomeVersion}에서 찾은 위치: heap+0x{rel:X}\n\n아래에 보이는 포켓몬({n}마리)이 HOME 1번 박스와 같으면 이 위치를 저장하세요.\n(다르면 다른 칸에 포켓몬을 옮기고 다시 찾기)", "이 위치 저장", "취소"))
+            if (await page.DisplayAlertTr("데이터 위치", $"HOME {ex.HomeVersion}에서 찾은 위치: heap+0x{rel:X}\n\n아래에 보이는 포켓몬({n}마리)이 HOME 1번 박스와 같으면 이 위치를 저장하세요.\n(다르면 다른 칸에 포켓몬을 옮기고 다시 찾기)", "이 위치 저장", "취소"))
             {
                 offsetE.Text = rel.ToString("X"); anyVer.IsToggled = true;
                 Preferences.Set("home_offset", offsetE.Text); Preferences.Set("home_anyver", true);
@@ -270,7 +270,7 @@ public class HomeLiveSheet : Sheet
     {
         var page = Application.Current.Windows[0].Page;
         var name = GameInfo.Strings.Species[h.Raw.Species];
-        var pick = await page.DisplayActionSheetAsync($"HOME {h.Box + 1}번 박스 {h.Slot + 1}번 칸 · {name}{(h.Raw.IsShiny ? " ★" : "")}", "취소", null, "편집기로 불러오기", "현재 박스 빈 칸에 넣기");
+        var pick = await page.DisplayActionSheetTr($"HOME {h.Box + 1}번 박스 {h.Slot + 1}번 칸 · {name}{(h.Raw.IsShiny ? " ★" : "")}", "취소", null, "편집기로 불러오기", "현재 박스 빈 칸에 넣기");
         if (pick is not ("편집기로 불러오기" or "현재 박스 빈 칸에 넣기")) return;
         PKM pk = null;
         try { pk = h.W.ConvertToType(AppState.Sav.PKMType, conv); if (pk != null && fix.IsToggled) pk = pk.FixLegality(); } catch { }
@@ -328,7 +328,7 @@ public class HomeLiveSheet : Sheet
         if (loaded.Count == 0) { status.Text = "먼저 읽어 오세요"; return; }
         var sav = AppState.Sav;
         var page = Application.Current.Windows[0].Page;
-        if (!await page.DisplayAlertAsync("세이브 박스에 채우기", $"{AppState.BoxName(AppState.Box)}부터 HOME 순서 그대로 채웁니다. 해당 칸의 기존 포켓몬은 덮어씁니다.", "채우기", "취소")) return;
+        if (!await page.DisplayAlertTr("세이브 박스에 채우기", $"{AppState.BoxName(AppState.Box)}부터 HOME 순서 그대로 채웁니다. 해당 칸의 기존 포켓몬은 덮어씁니다.", "채우기", "취소")) return;
         int n = 0;
         for (int i = 0; i < loaded.Count; i++)
         {

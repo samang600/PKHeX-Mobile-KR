@@ -166,7 +166,7 @@ public class BatchSheet : Sheet
         var saveSet = T.Pill("저장"); saveSet.Clicked += async (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(text.Text)) { Note.Show("저장할 명령어가 없습니다"); return; }
-            var name = await Application.Current.Windows[0].Page.DisplayPromptAsync("명령 묶음 저장", "이름", "저장", "취소", maxLength: 30);
+            var name = await Application.Current.Windows[0].Page.DisplayPromptTr("명령 묶음 저장", "이름", "저장", "취소", maxLength: 30);
             if (string.IsNullOrWhiteSpace(name)) return;
             BatchSets.Save(name.Trim(), text.Text); Note.Show($"'{name.Trim()}'로 저장했습니다");
         };
@@ -212,7 +212,7 @@ public class BatchSheet : Sheet
         var page = Application.Current.Windows[0].Page;
         bool condOnly = p is "Legal" or "IsShiny";
         string[] kinds = condOnly ? ["조건: 같은 것만 (=)", "조건: 다른 것만 (!)"] : ["바꾸기 (.)", "조건: 같은 것만 (=)", "조건: 다른 것만 (!)", "조건: 이상 (≥)", "조건: 이하 (≤)"];
-        var kind = await page.DisplayActionSheetAsync($"{p}", "취소", null, kinds);
+        var kind = await page.DisplayActionSheetTr($"{p}", "취소", null, kinds);
         if (kind == null || kind == "취소") return;
         var prefix = kind[^2].ToString();
         var value = await PickValue(p, prefix == ".");
@@ -242,11 +242,11 @@ public class BatchSheet : Sheet
             _ => [],
         };
         bool isBool = EntityBatchEditor.Instance.TryGetHasProperty(AppState.Sav.PKMType, p, out var pi) && pi.PropertyType == typeof(bool) || p == "Legal";
-        if (isBool) { var b = await page.DisplayActionSheetAsync(p, "취소", null, "true (예)", "false (아니오)"); return b is null or "취소" ? null : b.Split(' ')[0]; }
+        if (isBool) { var b = await page.DisplayActionSheetTr(p, "취소", null, "true (예)", "false (아니오)"); return b is null or "취소" ? null : b.Split(' ')[0]; }
         if (special.Length > 0)
         {
             var opts = special.ToList(); opts.Add(list != null ? "목록에서 고르기" : "직접 입력");
-            var sp = await page.DisplayActionSheetAsync(p, "취소", null, opts.ToArray());
+            var sp = await page.DisplayActionSheetTr(p, "취소", null, opts.ToArray());
             if (sp is null or "취소") return null;
             if (sp.StartsWith('$')) return sp.Split(' ')[0];
         }
@@ -257,7 +257,7 @@ public class BatchSheet : Sheet
             SheetHost.Show(ps);
             return await tcs.Task;
         }
-        return await page.DisplayPromptAsync(p, "값 ($suggest 추천값, 1,10 범위의 무작위 등도 가능)", "넣기", "취소");
+        return await page.DisplayPromptTr(p, "값 ($suggest 추천값, 1,10 범위의 무작위 등도 가능)", "넣기", "취소");
     }
 
     private async Task Run(int scope)
@@ -272,7 +272,7 @@ public class BatchSheet : Sheet
         else { int from = scope == 0 ? AppState.Box : 0, to = scope == 0 ? AppState.Box : sav.BoxCount - 1;
             for (int b = from; b <= to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if (p.Species != 0) slots.Add((b, i, p)); } }
         if (slots.Count == 0) { result.Text = "대상 포켓몬이 없습니다"; return; }
-        if (!await page.DisplayAlertAsync("일괄 수정", $"{slots.Count}마리에 적용합니다. 실행 취소는 되지 않습니다{(SaveStore.AutoBackup ? " (작업 전 세이브를 백업 목록에 남김)" : "")}.", "실행", "취소")) return;
+        if (!await page.DisplayAlertTr("일괄 수정", $"{slots.Count}마리에 적용합니다. 실행 취소는 되지 않습니다{(SaveStore.AutoBackup ? " (작업 전 세이브를 백업 목록에 남김)" : "")}.", "실행", "취소")) return;
         SaveStore.Snapshot("일괄수정");
         try
         {
@@ -430,7 +430,7 @@ public class PlayerSheet : Sheet
         dexClear.BackgroundColor = T.Bad; dexClear.TextColor = Colors.White; dexClear.BorderWidth = 0;
         dexSeen.Clicked += (_, _) => DexFill.Apply(0, m => status.Text = m);
         dexCaught.Clicked += (_, _) => DexFill.Apply(1, m => status.Text = m);
-        dexClear.Clicked += async (_, _) => { if (await Application.Current.Windows[0].Page.DisplayAlertAsync("도감", "도감 기록을 모두 지울까요?", "해제", "취소")) DexFill.Apply(2, m => status.Text = m); };
+        dexClear.Clicked += async (_, _) => { if (await Application.Current.Windows[0].Page.DisplayAlertTr("도감", "도감 기록을 모두 지울까요?", "해제", "취소")) DexFill.Apply(2, m => status.Text = m); };
         var dexOne = T.Pill("한 마리씩 편집", primary: true); dexOne.Clicked += (_, _) => SheetHost.Show(new DexEditSheet());
         var dexStats = T.Pill("진행 · 박스 통계"); dexStats.Clicked += (_, _) => SheetHost.Show(new StatsSheet());
         var dexHint = T.L("일괄: 이 게임에 나오는 종 전체 (게임에 따라 지원하지 않을 수 있음)", 12, sub: true); dexHint.LineBreakMode = LineBreakMode.WordWrap;
@@ -518,7 +518,7 @@ public class InstanceSheet : Sheet
             close.Clicked += async (_, _) =>
             {
                 var page = Application.Current.Windows[0].Page;
-                if (!await page.DisplayAlertAsync("인스턴스 닫기", $"{k + 1}번 인스턴스를 닫습니다. 내보내지 않은 변경은 사라집니다.", "닫기", "취소")) return;
+                if (!await page.DisplayAlertTr("인스턴스 닫기", $"{k + 1}번 인스턴스를 닫습니다. 내보내지 않은 변경은 사라집니다.", "닫기", "취소")) return;
                 Close(); AppState.CloseInstance(k);
             };
             var btns = new HorizontalStackLayout { Spacing = 6, Children = { go, send, close } };
@@ -530,7 +530,7 @@ public class InstanceSheet : Sheet
         {
             var page = Application.Current.Windows[0].Page;
             var names = AppState.Games.Select(AppState.GameName).ToArray();
-            var pick = await page.DisplayActionSheetAsync("새 인스턴스의 게임", "취소", null, names);
+            var pick = await page.DisplayActionSheetTr("새 인스턴스의 게임", "취소", null, names);
             int i = Array.IndexOf(names, pick); if (i < 0) return;
             Close(); AppState.AddInstance(AppState.NewBlankSave(AppState.Games[i])); Note.Show($"{pick} 인스턴스를 추가했습니다");
         };

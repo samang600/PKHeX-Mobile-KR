@@ -64,7 +64,7 @@ public static class LdnTrade
         if (i < 0 || i >= Offers.Count) return;
         var page = Application.Current.Windows[0].Page; var p = Offers[i];
         const string load = "편집기로 불러오기 (확인·편집)", put = "편집 중인 포켓몬으로 바꾸기", del = "목록에서 빼기";
-        var pick = await page.DisplayActionSheetAsync($"{i + 1}. {GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}", "취소", null, load, put, del);
+        var pick = await page.DisplayActionSheetTr($"{i + 1}. {GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}", "취소", null, load, put, del);
         switch (pick)
         {
             case load:
@@ -204,7 +204,7 @@ public static class LdnTrade
         var fit = mons.Select(AppState.ForSave).Where(p => p != null).ToList();
         if (fit.Count == 0) { Note.Show($"받은 포켓몬 {mons.Count}마리는 지금 세이브에 넣을 수 없습니다"); return; }
         var names = string.Join(", ", fit.Take(6).Select(p => PKHeX.Core.GameInfo.Strings.Species[p.Species]));
-        if (!await page.DisplayAlertAsync("PokeLDN 교환", $"받은 포켓몬 {fit.Count}마리를 박스 빈 칸에 넣을까요?\n{names}", "넣기", "나중에")) return;
+        if (!await page.DisplayAlertTr("PokeLDN 교환", $"받은 포켓몬 {fit.Count}마리를 박스 빈 칸에 넣을까요?\n{names}", "넣기", "나중에")) return;
         var sav = AppState.Sav; int placed = 0;
         for (int b = 0; b < sav.BoxCount && placed < fit.Count; b++)
         {
@@ -459,7 +459,7 @@ public static class LdnTrade
             await ImportReceived(files);
         }
         else if (RunMode == "save_backup" && files.Count > 0 && MainPage.Instance is { } page
-                 && await page.DisplayAlertAsync("세이브 백업", "받은 세이브를 지금 열까요?\n" + Path.GetFileName(files[0]), "열기", "나중에"))
+                 && await page.DisplayAlertTr("세이브 백업", "받은 세이브를 지금 열까요?\n" + Path.GetFileName(files[0]), "열기", "나중에"))
             await page.OpenBytes(await File.ReadAllBytesAsync(files[0]), Path.GetFileName(files[0]));
     }
 

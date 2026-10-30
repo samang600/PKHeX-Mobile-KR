@@ -5,7 +5,7 @@ public static class Note
 {
     public static void Show(string text)
     {
-        try { CommunityToolkit.Maui.Alerts.Toast.Make(text).Show(); } catch { }
+        try { CommunityToolkit.Maui.Alerts.Toast.Make(Loc.T(text)).Show(); } catch { }
     }
 }
 

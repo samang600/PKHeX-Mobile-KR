@@ -76,7 +76,7 @@ public class StatsSheet : Sheet
                     toQuick.Clicked += async (_, _) =>
                     {
                         var page = Application.Current.Windows[0].Page;
-                        var which = await page.DisplayActionSheetAsync("어떤 종을 넣을까요?", "취소", null, $"못 잡은 종 전부 ({missing.Count})", $"박스에도 없는 종만 ({notInBox.Count})");
+                        var which = await page.DisplayActionSheetTr("어떤 종을 넣을까요?", "취소", null, $"못 잡은 종 전부 ({missing.Count})", $"박스에도 없는 종만 ({notInBox.Count})");
                         if (which == null || which == "취소") return;
                         var list = which.StartsWith("박스") ? notInBox : missing;
                         QuickSheet.Preset(string.Join("\n", list.Select(x => s.Species[x])));

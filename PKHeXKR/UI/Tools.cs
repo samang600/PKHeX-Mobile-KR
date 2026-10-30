@@ -216,8 +216,8 @@ public class FilterSheet : Sheet
         {
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8, Padding = new Thickness(4, 4) };
             var img = new Image { WidthRequest = 48, HeightRequest = 40 }; img.SetBinding(Image.SourceProperty, "Sprite");
-            var t1 = T.L("", 14, bold: true); t1.SetBinding(Label.TextProperty, "Title");
-            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, "Sub"); t2.LineBreakMode = LineBreakMode.WordWrap;
+            var t1 = T.L("", 14, bold: true); t1.SetBinding(Label.TextProperty, new Binding("Title", converter: Loc.Conv));
+            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, new Binding("Sub", converter: Loc.Conv)); t2.LineBreakMode = LineBreakMode.WordWrap;
             g.Add(img, 0); g.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, t2 }, VerticalOptions = LayoutOptions.Center }, 1);
             var tp = new TapGestureRecognizer(); tp.Tapped += async (_, _) => { if (g.BindingContext is Hit h) await OnHit(h); }; g.GestureRecognizers.Add(tp);
             return g;
@@ -268,7 +268,7 @@ public class FilterSheet : Sheet
     private async Task OnHit(Hit h)
     {
         var page = Application.Current.Windows[0].Page;
-        var pick = await page.DisplayActionSheetAsync($"{h.Title} · {h.Sub}", "취소", null, "그 박스로 이동 (칸 강조)", "편집기로 불러오기");
+        var pick = await page.DisplayActionSheetTr($"{h.Title} · {h.Sub}", "취소", null, "그 박스로 이동 (칸 강조)", "편집기로 불러오기");
         if (pick == null || pick == "취소") return;
         if (pick.StartsWith("편집기"))
         {
@@ -300,7 +300,7 @@ public class SaveListSheet : Sheet
             t.Tapped += async (_, _) =>
             {
                 var page = Application.Current.Windows[0].Page;
-                var pick = await page.DisplayActionSheetAsync(it.Name, "취소", null, "열기", "공유", "삭제");
+                var pick = await page.DisplayActionSheetTr(it.Name, "취소", null, "열기", "공유", "삭제");
                 try
                 {
                     if (pick == "열기") { Close(); await MainPage.Instance.OpenBytes(SaveStore.ReadStored(it.Path), it.Name, remember: false); }
@@ -378,11 +378,11 @@ public class SettingsSheet : Sheet
             {
                 var f = await FilePicker.PickAsync(); if (f == null) return;
                 var page = Application.Current.Windows[0].Page;
-                if (!await page.DisplayAlertAsync("앱 데이터 가져오기", "지금 앱의 설정·즐겨찾기·백업을 이 파일의 내용으로 덮어씁니다. 가져온 뒤 앱이 종료되며, 다시 실행하면 적용됩니다. 계속할까요?", "가져오기", "취소")) return;
+                if (!await page.DisplayAlertTr("앱 데이터 가져오기", "지금 앱의 설정·즐겨찾기·백업을 이 파일의 내용으로 덮어씁니다. 가져온 뒤 앱이 종료되며, 다시 실행하면 적용됩니다. 계속할까요?", "가져오기", "취소")) return;
                 await using var st = await f.OpenReadAsync(); using var ms = new MemoryStream(); await st.CopyToAsync(ms); ms.Position = 0;
                 var n = await Task.Run(() => AppDataBackup.Import(ms));
                 if (n < 0) { Note.Show("PKHeX 모바일 데이터 백업 파일이 아닙니다"); return; }
-                await page.DisplayAlertAsync("앱 데이터 가져오기", $"파일 {n}개를 가져왔습니다. 확인을 누르면 앱이 종료됩니다. 다시 실행하세요.", "확인");
+                await page.DisplayAlertTr("앱 데이터 가져오기", $"파일 {n}개를 가져왔습니다. 확인을 누르면 앱이 종료됩니다. 다시 실행하세요.", "확인");
                 AppDataBackup.Quit();
             }
             catch (Exception ex) { Note.Show("가져오지 못했습니다: " + ex.Message); }
@@ -392,13 +392,13 @@ public class SettingsSheet : Sheet
         (var lv, var ll) = T.Chooser(() => { });
         ll.Text = AppState.Languages.FirstOrDefault(x => x.Code == AppState.LangCode).Name ?? AppState.LangCode;
         var tapL = new TapGestureRecognizer();
-        tapL.Tapped += (_, _) => SheetHost.Show(new PickerSheet("데이터 언어 (재시작 후 적용)", AppState.Languages.Select((x, i) => new ComboItem(x.Name, i)).ToList(), Array.FindIndex(AppState.Languages, x => x.Code == AppState.LangCode),
+        tapL.Tapped += (_, _) => SheetHost.Show(new PickerSheet("데이터 언어", AppState.Languages.Select((x, i) => new ComboItem(x.Name, i)).ToList(), Array.FindIndex(AppState.Languages, x => x.Code == AppState.LangCode),
             c =>
             {
                 Preferences.Set("data_lang", AppState.Languages[c.Value].Code); ll.Text = c.Text;
                 Dispatcher.Dispatch(async () =>
                 {
-                    if (await Application.Current.Windows[0].Page.DisplayAlertAsync("데이터 언어", $"{c.Text}(으)로 바꿨습니다. 지금 다시 불러와 적용할까요?", "지금 적용", "다음 실행 때"))
+                    if (await Application.Current.Windows[0].Page.DisplayAlertTr("데이터 언어", $"{c.Text}(으)로 바꿨습니다. 지금 다시 불러와 적용할까요?", "지금 적용", "다음 실행 때"))
                     { AppState.ReloadLanguage(); Note.Show($"{c.Text}(으)로 적용했습니다"); }
                     else ll.Text = c.Text + " (다음 실행 때 적용)";
                 });
@@ -542,7 +542,7 @@ public class FavoritesSheet : Sheet
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
             var star = new Image { Source = "rare_icon.png", WidthRequest = 13, HeightRequest = 13, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Start, Margin = 3 };
             star.SetBinding(IsVisibleProperty, "Shiny");
-            var ext = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) }; T.Sub(ext); ext.SetBinding(Label.TextProperty, "Info");
+            var ext = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) }; T.Sub(ext); ext.SetBinding(Label.TextProperty, new Binding("Info", converter: Loc.Conv));
             g.Add(bg); g.Add(img); g.Add(star); g.Add(ext);
             var t = new TapGestureRecognizer(); t.Tapped += async (_, _) => { if (g.BindingContext is not Cell c) return; try { if (c.Pk != null) await OnCell(c); else await AddCurrent(); } catch (Exception ex) { Note.Show("오류: " + ex.Message); } }; g.GestureRecognizers.Add(t);
             return g;
@@ -577,7 +577,7 @@ public class FavoritesSheet : Sheet
         var pk = AppState.Pk;
         if (pk.Species == 0) { Note.Show("편집기에 포켓몬이 없습니다"); return; }
         var name = AppState.SpeciesName(pk);
-        if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("즐겨찾기 등록", $"편집 중인 {name}({pk.Extension})을(를) 즐겨찾기에 등록할까요?", "등록", "취소")) return;
+        if (!await Application.Current.Windows[0].Page.DisplayAlertTr("즐겨찾기 등록", $"편집 중인 {name}({pk.Extension})을(를) 즐겨찾기에 등록할까요?", "등록", "취소")) return;
         Favorites.Add(pk); Fill(); Note.Show("즐겨찾기에 등록했습니다");
     }
 
@@ -585,7 +585,7 @@ public class FavoritesSheet : Sheet
     {
         var p = Application.Current.Windows[0].Page;
         var name = GameInfo.Strings.Species[c.Pk.Species];
-        var pick = await p.DisplayActionSheetAsync($"{name} ({c.Pk.Extension})", "취소", null, "편집기로 불러오기", "현재 박스 빈 칸에 넣기", "파일로 받기", "공유", "즐겨찾기에서 삭제");
+        var pick = await p.DisplayActionSheetTr($"{name} ({c.Pk.Extension})", "취소", null, "편집기로 불러오기", "현재 박스 빈 칸에 넣기", "파일로 받기", "공유", "즐겨찾기에서 삭제");
         switch (pick)
         {
             case "편집기로 불러오기": Close(); if (AppState.Load(c.Pk)) Note.Show("즐겨찾기에서 불러왔습니다"); break;
@@ -659,7 +659,7 @@ public static class DexFill
     {
         var sav = AppState.Sav;
         const string seen = "모두 본 것으로", caught = "모두 잡은 것으로 (본 것 포함)", clear = "모두 해제";
-        var pick = await page.DisplayActionSheetAsync($"도감 일괄 등록 · {AppState.GameName(sav.Version)}", "취소", null, seen, caught, clear);
+        var pick = await page.DisplayActionSheetTr($"도감 일괄 등록 · {AppState.GameName(sav.Version)}", "취소", null, seen, caught, clear);
         if (pick == null || pick == "취소") return;
         int n = 0;
         try
@@ -673,7 +673,7 @@ public static class DexFill
             }
             Note.Show($"{n}종을 처리했습니다 · 세이브 내보내기로 저장하세요");
         }
-        catch (Exception ex) { await page.DisplayAlertAsync("도감", "이 게임에서는 일괄 등록을 지원하지 않거나 실패했습니다: " + ex.Message, "확인"); }
+        catch (Exception ex) { await page.DisplayAlertTr("도감", "이 게임에서는 일괄 등록을 지원하지 않거나 실패했습니다: " + ex.Message, "확인"); }
     }
 }
 
@@ -792,7 +792,7 @@ public static class UpdateCheck
                 }
             const string direct = "새 버전 APK 받기";
             var opts = apkUrl != null ? new[] { direct, "릴리스 페이지 열기", "이 버전 건너뛰기" } : new[] { "릴리스 페이지 열기", "이 버전 건너뛰기" };
-            var pick = await page.DisplayActionSheetAsync($"새 버전 v{latest.ToString(3)}이 있습니다 (지금 v{mine.ToString(3)})\n\n{excerpt}", "나중에", null, opts);
+            var pick = await page.DisplayActionSheetTr($"새 버전 v{latest.ToString(3)}이 있습니다 (지금 v{mine.ToString(3)})\n\n{excerpt}", "나중에", null, opts);
             if (pick == direct) await InstallApk(apkUrl, apkName);
             else if (pick == "릴리스 페이지 열기") await Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
             else if (pick == "이 버전 건너뛰기") Preferences.Set("upd_skip", latest.ToString());
@@ -861,7 +861,7 @@ public class MysteryGiftSheet : Sheet
         clearFlags.Clicked += async (_, _) =>
         {
             if (AppState.Sav is not IMysteryGiftFlags f) return;
-            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("받은 기록", "이 세이브의 '이미 받은 배포' 기록을 모두 지웁니다. 같은 배포를 다시 받을 수 있게 됩니다.", "지우기", "취소")) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertTr("받은 기록", "이 세이브의 '이미 받은 배포' 기록을 모두 지웁니다. 같은 배포를 다시 받을 수 있게 됩니다.", "지우기", "취소")) return;
             f.ClearReceivedFlags(); AppState.Sav.State.Edited = true; Note.Show("받은 기록을 지웠습니다");
         };
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 10, Children = { hint, clearFlags, status, list } } });
@@ -906,8 +906,8 @@ public class MysteryGiftSheet : Sheet
     {
         var page = Application.Current.Windows[0].Page; var st = Store; var sav = AppState.Sav;
         const string file = "카드 파일 넣기", db = "배포 목록에서 넣기", export = "파일로 내보내기", clear = "비우기", preview = "개체 미리보기 · 받은 날짜";
-        var pick = empty ? await page.DisplayActionSheetAsync($"{index + 1}번 칸", "취소", null, db, file)
-                         : await page.DisplayActionSheetAsync(cur.CardTitle, "취소", clear, preview, db, file, export);
+        var pick = empty ? await page.DisplayActionSheetTr($"{index + 1}번 칸", "취소", null, db, file)
+                         : await page.DisplayActionSheetTr(cur.CardTitle, "취소", clear, preview, db, file, export);
         try
         {
             switch (pick)

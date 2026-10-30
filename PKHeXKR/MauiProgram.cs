@@ -15,6 +15,7 @@ public class App : Application
     {
         UserAppTheme = (AppTheme)Preferences.Get("theme_mode", 0);   // 0 자동, 1 라이트, 2 다크
         try { Environment.CurrentDirectory = FileSystem.AppDataDirectory; } catch { }   // SysBot.Base 로그(logs/) 쓰기 위치
+        Loc.Install();                                     // 화면 번역 (데이터 언어가 영어·일본어일 때)
         AppState.InitLanguage();
     }
     protected override Window CreateWindow(IActivationState activationState)

@@ -54,7 +54,7 @@ public class MainPage : ContentPage
         legalBtn.Clicked += async (_, _) =>
         {
             if (AppState.Pk.Species == 0) return;
-            if (AppState.HaX) { if (await DisplayAlertAsync("PKHaX 모드", "합법성 검사를 하지 않는 모드입니다. 검사 결과를 한 번 보시겠습니까?", "보기", "닫기")) SheetHost.Show(new LegalitySheet()); return; }
+            if (AppState.HaX) { if (await this.DisplayAlertTr("PKHaX 모드", "합법성 검사를 하지 않는 모드입니다. 검사 결과를 한 번 보시겠습니까?", "보기", "닫기")) SheetHost.Show(new LegalitySheet()); return; }
             SheetHost.Show(new LegalitySheet());
         };
         Tap(saveTitle, () => SheetHost.Show(new InstanceSheet()));
@@ -62,7 +62,7 @@ public class MainPage : ContentPage
         Tap(name, async () =>
         {
             var p = AppState.Pk; if (p.Species == 0) return;
-            var input = await DisplayPromptAsync("닉네임", "비우면 원래 이름으로 돌아갑니다", "확인", "취소", initialValue: p.IsNicknamed ? p.Nickname : "", maxLength: p.Format >= 8 ? 12 : p.Format >= 6 ? 12 : 10);
+            var input = await this.DisplayPromptTr("닉네임", "비우면 원래 이름으로 돌아갑니다", "확인", "취소", initialValue: p.IsNicknamed ? p.Nickname : "", maxLength: p.Format >= 8 ? 12 : p.Format >= 6 ? 12 : 10);
             if (input == null) return;
             AppState.Checkpoint(true);
             var def = PKHeX.Core.SpeciesName.GetSpeciesNameGeneration(p.Species, p.Language, p.Format);
@@ -113,7 +113,7 @@ public class MainPage : ContentPage
         sumGrid.Add(teraBar, 0);     // SV 테라스탈 타입: 그림 아래 가로줄 (박스 칸과 같은 표시)
         // 요약 카드 왼쪽 위 작은 마법봉: 자동 합법화
         var wand = new Button { Text = "🪄", FontSize = 13, Padding = 0, WidthRequest = 24, HeightRequest = 24, CornerRadius = 0, BorderWidth = 0, BackgroundColor = Colors.Transparent, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start };
-        wand.Clicked += async (_, _) => { if (await DisplayAlertAsync("자동 합법화", "이 포켓몬을 자동 합법화하시겠습니까?", "합법화", "취소")) await Legalize(); };
+        wand.Clicked += async (_, _) => { if (await this.DisplayAlertTr("자동 합법화", "이 포켓몬을 자동 합법화하시겠습니까?", "합법화", "취소")) await Legalize(); };
         sumGrid.Add(wand, 0);
         var nameRow = new HorizontalStackLayout { Spacing = 6, Children = { name, alphaIcon, gmaxIcon } };
         sumGrid.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { nameRow, info, icons } }, 1);
@@ -389,7 +389,7 @@ public class MainPage : ContentPage
             AppState.Edited();
             Note.Show(new LegalityAnalysis(result).Valid ? (movesReset ? "합법으로 만들었습니다 (기술을 추천 기술로 변경)" : "합법으로 만들었습니다") : "합법으로 만들지 못했습니다");
         }
-        catch (Exception ex) { await page.DisplayAlertAsync("자동 합법화 실패", ex.Message, "확인"); }
+        catch (Exception ex) { await page.DisplayAlertTr("자동 합법화 실패", ex.Message, "확인"); }
     }
 
     private async Task SaveToSlot()
@@ -398,7 +398,7 @@ public class MainPage : ContentPage
         if (AppState.Source is { } s)
         {
             var where = s.Party ? $"파티 {s.Index + 1}번" : $"{AppState.BoxName(s.Box)} {s.Index + 1}번 칸";
-            var pick = await DisplayActionSheetAsync("칸에 저장", "취소", null, $"원래 자리({where})에 덮어쓰기", "다른 칸 고르기");
+            var pick = await this.DisplayActionSheetTr("칸에 저장", "취소", null, $"원래 자리({where})에 덮어쓰기", "다른 칸 고르기");
             if (pick?.StartsWith("원래") == true)
             {
                 AppState.PartyMode = s.Party; AppState.Box = s.Box;
@@ -455,7 +455,7 @@ public class MainPage : ContentPage
             case export: await ExportSave(); break;
             case exportPk: await ExportPk(); break;
             case boxOne:
-                var which = await DisplayActionSheetAsync("박스 내보내기", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
+                var which = await this.DisplayActionSheetTr("박스 내보내기", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
                 if (which != null && which != "취소") await ExportBoxes(!which.StartsWith("현재"));
                 break;
             case batch: SheetHost.Show(new BatchSheet()); break;
@@ -466,7 +466,7 @@ public class MainPage : ContentPage
                 AppState.Clipboard = AppState.Pk.Clone(); Note.Show("복사했습니다 · 다른 인스턴스에서 붙여넣기 하세요"); break;
             case pastePk:
                 if (AppState.Clipboard == null) { Note.Show("복사한 포켓몬이 없습니다"); break; }
-                if (AppState.Dirty && !await DisplayAlertAsync("저장하지 않은 변경", "편집 중인 내용을 버리고 붙여넣을까요?", "붙여넣기", "취소")) break;
+                if (AppState.Dirty && !await this.DisplayAlertTr("저장하지 않은 변경", "편집 중인 내용을 버리고 붙여넣을까요?", "붙여넣기", "취소")) break;
                 var conv = AppState.Clipboard.GetType() == AppState.Sav.PKMType ? AppState.Clipboard.Clone() : EntityConverter.ConvertToType(AppState.Clipboard, AppState.Sav.PKMType, out _);
                 if (conv == null) { Note.Show("이 게임 형식으로 변환할 수 없습니다"); break; }
                 if (AppState.Load(conv)) { AppState.Edited(); Note.Show("붙여넣었습니다 (박스 칸을 눌러 저장)"); } break;
@@ -478,18 +478,18 @@ public class MainPage : ContentPage
             case ldnTrade: await TradeLdn(); break;
             case autoOT: SheetHost.Show(new AutoOTSheet()); break;
             case haxOn:
-                if (await DisplayAlertAsync("PKHaX 모드 주의",
+                if (await this.DisplayAlertTr("PKHaX 모드 주의",
                     "PKHaX 모드는 개조롬·테스트용 데이터 편집을 위한 모드입니다.\n\n· 기술·특성·도구·종을 제한 없이 고를 수 있습니다\n· 합법성 검사를 하지 않으며, 합법 표시가 뜨지 않습니다\n· 만든 데이터는 정식 게임에서 불법이며, 온라인 대전·교환에 쓰면 이용 제한 등의 불이익을 받을 수 있습니다\n· 세이브가 손상될 수 있으니 반드시 백업한 뒤 사용하세요\n\n켜시겠습니까?", "켜기", "취소"))
                 { AppState.SetHaX(true); Note.Show("PKHaX 모드를 켰습니다"); }
                 break;
             case haxOff: AppState.SetHaX(false); Note.Show("PKHaX 모드를 껐습니다"); break;
             case lang:
-                var l = await DisplayActionSheetAsync("데이터 언어 (재시작 후 적용)", "취소", null, AppState.Languages.Select(x => x.Name).ToArray());
+                var l = await this.DisplayActionSheetTr("데이터 언어", "취소", null, AppState.Languages.Select(x => x.Name).ToArray());
                 var sel = AppState.Languages.FirstOrDefault(x => x.Name == l);
-                if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); await DisplayAlertAsync("데이터 언어", $"{sel.Name}(으)로 설정했습니다. 앱을 다시 시작하면 적용됩니다.", "확인"); }
+                if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); AppState.ReloadLanguage(); Note.Show($"{sel.Name}(으)로 적용했습니다"); }
                 break;
             case about:
-                await DisplayAlertAsync("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-26 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.45.3(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
+                await this.DisplayAlertTr("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-26 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.45.3(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
                 break;
         }
     }
@@ -500,8 +500,8 @@ public class MainPage : ContentPage
             share = "편집 중인 포켓몬 파일 공유", sd = "쇼다운 텍스트 복사 (시스봇 형식)";
         // LDN판: PokeLDN 교환은 앱 안에서 (메뉴 → 도구 → PokeLDN 교환) → 교환 파일 내보내기는 일반판에만
         var pick = LdnTrade.Available
-            ? await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, share, sd, fav, c)
-            : await DisplayActionSheetAsync("저장 · 내보내기", "취소", null, a, b, share, sd, ldn, fav, c);
+            ? await this.DisplayActionSheetTr("저장 · 내보내기", "취소", null, a, b, share, sd, fav, c)
+            : await this.DisplayActionSheetTr("저장 · 내보내기", "취소", null, a, b, share, sd, ldn, fav, c);
         if (pick == ldnNow) { await TradeLdn(); return; }
         if (pick == share)
         {
@@ -538,17 +538,17 @@ public class MainPage : ContentPage
             var r = await FileSaver.Default.SaveAsync(name, ms, CancellationToken.None);
             Note.Show(r.IsSuccessful ? (all ? $"모든 박스({sav.BoxCount}개)를 저장했습니다" : "현재 박스를 저장했습니다") : "취소했습니다");
         }
-        catch (Exception ex) { await DisplayAlertAsync("내보내기 실패", ex.Message, "확인"); }
+        catch (Exception ex) { await this.DisplayAlertTr("내보내기 실패", ex.Message, "확인"); }
     }
 
     private async Task ChangeGame()
     {
         var names = AppState.Games.Select(AppState.GameName).ToArray();
-        var pick = await DisplayActionSheetAsync($"게임 변경 (현재: {AppState.GameName(AppState.Sav.Version)})", "취소", null, names);
+        var pick = await this.DisplayActionSheetTr($"게임 변경 (현재: {AppState.GameName(AppState.Sav.Version)})", "취소", null, names);
         int i = Array.IndexOf(names, pick); if (i < 0) return;
         var v = AppState.Games[i];
         var loaded = !string.IsNullOrEmpty(AppState.Sav.Metadata.FileName);
-        if (!await DisplayAlertAsync("게임 변경", $"{pick} 빈 세이브로 바꿉니다.{(loaded ? "\n열려 있는 세이브는 닫힙니다(내보내지 않은 변경은 사라집니다)." : "")}\n기본 게임으로도 저장할까요?", "바꾸기", "취소")) return;
+        if (!await this.DisplayAlertTr("게임 변경", $"{pick} 빈 세이브로 바꿉니다.{(loaded ? "\n열려 있는 세이브는 닫힙니다(내보내지 않은 변경은 사라집니다)." : "")}\n기본 게임으로도 저장할까요?", "바꾸기", "취소")) return;
         AppState.DefGame = v;
         AppState.SetSave(AppState.NewBlankSave(v));
         Note.Show($"{pick}(으)로 바꿨습니다");
@@ -566,7 +566,7 @@ public class MainPage : ContentPage
             try
             {
                 var msg = AppState.Dirty ? "편집 중인 포켓몬이 저장되지 않았습니다.\n그래도 종료할까요?" : "PKHeX 모바일을 종료할까요?";
-                if (await DisplayAlertAsync("종료", msg, "종료", "취소")) { if (DeviceInfo.Platform == DevicePlatform.Android) Application.Current.Quit(); }
+                if (await this.DisplayAlertTr("종료", msg, "종료", "취소")) { if (DeviceInfo.Platform == DevicePlatform.Android) Application.Current.Quit(); }
             }
             finally { exitAsking = false; }
         });
@@ -577,7 +577,7 @@ public class MainPage : ContentPage
         Dispatcher.Dispatch(async () =>
         {
             var msg = AppState.Dirty ? "편집 중인 포켓몬이 저장되지 않았습니다.\n그래도 종료할까요?" : "PKHeX 모바일을 종료할까요?";
-            if (await DisplayAlertAsync("종료", msg, "종료", "취소")) { if (DeviceInfo.Platform == DevicePlatform.Android) Application.Current.Quit(); }
+            if (await this.DisplayAlertTr("종료", msg, "종료", "취소")) { if (DeviceInfo.Platform == DevicePlatform.Android) Application.Current.Quit(); }
         });
         return true;
     }
@@ -592,7 +592,7 @@ public class MainPage : ContentPage
             await using (var st = await f.OpenReadAsync()) { using var ms = new MemoryStream(); await st.CopyToAsync(ms); data = ms.ToArray(); }
             await OpenBytes(data, f.FileName);
         }
-        catch (Exception ex) { await DisplayAlertAsync("열기 실패", ex.Message, "확인"); }
+        catch (Exception ex) { await this.DisplayAlertTr("열기 실패", ex.Message, "확인"); }
     }
 
     /// <summary>바이트로 열기 (파일 선택·다른 앱에서 공유/열기·최근 목록 공통).</summary>
@@ -603,7 +603,7 @@ public class MainPage : ContentPage
         if (zm.Success) fileName = zm.Groups[1].Value;   // 최근 목록의 "main (xxx.zip)" → 세이브 이름은 main
         else if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))   // DBI 등 압축 세이브: 안의 세이브 파일(main 등)을 꺼내 엶
         {
-            if (ZipSave.Extract(data) is not { } z) { await DisplayAlertAsync("열기 실패", "zip 안에서 세이브 파일을 찾지 못했습니다", "확인"); return; }
+            if (ZipSave.Extract(data) is not { } z) { await this.DisplayAlertTr("열기 실패", "zip 안에서 세이브 파일을 찾지 못했습니다", "확인"); return; }
             if (!SwitchFrlg.Enabled && SwitchFrlg.IsSwitchZip(data) && !SwitchFrlg.IsVirtualConsoleName(z.Entry)) Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(1.5), () => Note.Show("스위치판 FRLG 세이브인데 파일 이름이 달라 GBA판 기준으로 검사합니다 · 설정의 '스위치판 FRLG 기준으로 검사'를 켜세요"));
             memName = $"{System.IO.Path.GetFileName(z.Entry)} ({System.IO.Path.GetFileName(fileName)})";   // 게임마다 main이라 최근 목록에서 서로 덮어쓰지 않게 zip 이름을 붙임
             data = z.Data; fileName = System.IO.Path.GetFileName(z.Entry);
@@ -629,15 +629,15 @@ public class MainPage : ContentPage
                         // 다른 게임(형식)의 파일: 바꿀 수 없으면 열지 않고, 바꿀 수 있으면 물어봄 (HOME으로 옮기듯 변환)
                         string from = AppState.ContextName(p.Context), to = AppState.ContextName(AppState.Sav.Context);
                         if (EntityConverter.ConvertToType(p, AppState.Sav.PKMType, out _) == null)
-                        { await DisplayAlertAsync("열기", $"이 파일은 {from} 포켓몬이라 지금 세이브({to})에 넣을 수 없습니다. {from} 세이브를 열고 불러오세요.", "확인"); break; }
-                        if (!await DisplayAlertAsync("다른 게임의 포켓몬", $"이 파일은 {from} 포켓몬입니다. 지금 세이브({to}) 형식으로 바꿔서 열까요?\n\nHOME으로 옮긴 것처럼 변환되며, HOME 추적 번호 등이 없어 불법으로 나올 수 있습니다.", "바꿔서 열기", "취소")) break;
+                        { await this.DisplayAlertTr("열기", $"이 파일은 {from} 포켓몬이라 지금 세이브({to})에 넣을 수 없습니다. {from} 세이브를 열고 불러오세요.", "확인"); break; }
+                        if (!await this.DisplayAlertTr("다른 게임의 포켓몬", $"이 파일은 {from} 포켓몬입니다. 지금 세이브({to}) 형식으로 바꿔서 열까요?\n\nHOME으로 옮긴 것처럼 변환되며, HOME 추적 번호 등이 없어 불법으로 나올 수 있습니다.", "바꿔서 열기", "취소")) break;
                     }
                     if (AppState.Load(p)) Note.Show("포켓몬을 불러왔습니다");
                     break;
                 case MysteryGift g when g.IsEntity: AppState.Load(g.ConvertToPKM(AppState.Sav)); break;
                 case ConcatenatedEntitySet set:
                     var sav = AppState.Sav; int n = 0, skipped = 0;
-                    var start = await DisplayAlertAsync("박스 데이터", $"{set.Count}칸 분량입니다. {AppState.BoxName(AppState.Box)}부터 채울까요?", "현재 박스부터", "1번 박스부터") ? AppState.Box : 0;
+                    var start = await this.DisplayAlertTr("박스 데이터", $"{set.Count}칸 분량입니다. {AppState.BoxName(AppState.Box)}부터 채울까요?", "현재 박스부터", "1번 박스부터") ? AppState.Box : 0;
                     for (int i = 0; i < set.Count; i++)
                     {
                         int b = start + i / sav.BoxSlotCount; if (b >= sav.BoxCount) break;
@@ -651,10 +651,10 @@ public class MainPage : ContentPage
                     }
                     AppState.AfterBulk(boxes: Enumerable.Range(start, Math.Min(sav.BoxCount - start, (set.Count + sav.BoxSlotCount - 1) / sav.BoxSlotCount)));
                     AppState.NotifyBox(); Note.Show(skipped > 0 ? $"{n}마리를 넣었습니다 (이 게임에 넣을 수 없는 {skipped}마리는 건너뜀)" : $"{n}마리를 넣었습니다"); break;
-                default: await DisplayAlertAsync("열기", "지원하지 않는 파일입니다.", "확인"); break;
+                default: await this.DisplayAlertTr("열기", "지원하지 않는 파일입니다.", "확인"); break;
             }
         }
-        catch (Exception ex) { await DisplayAlertAsync("열기 실패", ex.Message, "확인"); }
+        catch (Exception ex) { await this.DisplayAlertTr("열기 실패", ex.Message, "확인"); }
     }
 
     private async Task ExportSave()
@@ -671,23 +671,23 @@ public class MainPage : ContentPage
             var r = await FileSaver.Default.SaveAsync(fileName, ms, CancellationToken.None);
             Note.Show(r.IsSuccessful ? "세이브를 저장했습니다" : "저장을 취소했습니다");
         }
-        catch (Exception ex) { await DisplayAlertAsync("저장 실패", ex.Message, "확인"); }
+        catch (Exception ex) { await this.DisplayAlertTr("저장 실패", ex.Message, "확인"); }
     }
 
     /// <summary>PokeLDN 교환 파일: 휴대폰 교환 앱(PokeLDN 교환)이나 PC PokeLDN이 그대로 쓰는 형식으로 공유.</summary>
     private async Task ExportLdn()
     {
         var pk = AppState.Pk; if (pk.Species == 0) { Note.Show("보낼 포켓몬이 없습니다"); return; }
-        if (LdnExport.GameOf(pk) == null) { await DisplayAlertAsync("PokeLDN 교환", "PokeLDN 교환은 파이어레드·리프그린, 레츠고, 소드실드, BDSP, 아르세우스, SV, Z-A 포켓몬만 됩니다.", "확인"); return; }
+        if (LdnExport.GameOf(pk) == null) { await this.DisplayAlertTr("PokeLDN 교환", "PokeLDN 교환은 파이어레드·리프그린, 레츠고, 소드실드, BDSP, 아르세우스, SV, Z-A 포켓몬만 됩니다.", "확인"); return; }
         try { await ShareUtil.ShareBytes(LdnExport.Prepare(pk), LdnExport.FileName(pk), "PokeLDN 교환으로 보내기"); }
-        catch (Exception ex) { await DisplayAlertAsync("PokeLDN 교환", ex.Message, "확인"); }
+        catch (Exception ex) { await this.DisplayAlertTr("PokeLDN 교환", ex.Message, "확인"); }
     }
 
     /// <summary>앱 안의 PokeLDN 교환 화면: 편집 중인 포켓몬을 보낼 목록으로 (없거나 교환할 수 없는 형식이면 화면만).</summary>
     private async Task TradeLdn()
     {
         try { await LdnTrade.Open(null); }
-        catch (Exception ex) { await DisplayAlertAsync("PokeLDN 교환", ex.Message, "확인"); }
+        catch (Exception ex) { await this.DisplayAlertTr("PokeLDN 교환", ex.Message, "확인"); }
     }
 
     private async Task ExportPk()

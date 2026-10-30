@@ -263,7 +263,7 @@ public class BoxPanel : ContentView
         }
         if (pickMode)
         {
-            if (s.Pk.Species != 0 && !await Page().DisplayAlertAsync("덮어쓰기", $"{where}의 포켓몬을 덮어쓸까요?", "덮어쓰기", "취소")) return;
+            if (s.Pk.Species != 0 && !await Page().DisplayAlertTr("덮어쓰기", $"{where}의 포켓몬을 덮어쓸까요?", "덮어쓰기", "취소")) return;
             pickMode = false;
             AppState.WriteSlot(s.Index, AppState.Pk.Clone());
             Note.Show($"{where}에 저장했습니다");
@@ -273,8 +273,8 @@ public class BoxPanel : ContentView
         {
             const string bdel = "삭제 (빈 칸으로)", bover = "편집 중인 포켓몬으로 덮어쓰기";
             var bp = AppState.Pk.Species == 0
-                ? await Page().DisplayActionSheetAsync($"{where} · 불량알 (손상된 데이터)", "취소", null, bdel)
-                : await Page().DisplayActionSheetAsync($"{where} · 불량알 (손상된 데이터)", "취소", null, bdel, bover);
+                ? await Page().DisplayActionSheetTr($"{where} · 불량알 (손상된 데이터)", "취소", null, bdel)
+                : await Page().DisplayActionSheetTr($"{where} · 불량알 (손상된 데이터)", "취소", null, bdel, bover);
             if (bp == bdel) { AppState.DeleteSlot(s.Index); Note.Show(AppState.LiveConnected ? "불량알을 지웠습니다 (게임에도 반영)" : "불량알을 지웠습니다"); }
             else if (bp == bover) { AppState.WriteSlot(s.Index, AppState.Pk.Clone()); Note.Show($"{where}에 덮어썼습니다"); }
             return;
@@ -282,19 +282,19 @@ public class BoxPanel : ContentView
         if (s.Pk.Species == 0)
         {
             if (AppState.Pk.Species == 0) return;
-            if (await Page().DisplayAlertAsync("저장", $"편집 중인 포켓몬을 {where}에 저장할까요?", "저장", "취소"))
+            if (await Page().DisplayAlertTr("저장", $"편집 중인 포켓몬을 {where}에 저장할까요?", "저장", "취소"))
             { AppState.WriteSlot(s.Index, AppState.Pk.Clone()); Note.Show("저장했습니다"); }
             return;
         }
         const string view = "정보 보기 (편집기로 불러오기)", over = "편집 중인 포켓몬으로 덮어쓰기", fav = "즐겨찾기에 저장", del = "삭제";
         var name = GameInfo.Strings.Species[s.Pk.Species];
         var pick = AppState.Pk.Species == 0
-            ? await Page().DisplayActionSheetAsync($"{where} · {name}", "취소", null, view, fav, del)
-            : await Page().DisplayActionSheetAsync($"{where} · {name}", "취소", null, view, over, fav, del);
+            ? await Page().DisplayActionSheetTr($"{where} · {name}", "취소", null, view, fav, del)
+            : await Page().DisplayActionSheetTr($"{where} · {name}", "취소", null, view, over, fav, del);
         switch (pick)
         {
             case view:
-                if (AppState.Dirty && !await Page().DisplayAlertAsync("저장하지 않은 변경", "편집 중인 내용이 저장되지 않았습니다. 버리고 불러올까요?", "불러오기", "취소")) return;
+                if (AppState.Dirty && !await Page().DisplayAlertTr("저장하지 않은 변경", "편집 중인 내용이 저장되지 않았습니다. 버리고 불러올까요?", "불러오기", "취소")) return;
                 AppState.Load(s.Pk, (AppState.PartyMode, AppState.Box, s.Index));
                 break;
             case over:
@@ -303,7 +303,7 @@ public class BoxPanel : ContentView
             case fav:
                 Favorites.Add(s.Pk); Note.Show($"{name}을(를) 즐겨찾기에 저장했습니다"); break;
             case del:
-                if (await Page().DisplayAlertAsync("삭제", $"{where}의 {name}을(를) 삭제할까요?", "삭제", "취소")) { AppState.DeleteSlot(s.Index); Note.Show("삭제했습니다 (실행 취소 가능)"); }
+                if (await Page().DisplayAlertTr("삭제", $"{where}의 {name}을(를) 삭제할까요?", "삭제", "취소")) { AppState.DeleteSlot(s.Index); Note.Show("삭제했습니다 (실행 취소 가능)"); }
                 break;
         }
     }
@@ -315,7 +315,7 @@ public class BoxPanel : ContentView
         var picks = Selected.Where(k => sav.GetBoxSlotAtIndex(k.Box, k.Index).Species != 0).OrderBy(k => k.Box).ThenBy(k => k.Index).ToList();
         if (picks.Count == 0) { Note.Show("선택한 칸이 없습니다"); return; }
         const string move = "다른 박스로 옮기기", del = "삭제", export = "박스 데이터(.bin)로 내보내기", fav = "즐겨찾기 등록", clear = "선택 해제", ldn = "PokeLDN 교환으로 보내기";
-        var a = await Page().DisplayActionSheetAsync($"{picks.Count}칸 선택", "취소", null, move, fav, ldn, export, del, clear);
+        var a = await Page().DisplayActionSheetTr($"{picks.Count}칸 선택", "취소", null, move, fav, ldn, export, del, clear);
         byte[] Bin() { int size = sav.SIZE_BOXSLOT; var buf = new byte[picks.Count * size]; for (int i = 0; i < picks.Count; i++) { var p = sav.GetBoxSlotAtIndex(picks[i].Box, picks[i].Index); p.WriteEncryptedDataStored(buf.AsSpan(i * size, Math.Min(size, p.SIZE_STORED))); } return buf; }
         switch (a)
         {
@@ -338,7 +338,7 @@ public class BoxPanel : ContentView
                 }));
                 break;
             case del:
-                if (!await Page().DisplayAlertAsync("삭제", $"선택한 {picks.Count}마리를 삭제할까요? (실행 취소 불가 · 자동 백업이 켜져 있으면 작업 전 백업을 남김)", "삭제", "취소")) return;
+                if (!await Page().DisplayAlertTr("삭제", $"선택한 {picks.Count}마리를 삭제할까요? (실행 취소 불가 · 자동 백업이 켜져 있으면 작업 전 백업을 남김)", "삭제", "취소")) return;
                 SaveStore.Snapshot("삭제");
                 foreach (var k in picks) sav.SetBoxSlotAtIndex(sav.BlankPKM, k.Box, k.Index);
                 AppState.AfterBulk(picks.Select(k => (k.Box, k.Index)));
@@ -379,7 +379,7 @@ public class BoxPanel : ContentView
     {
         if (AppState.PartyMode) { Note.Show("파티는 정렬하지 않습니다"); return; }
         const string dex = "도감 번호순", dexR = "도감 번호 역순", shiny = "이로치 먼저 (도감순)", lvDesc = "레벨 높은 순", lv = "레벨 낮은 순", ball = "볼 종류순", legal = "불법 먼저";
-        var how = await Page().DisplayActionSheetAsync("정렬 방식", "취소", null, dex, dexR, shiny, lvDesc, lv, ball, legal);
+        var how = await Page().DisplayActionSheetTr("정렬 방식", "취소", null, dex, dexR, shiny, lvDesc, lv, ball, legal);
         Func<IEnumerable<PKM>, int, IEnumerable<PKM>> m = how switch
         {
             dex => (l, _) => l.OrderBySpecies(),
@@ -392,7 +392,7 @@ public class BoxPanel : ContentView
             _ => null,
         };
         if (m == null) return;
-        var where = await Page().DisplayActionSheetAsync("정렬 범위", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
+        var where = await Page().DisplayActionSheetTr("정렬 범위", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
         if (where == null || where == "취소") return;
         var sav = AppState.Sav;
         bool one = where.StartsWith("현재");
@@ -411,7 +411,7 @@ public class BoxPanel : ContentView
     private async Task RenameBox()
     {
         if (AppState.PartyMode || AppState.Sav is not IBoxDetailName n) { Note.Show("이 게임은 박스 이름을 바꿀 수 없습니다"); return; }
-        var name = await Page().DisplayPromptAsync("박스 이름", $"{AppState.Box + 1}번 박스의 새 이름", "변경", "취소", initialValue: AppState.BoxName(AppState.Box), maxLength: 16);
+        var name = await Page().DisplayPromptTr("박스 이름", $"{AppState.Box + 1}번 박스의 새 이름", "변경", "취소", initialValue: AppState.BoxName(AppState.Box), maxLength: 16);
         if (string.IsNullOrWhiteSpace(name)) return;
         try { n.SetBoxName(AppState.Box, name.Trim()); AppState.NotifyBox(); Note.Show("박스 이름을 바꿨습니다"); }
         catch (Exception ex) { Note.Show("바꾸지 못했습니다: " + ex.Message); }
@@ -422,12 +422,12 @@ public class BoxPanel : ContentView
     {
         var pk = AppState.Pk; var sav = AppState.Sav;
         if (pk.Species == 0) { Note.Show("편집기에 포켓몬이 없습니다"); return; }
-        var where = await Page().DisplayActionSheetAsync($"{AppState.SpeciesName(pk)}(으)로 채우기", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
+        var where = await Page().DisplayActionSheetTr($"{AppState.SpeciesName(pk)}(으)로 채우기", "취소", null, $"현재 박스 ({AppState.BoxName(AppState.Box)})", "모든 박스");
         if (where == null || where == "취소") return;
-        var how = await Page().DisplayActionSheetAsync("채울 칸", "취소", null, "빈 칸만", "전부 덮어쓰기");
+        var how = await Page().DisplayActionSheetTr("채울 칸", "취소", null, "빈 칸만", "전부 덮어쓰기");
         if (how == null || how == "취소") return;
         bool all = where == "모든 박스", over = how == "전부 덮어쓰기";
-        if (over && !await Page().DisplayAlertAsync("채우기", "기존 포켓몬을 덮어씁니다. 되돌릴 수 없습니다.", "채우기", "취소")) return;
+        if (over && !await Page().DisplayAlertTr("채우기", "기존 포켓몬을 덮어씁니다. 되돌릴 수 없습니다.", "채우기", "취소")) return;
         int n = 0; SaveStore.Snapshot("채우기");
         for (int bx = all ? 0 : AppState.Box; bx <= (all ? sav.BoxCount - 1 : AppState.Box); bx++)
             for (int i = 0; i < sav.BoxSlotCount; i++)
@@ -444,7 +444,7 @@ public class BoxPanel : ContentView
     {
         var sav = AppState.Sav;
         string cur = $"현재 박스 ({AppState.BoxName(AppState.Box)})", all = "모든 박스", curBad = "현재 박스의 불법 포켓몬만", allBad = "모든 박스의 불법 포켓몬만";
-        var what = await Page().DisplayActionSheetAsync("비우기", "취소", null, cur, all, curBad, allBad);
+        var what = await Page().DisplayActionSheetTr("비우기", "취소", null, cur, all, curBad, allBad);
         if (what == null || what == "취소") return;
         if (what == curBad || what == allBad)
         {
@@ -453,14 +453,14 @@ public class BoxPanel : ContentView
             Note.Show("합법성 확인 중…");
             await Task.Run(() => { for (int b = from; b < to; b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if ((p.Species != 0 && !AppState.IsLegal(p)) || AppState.IsBadEgg(p)) bad.Add((b, i)); } });   // 수백 마리 검사는 UI 스레드 밖에서
             if (bad.Count == 0) { Note.Show("불법 포켓몬이 없습니다"); return; }
-            if (!await Page().DisplayAlertAsync("불법 포켓몬 비우기", $"불법으로 판정된 {bad.Count}마리를 지웁니다. 되돌릴 수 없습니다.", "지우기", "취소")) return;
+            if (!await Page().DisplayAlertTr("불법 포켓몬 비우기", $"불법으로 판정된 {bad.Count}마리를 지웁니다. 되돌릴 수 없습니다.", "지우기", "취소")) return;
             SaveStore.Snapshot("불법비우기");
             foreach (var (b, i) in bad) sav.SetBoxSlotAtIndex(sav.BlankPKM, b, i);
             AppState.AfterBulk(bad);
             AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show($"불법 포켓몬 {bad.Count}마리를 지웠습니다");
             return;
         }
-        if (!await Page().DisplayAlertAsync("비우기", $"{what}의 포켓몬을 모두 지웁니다. 되돌릴 수 없습니다.", "비우기", "취소")) return;
+        if (!await Page().DisplayAlertTr("비우기", $"{what}의 포켓몬을 모두 지웁니다. 되돌릴 수 없습니다.", "비우기", "취소")) return;
         SaveStore.Snapshot("비우기");
         if (what == cur) sav.ClearBoxes(AppState.Box, AppState.Box + 1); else sav.ClearBoxes();
         AppState.AfterBulk(boxes: what == cur ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));

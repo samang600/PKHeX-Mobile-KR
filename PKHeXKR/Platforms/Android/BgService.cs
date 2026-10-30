@@ -90,8 +90,8 @@ public class BgService : Service
         var t = BgTask.Current; int count = BgTask.Count;
         var b = new NotificationCompat.Builder(c, Channel)
             .SetSmallIcon(Resource.Drawable.ic_stat_pkhex)
-            .SetContentTitle(t == null ? "PKHeX 모바일" : t.Title + (count > 1 ? $" 외 {count - 1}개" : ""))
-            .SetContentText(t?.Text is { Length: > 0 } s ? s : "진행 중…")
+            .SetContentTitle(Loc.T(t == null ? "PKHeX 모바일" : t.Title + (count > 1 ? $" 외 {count - 1}개" : "")))
+            .SetContentText(Loc.T(t?.Text is { Length: > 0 } s ? s : "진행 중…"))
             .SetOngoing(true).SetOnlyAlertOnce(true).SetSilent(true)
             .SetContentIntent(OpenApp(c));
         if (t != null && t.Total > 0 && t.Done_ >= 0) b.SetProgress(t.Total, Math.Min(t.Done_, t.Total), false);
@@ -123,8 +123,8 @@ public class BgService : Service
             Channels(c);
             var n = new NotificationCompat.Builder(c, BgTask.Vibrate ? DoneChannel : QuietChannel)
                 .SetSmallIcon(Resource.Drawable.ic_stat_pkhex)
-                .SetContentTitle(t.Title + " · 끝")
-                .SetContentText(t.Text)
+                .SetContentTitle(Loc.T(t.Title + " · 끝"))
+                .SetContentText(Loc.T(t.Text))
                 .SetStyle(new NotificationCompat.BigTextStyle().BigText(t.Text))
                 .SetAutoCancel(true).SetContentIntent(OpenApp(c)).Build();
             try { NotificationManagerCompat.From(c).Notify(t.Id, n); } catch { }

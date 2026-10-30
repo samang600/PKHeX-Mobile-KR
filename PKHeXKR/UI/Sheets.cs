@@ -77,7 +77,7 @@ public class PickerSheet : Sheet
             g.SetBinding(BackgroundColorProperty, "Tint");
             var img = new Image { WidthRequest = 36, HeightRequest = 30 };
             img.SetBinding(Image.SourceProperty, "Icon");
-            var t = T.L("", 16); t.SetBinding(Label.TextProperty, "Text");
+            var t = T.L("", 16); t.SetBinding(Label.TextProperty, new Binding("Text", converter: Loc.Conv));
             t.SetBinding(Label.FontAttributesProperty, new Binding("Current", converter: new FuncConverter<bool, FontAttributes>(b => b ? FontAttributes.Bold : FontAttributes.None)));
             g.Add(img, 0); g.Add(t, 1);
             var tap = new TapGestureRecognizer(); tap.SetBinding(TapGestureRecognizer.CommandParameterProperty, ".");
@@ -101,7 +101,7 @@ public class PickerSheet : Sheet
     {
         q = (q ?? "").Trim();
         IEnumerable<Row> r = rows;
-        if (q.Length > 0) r = rows.Where(x => Korean.Match(x.Text, q)).OrderBy(x => x.Tier).ThenBy(x => x.Text.StartsWith(q, StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+        if (q.Length > 0) r = rows.Where(x => Korean.Match(x.Text, q) || (Loc.Active && Loc.T(x.Text).Contains(q, StringComparison.OrdinalIgnoreCase))).OrderBy(x => x.Tier).ThenBy(x => x.Text.StartsWith(q, StringComparison.OrdinalIgnoreCase) ? 0 : 1);
         else r = rows.OrderBy(x => x.Current ? 0 : 1).ThenBy(x => x.Tier);   // 합법(초록) 기술이 위로
         list.ItemsSource = r.Take(300).ToList();
     }

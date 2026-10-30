@@ -139,8 +139,8 @@ public class DexEditSheet : Sheet
         {
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto) }, ColumnSpacing = 6, Padding = new Thickness(2, 2), HeightRequest = 46 };
             var img = new Image { WidthRequest = 44, HeightRequest = 38 }; img.SetBinding(Image.SourceProperty, nameof(DexRow.Sprite));
-            var n = T.L("", 14, bold: true); n.SetBinding(Label.TextProperty, nameof(DexRow.Name));
-            var no = T.L("", 11, sub: true); no.SetBinding(Label.TextProperty, nameof(DexRow.No));
+            var n = T.L("", 14, bold: true); n.SetBinding(Label.TextProperty, new Binding(nameof(DexRow.Name), converter: Loc.Conv));
+            var no = T.L("", 11, sub: true); no.SetBinding(Label.TextProperty, new Binding(nameof(DexRow.No), converter: Loc.Conv));
             View Check(string label, string prop)
             {
                 var c = new CheckBox { Color = T.Accent }; c.SetBinding(CheckBox.IsCheckedProperty, new Binding(prop, BindingMode.TwoWay));

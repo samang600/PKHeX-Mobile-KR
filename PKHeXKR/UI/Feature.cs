@@ -55,7 +55,7 @@ public class ShowdownSheet : Sheet
         if (toParty)
         {
             if (sets.Count > 6) { Note.Show("파티에는 6마리까지만 넣습니다 (앞의 6개)"); sets = sets.Take(6).ToList(); }
-            if (sav.PartyCount > 0 && !await Application.Current.Windows[0].Page.DisplayAlertAsync("파티에 넣기", $"지금 파티({sav.PartyCount}마리)를 이 팀으로 바꿉니다. 계속할까요?", "넣기", "취소")) return;
+            if (sav.PartyCount > 0 && !await Application.Current.Windows[0].Page.DisplayAlertTr("파티에 넣기", $"지금 파티({sav.PartyCount}마리)를 이 팀으로 바꿉니다. 계속할까요?", "넣기", "취소")) return;
         }
         var made = await Task.Run(() =>
         {
@@ -94,7 +94,7 @@ public class ShowdownSheet : Sheet
         try
         {
             var set = new ShowdownSet(raw);
-            if (set.Species == 0) { await page.DisplayAlertAsync("쇼다운", "세트를 해석하지 못했습니다. 영어 쇼다운 형식인지 확인하세요.", "확인"); return; }
+            if (set.Species == 0) { await page.DisplayAlertTr("쇼다운", "세트를 해석하지 못했습니다. 영어 쇼다운 형식인지 확인하세요.", "확인"); return; }
             var result = await Task.Run(() => AppState.Sav.GetLegalFromSet(set));
             var pkm = result.Created;
             Close();
@@ -102,7 +102,7 @@ public class ShowdownSheet : Sheet
             bool ok = new LegalityAnalysis(pkm).Valid;
             Note.Show(ok ? "합법 개체를 만들었습니다" : "합법으로 만들지 못했습니다 (합법성 표시 확인)");
         }
-        catch (Exception ex) { await page.DisplayAlertAsync("쇼다운", ex.Message, "확인"); }
+        catch (Exception ex) { await page.DisplayAlertTr("쇼다운", ex.Message, "확인"); }
     }
 }
 
@@ -191,7 +191,7 @@ public class LiveHexSheet : Sheet
         {
             if (!AppState.LiveConnected) return;
             if (AppState.Sav is SAV7b) { Note.Show("레츠고는 쓰기가 게임에 반영되지 않습니다"); return; }
-            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("박스 쓰기", $"{AppState.BoxName(AppState.Box)} 30칸을 게임 메모리에 통째로 씁니다. 게임 쪽 그 박스는 앱 내용으로 바뀝니다.", "쓰기", "취소")) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertTr("박스 쓰기", $"{AppState.BoxName(AppState.Box)} 30칸을 게임 메모리에 통째로 씁니다. 게임 쪽 그 박스는 앱 내용으로 바뀝니다.", "쓰기", "취소")) return;
             bool whole = await Task.Run(() => AppState.LiveSyncBox(AppState.Box));
             if (!whole && AppState.LiveConnected) await Task.Run(() => { for (int i = 0; i < AppState.Sav.BoxSlotCount; i++) AppState.LiveSync(AppState.Box, i); });
             Note.Show(AppState.LiveConnected ? (whole ? "박스를 통째로 썼습니다" : "칸마다 썼습니다 (이 게임은 통째 쓰기 불가)") : "연결이 끊겼습니다");
@@ -200,7 +200,7 @@ public class LiveHexSheet : Sheet
         {
             if (!AppState.LiveConnected) return;
             var sav = AppState.Sav;
-            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("모든 박스 읽기", $"게임의 박스 {sav.BoxCount}개를 모두 읽어 앱 세이브에 넣습니다 (앱 박스 내용은 게임 것으로 바뀜). 와이파이로 1~2분.", "읽기", "취소")) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertTr("모든 박스 읽기", $"게임의 박스 {sav.BoxCount}개를 모두 읽어 앱 세이브에 넣습니다 (앱 박스 내용은 게임 것으로 바뀜). 와이파이로 1~2분.", "읽기", "취소")) return;
             SaveStore.Snapshot("모든박스읽기");
             int cur = AppState.Box; int done = 0;
             using var bg = BgTask.Begin("라이브헥스 모든 박스 읽기");
@@ -221,7 +221,7 @@ public class LiveHexSheet : Sheet
             if (!AppState.LiveConnected) return;
             if (AppState.Sav is SAV7b) { Note.Show("레츠고는 쓰기가 게임에 반영되지 않습니다"); return; }
             var sav = AppState.Sav;
-            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("모든 박스 쓰기", $"앱 세이브의 박스 {sav.BoxCount}개를 게임 메모리에 모두 씁니다. 게임 쪽 박스는 전부 앱 내용으로 바뀝니다. 되돌릴 수 없으니 확실할 때만 하세요.", "쓰기", "취소")) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertTr("모든 박스 쓰기", $"앱 세이브의 박스 {sav.BoxCount}개를 게임 메모리에 모두 씁니다. 게임 쪽 박스는 전부 앱 내용으로 바뀝니다. 되돌릴 수 없으니 확실할 때만 하세요.", "쓰기", "취소")) return;
             int done = 0;
             using var bg = BgTask.Begin("라이브헥스 모든 박스 쓰기");
             await Task.Run(() =>
@@ -262,18 +262,18 @@ public class LiveHexSheet : Sheet
         try
         {
             var versions = RamOffsets.GetValidVersions(sav);
-            if (versions.Length == 0) { await page.DisplayAlertAsync("라이브헥스", "현재 세이브의 게임은 라이브헥스를 지원하지 않습니다.", "확인"); return; }
+            if (versions.Length == 0) { await page.DisplayAlertTr("라이브헥스", "현재 세이브의 게임은 라이브헥스를 지원하지 않습니다.", "확인"); return; }
             ICommunicator com = RamOffsets.IsSwitchTitle(sav) ? new SysBotMini() : new NTRClient();
             com.IP = ip.Text?.Trim() ?? ""; com.Port = int.TryParse(port.Text, out var p) ? p : (sw0 ? 6000 : 8000);
             var conn = Task.Run(() => com.Connect());
-            if (await Task.WhenAny(conn, Task.Delay(15000)) != conn) { try { com.Disconnect(); } catch { } await page.DisplayAlertAsync("연결 실패", sw0 ? "스위치가 응답하지 않습니다. IP와 sys-botbase를 확인하세요." : "3DS가 응답하지 않습니다. BootNTR Selector로 NTR을 켠 뒤 게임을 실행했는지, IP·포트(8000)를 확인하세요.", "확인"); return; }
+            if (await Task.WhenAny(conn, Task.Delay(15000)) != conn) { try { com.Disconnect(); } catch { } await page.DisplayAlertTr("연결 실패", sw0 ? "스위치가 응답하지 않습니다. IP와 sys-botbase를 확인하세요." : "3DS가 응답하지 않습니다. BootNTR Selector로 NTR을 켠 뒤 게임을 실행했는지, IP·포트(8000)를 확인하세요.", "확인"); return; }
             await conn;
-            if (!com.Connected) { await page.DisplayAlertAsync("연결 실패", sw0 ? "연결하지 못했습니다." : "NTR에 연결하지 못했습니다. 3DS에서 BootNTR Selector를 다시 실행해 보세요.", "확인"); return; }
+            if (!com.Connected) { await page.DisplayAlertTr("연결 실패", sw0 ? "연결하지 못했습니다." : "NTR에 연결하지 못했습니다. 3DS에서 BootNTR Selector를 다시 실행해 보세요.", "확인"); return; }
             PokeSysBotMini remote = null;
             if (com is ICommunicatorNX nx)
             {
                 var title = nx.GetTitleID(); var gv = nx.GetGameInfo("version").Trim();
-                if (!InjectionBase.SaveCompatibleWithTitle(sav, title)) { com.Disconnect(); await page.DisplayAlertAsync("라이브헥스", "게임과 세이브의 버전이 맞지 않습니다.", "확인"); return; }
+                if (!InjectionBase.SaveCompatibleWithTitle(sav, title)) { com.Disconnect(); await page.DisplayAlertTr("라이브헥스", "게임과 세이브의 버전이 맞지 않습니다.", "확인"); return; }
                 remote = new PokeSysBotMini(InjectionBase.GetVersionFromTitle(title, gv), com);
             }
             else
@@ -297,13 +297,13 @@ public class LiveHexSheet : Sheet
                 }
                 remote ??= emptyOk;
             }
-            if (remote == null) { com.Disconnect(); await page.DisplayAlertAsync("라이브헥스", "게임 버전을 확인하지 못했습니다.", "확인"); return; }
+            if (remote == null) { com.Disconnect(); await page.DisplayAlertTr("라이브헥스", "게임 버전을 확인하지 못했습니다.", "확인"); return; }
             AppState.Remote = remote; AppState.LiveSav = AppState.Sav;
             bool tr = AppState.ReadLiveTrainer();   // 게임 속 트레이너 이름·ID·성별 자동 반영
             BoxPanel.ReadLiveBox(); AppState.NotifyBox();
             Note.Show((tr ? $"연결했습니다 · 트레이너 {AppState.Sav.OT} 불러옴" : "연결했습니다 (트레이너 정보는 이 게임에서 읽지 못했습니다)") + (AppState.Sav is SAV7b ? " · 레츠고는 읽기 전용" : ""));
         }
-        catch (Exception ex) { await page.DisplayAlertAsync("연결 실패", ex.Message, "확인"); }
+        catch (Exception ex) { await page.DisplayAlertTr("연결 실패", ex.Message, "확인"); }
         Update();
     }
 }

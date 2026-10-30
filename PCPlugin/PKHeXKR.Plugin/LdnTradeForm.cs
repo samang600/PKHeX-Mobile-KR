@@ -214,7 +214,9 @@ public sealed class LdnTradeForm : Form
     {
         var p = path.Text.Trim().Trim('"');
         var rest = string.Join(" ", extra.Select(Quote));
-        var run = skipLegal.Checked ? RunScript() : null;   // 합법성 확인 건너뛰기: PokeLDN 안에서 확인 부분만 바꿔 실행
+        // 항상 플러그인 실행기로: PokeLDN 프리셋 기본값의 --fresh-pid(PID·암호화 상수 새로 뽑기)를 빼서 HOME에 들어갈 수 있게.
+        // 합법성 확인 건너뛰기는 PKHEXKR_SKIP_LEGAL 환경 변수로 (Start에서 설정)
+        var run = RunScript();
         if (File.Exists(p) && p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             return (p, run != null ? $"--run {Quote(run)} {tool} -- {rest}" : $"--module pokeldn {tool} -- {rest}", Path.GetDirectoryName(p));
         var root = Directory.Exists(p) ? FindSourceRoot(p) ?? p : null;
@@ -268,6 +270,7 @@ public sealed class LdnTradeForm : Form
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
         };
         psi.Environment["POKELDN_RADIO"] = "esp32:" + (port.Text.Trim() is { Length: > 0 } pt ? pt : "auto");
+        psi.Environment["PKHEXKR_SKIP_LEGAL"] = skipLegal.Checked ? "1" : "0";
         psi.Environment["POKELDN_MANAGED_RUN"] = "1";   // 중지 = 입력 닫기 → PokeLDN이 정리하고 끝냄
         psi.Environment["PYTHONIOENCODING"] = "utf-8";
         psi.Environment["PYTHONUNBUFFERED"] = "1";

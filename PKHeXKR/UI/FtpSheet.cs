@@ -266,7 +266,7 @@ public class FtpSheet : Sheet
         try { var n = await client.GetNameListing(cwd); sb.AppendLine($"NLST: {n.Length}개 " + string.Join(", ", n.Take(8))); } catch (Exception ex) { sb.AppendLine("NLST: 오류 " + ex.Message); }
         try { var r = await client.Execute("STAT " + cwd); sb.AppendLine($"STAT: {r.Code} {r.Message} {string.Join(" | ", (r.InfoMessages ?? "").Split('\n').Take(8))}"); } catch (Exception ex) { sb.AppendLine("STAT: 오류 " + ex.Message); }
         try { sb.AppendLine("서버: " + client.ServerType + " / " + client.SystemType); } catch { }
-        await Application.Current.Windows[0].Page.DisplayAlertAsync("목록 진단 (이 화면을 캡처해 알려주세요)", sb.ToString(), "확인");
+        await Application.Current.Windows[0].Page.DisplayAlertTr("목록 진단 (이 화면을 캡처해 알려주세요)", sb.ToString(), "확인");
     }
 
     private View RowM(Item it, string text, string sub, Func<Task> tap) => Row(text, sub, tap, httpMode ? null : () => ItemMenu(it));
@@ -292,7 +292,7 @@ public class FtpSheet : Sheet
         var page = Application.Current.Windows[0].Page;
         bool zip = name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
         const string open = "앱에서 열기", keep = "앱에 복사해 두기", put = "편집 중인 세이브로 덮어쓰기";
-        var pick = await page.DisplayActionSheetAsync(name + (zip ? " (압축 세이브)" : ""), "취소", null, open, keep, put);
+        var pick = await page.DisplayActionSheetTr(name + (zip ? " (압축 세이브)" : ""), "취소", null, open, keep, put);
         try
         {
             switch (pick)
@@ -312,7 +312,7 @@ public class FtpSheet : Sheet
                     var sav = AppState.Sav;
                     if (string.IsNullOrEmpty(sav.Metadata.FileName)) { status.Text = "앱에 열린 세이브가 없습니다"; break; }
                     bool live = IsLiveSave(path);
-                    if (!await page.DisplayAlertAsync("덮어쓰기", $"'{path}'을(를) 지금 편집 중인 {AppState.GameName(sav.Version)} 세이브로 바꿉니다.{(zip ? " zip은 원래 구성 그대로 다시 묶고 세이브 파일만 바꿉니다." : "")}{(live ? " 스위치에 저장된 세이브가 바로 바뀝니다. 그 게임이 켜져 있으면 먼저 꺼 주세요 (켜진 채로 하면 게임이 저장할 때 되돌아가거나 세이브가 꼬일 수 있음)." : "")} 원본은 먼저 앱 백업 목록에 저장합니다. 계속할까요?", "덮어쓰기", "취소")) break;
+                    if (!await page.DisplayAlertTr("덮어쓰기", $"'{path}'을(를) 지금 편집 중인 {AppState.GameName(sav.Version)} 세이브로 바꿉니다.{(zip ? " zip은 원래 구성 그대로 다시 묶고 세이브 파일만 바꿉니다." : "")}{(live ? " 스위치에 저장된 세이브가 바로 바뀝니다. 그 게임이 켜져 있으면 먼저 꺼 주세요 (켜진 채로 하면 게임이 저장할 때 되돌아가거나 세이브가 꼬일 수 있음)." : "")} 원본은 먼저 앱 백업 목록에 저장합니다. 계속할까요?", "덮어쓰기", "취소")) break;
                     status.Text = "원본 백업 중…";
                     var orig = await Get(path);
                     if (orig != null) SaveStore.Backup(orig, path.Trim('/').Replace('/', '_'), "스위치FTP 원본");
@@ -323,12 +323,12 @@ public class FtpSheet : Sheet
                         // zip: 원래 묶음에서 세이브 파일만 교체 (다른 파일·폴더 경로·압축 방식은 그대로)
                         if (orig == null || ZipSave.Extract(orig) is not { } ze) { status.Text = "원본 zip에서 세이브 파일을 찾지 못해 올리지 않았습니다"; break; }
                         origLen = ze.Data.Length;
-                        if (bytes.Length != origLen && !await page.DisplayAlertAsync("크기 다름", $"zip 속 원본 세이브 {origLen:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 다릅니다. 다른 게임일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
+                        if (bytes.Length != origLen && !await page.DisplayAlertTr("크기 다름", $"zip 속 원본 세이브 {origLen:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 다릅니다. 다른 게임일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
                         var rebuilt = ZipSave.Replace(orig, ze.Entry, bytes);
                         if (ZipSave.Extract(rebuilt) is not { } chk || !chk.Data.AsSpan().SequenceEqual(bytes)) { status.Text = "zip을 다시 묶는 데 실패해 올리지 않았습니다"; break; }
                         bytes = rebuilt;
                     }
-                    else if (orig != null && bytes.Length != orig.Length && !await page.DisplayAlertAsync("크기 다름", $"원본 {orig.Length:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 크기가 다릅니다. 다른 게임이나 파일일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
+                    else if (orig != null && bytes.Length != orig.Length && !await page.DisplayAlertTr("크기 다름", $"원본 {orig.Length:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 크기가 다릅니다. 다른 게임이나 파일일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
                     status.Text = "올리는 중…";
                     var r = await Put(bytes, path);
                     if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")" + (live ? " · ftpsrv라면 config.ini의 save_writable=1과 쓰기가 고쳐진 ftpsrv인지 확인하세요" : ""); Note.Show("업로드 실패: " + name); break; }
@@ -382,7 +382,7 @@ public class FtpSheet : Sheet
 
     private async Task NewFolder()
     {
-        var name = await Application.Current.Windows[0].Page.DisplayPromptAsync("새 폴더", $"{cwd} 안에 만들 폴더 이름", "만들기", "취소");
+        var name = await Application.Current.Windows[0].Page.DisplayPromptTr("새 폴더", $"{cwd} 안에 만들 폴더 이름", "만들기", "취소");
         if (string.IsNullOrWhiteSpace(name)) return;
         try
         {
@@ -398,7 +398,7 @@ public class FtpSheet : Sheet
     private async Task ItemMenu(Item it)
     {
         var page = Application.Current.Windows[0].Page;
-        var pick = await page.DisplayActionSheetAsync(it.Name, "취소", "삭제", "복사", "잘라내기", "이름 바꾸기");
+        var pick = await page.DisplayActionSheetTr(it.Name, "취소", "삭제", "복사", "잘라내기", "이름 바꾸기");
         try
         {
             switch (pick)
@@ -406,12 +406,12 @@ public class FtpSheet : Sheet
                 case "복사": clip = (it.Full, it.Name, it.Dir, false); UpdatePaste(); status.Text = $"'{it.Name}' 복사됨 · 붙여넣을 폴더로 가서 '붙여넣기'"; break;
                 case "잘라내기": clip = (it.Full, it.Name, it.Dir, true); UpdatePaste(); status.Text = $"'{it.Name}' 잘라냄 · 옮길 폴더로 가서 '붙여넣기'"; break;
                 case "이름 바꾸기":
-                    var nn = await page.DisplayPromptAsync("이름 바꾸기", it.Name, "바꾸기", "취소", initialValue: it.Name);
+                    var nn = await page.DisplayPromptTr("이름 바꾸기", it.Name, "바꾸기", "취소", initialValue: it.Name);
                     if (string.IsNullOrWhiteSpace(nn) || nn == it.Name) break;
                     await Rename(it.Full, Join(Split(it.Full).Dir, nn.Trim()));
                     status.Text = "이름을 바꿨습니다"; await Refresh(); break;
                 case "삭제":
-                    if (!await page.DisplayAlertAsync("삭제", $"'{it.Name}'{(it.Dir ? " 폴더와 그 안의 모든 파일" : "")}을(를) 스위치에서 지웁니다. 되돌릴 수 없습니다.", "삭제", "취소")) break;
+                    if (!await page.DisplayAlertTr("삭제", $"'{it.Name}'{(it.Dir ? " 폴더와 그 안의 모든 파일" : "")}을(를) 스위치에서 지웁니다. 되돌릴 수 없습니다.", "삭제", "취소")) break;
                     if (it.Dir) await client.DeleteDirectory(it.Full); else await client.DeleteFile(it.Full);
                     status.Text = "지웠습니다"; await Refresh(); break;
             }

@@ -38,9 +38,9 @@ public class RaidSheet : Sheet
             var star = new Image { Source = "rare_icon.png", WidthRequest = 12, HeightRequest = 12, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Start };
             star.SetBinding(IsVisibleProperty, "Shiny");
             var cell = new Grid(); cell.Add(img); cell.Add(star);
-            var t = T.L("", 14); t.SetBinding(Label.TextProperty, "Text");
-            var s = T.L("", 11, sub: true); s.SetBinding(Label.TextProperty, "Sub");
-            var x = T.L("", 10, sub: true); x.SetBinding(Label.TextProperty, "Extra"); x.SetBinding(IsVisibleProperty, "Extra", converter: new NotEmpty());
+            var t = T.L("", 14); t.SetBinding(Label.TextProperty, new Binding("Text", converter: Loc.Conv));
+            var s = T.L("", 11, sub: true); s.SetBinding(Label.TextProperty, new Binding("Sub", converter: Loc.Conv));
+            var x = T.L("", 10, sub: true); x.SetBinding(Label.TextProperty, new Binding("Extra", converter: Loc.Conv)); x.SetBinding(IsVisibleProperty, "Extra", converter: new NotEmpty());
             g.Add(cell, 0); g.Add(new VerticalStackLayout { Spacing = 0, VerticalOptions = LayoutOptions.Center, Children = { t, s, x } }, 1);
             var tap = new TapGestureRecognizer(); tap.Tapped += (_, _) => { if (g.BindingContext is Row r) Open(r.Index); }; g.GestureRecognizers.Add(tap);
             return g;
@@ -249,7 +249,7 @@ public class RaidSheet : Sheet
     private async Task AllShiny9()
     {
         var (_, map, l) = lists9[region];
-        if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("모두 이로치", "켜진 레이드를 같은 포켓몬의 이로치 시드로 바꿉니다 (일반·검은 결정만). 계속할까요?", "바꾸기", "취소")) return;
+        if (!await Application.Current.Windows[0].Page.DisplayAlertTr("모두 이로치", "켜진 레이드를 같은 포켓몬의 이로치 시드로 바꿉니다 (일반·검은 결정만). 계속할까요?", "바꾸기", "취소")) return;
         search?.Cancel(); search = new CancellationTokenSource(TimeSpan.FromSeconds(180)); var tok = search.Token;
         var ver = sav.Version; int prog = progress, done = 0, fail = 0, all = l.CountUsed;
         using var bg = BgTask.Begin("레이드 이로치 시드 찾기", search);
@@ -308,7 +308,7 @@ public class RaidSheet : Sheet
         var how = sv != null
             ? "Project Pokemon EventsGallery의 SV 'Raid Events/이벤트/Files' 파일들(raid_enemy_array·fixed_reward_item_array·lottery_reward_item_array·raid_priority_array·event_raid_identifier, _3_0_0 등 패치 이름 그대로)을 모두 고르거나, 그 폴더를 압축한 .zip을 고르세요."
             : "Project Pokemon EventsGallery의 소드실드 'Wild Area Events/Index NNN' 파일들(normal_encount·drop_rewards·bonus_rewards 등)을 모두 고르거나, 그 폴더를 압축한 .zip을 고르세요.";
-        if (!await page.DisplayAlertAsync("이벤트 레이드 가져오기", how + "\n\n세이브에 받아 둔 이벤트가 이것으로 바뀝니다. 게임에서 포켓포털 뉴스·Y통신으로 새 이벤트를 받으면 다시 바뀝니다.", "파일 고르기", "취소")) return;
+        if (!await page.DisplayAlertTr("이벤트 레이드 가져오기", how + "\n\n세이브에 받아 둔 이벤트가 이것으로 바뀝니다. 게임에서 포켓포털 뉴스·Y통신으로 새 이벤트를 받으면 다시 바뀝니다.", "파일 고르기", "취소")) return;
         IEnumerable<FileResult> picked;
         try { picked = await FilePicker.PickMultipleAsync(); } catch { return; }
         if (picked == null) return;
@@ -365,7 +365,7 @@ public class RaidSheet : Sheet
     private async void LiveRead()
     {
         if (!AppState.LiveConnected) { Note.Show("라이브헥스가 연결되어 있지 않습니다"); return; }
-        if (undo.Count > 0 && !await Application.Current.Windows[0].Page.DisplayAlertAsync("게임에서 읽기", "바꾼 내용을 버리고 게임의 레이드로 바꿀까요?", "읽기", "취소")) return;
+        if (undo.Count > 0 && !await Application.Current.Windows[0].Page.DisplayAlertTr("게임에서 읽기", "바꾼 내용을 버리고 게임의 레이드로 바꿀까요?", "읽기", "취소")) return;
         status.Text = "게임에서 읽는 중…";
         var names = Enumerable.Range(0, RegionCount).Select(LiveBlock).Distinct().ToList();
         var r = await Task.Run(() =>
@@ -390,7 +390,7 @@ public class RaidSheet : Sheet
     private async void LiveWrite()
     {
         if (!AppState.LiveConnected) { Note.Show("라이브헥스가 연결되어 있지 않습니다"); return; }
-        if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("게임에 쓰기", "지금 목록의 레이드를 게임 메모리에 씁니다. 게임에서 레이드가 바로 안 바뀌면 화면을 한 번 바꾸거나(맵 이동·메뉴), 저장 후 다시 켜서 확인하세요.", "쓰기", "취소")) return;
+        if (!await Application.Current.Windows[0].Page.DisplayAlertTr("게임에 쓰기", "지금 목록의 레이드를 게임 메모리에 씁니다. 게임에서 레이드가 바로 안 바뀌면 화면을 한 번 바꾸거나(맵 이동·메뉴), 저장 후 다시 켜서 확인하세요.", "쓰기", "취소")) return;
         status.Text = "게임에 쓰는 중…";
         var names = Enumerable.Range(0, RegionCount).Select(LiveBlock).Distinct().ToList();
         var err = await Task.Run(() =>
@@ -488,7 +488,7 @@ public class RaidDetailSheet : Sheet
         btns.Add("🔍 조건으로 시드 찾기", () => SheetHost.Show(new RaidSearchSheet(o, rg, i, this)));
         btns.Add("이 레이드를 모두에 복사", async () =>
         {
-            var pick = await Application.Current.Windows[0].Page.DisplayActionSheetAsync($"#{i + 1} 레이드를 이 지역 모든 레이드에 복사", "취소", null, "켜기·종류만", "시드까지 (모두 같은 포켓몬)");
+            var pick = await Application.Current.Windows[0].Page.DisplayActionSheetTr($"#{i + 1} 레이드를 이 지역 모든 레이드에 복사", "취소", null, "켜기·종류만", "시드까지 (모두 같은 포켓몬)");
             if (pick is null or "취소") return;
             o.CopyToAll9(rg, i, pick.StartsWith("시드")); Render();
         });

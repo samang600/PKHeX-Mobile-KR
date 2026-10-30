@@ -32,7 +32,7 @@ public class QuickSheet : Sheet
         var clearBtn = T.Pill("지우기"); clearBtn.Clicked += async (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(input.Text)) return;
-            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("지우기", "입력한 내용을 모두 지울까요?", "지우기", "취소")) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertTr("지우기", "입력한 내용을 모두 지울까요?", "지우기", "취소")) return;
             input.Text = ""; lastText = ""; preview.Children.Clear(); status.Text = "";
         };
         var frame = new Border { Content = input, StrokeThickness = 1, Padding = 6, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 } };
@@ -147,7 +147,7 @@ public class QuickSheet : Sheet
         if (noShiny.Count > 0)
         {
             var names = string.Join(", ", noShiny.Take(5).Select(x => GameInfo.Strings.Species[x.Species])) + (noShiny.Count > 5 ? " 외" : "");
-            var pick = await Application.Current.Windows[0].Page.DisplayActionSheetAsync($"이로치 여부를 적지 않은 포켓몬 {noShiny.Count}마리 ({names})", "취소", null, "이로치로 만들기", "일반 색으로 만들기");
+            var pick = await Application.Current.Windows[0].Page.DisplayActionSheetTr($"이로치 여부를 적지 않은 포켓몬 {noShiny.Count}마리 ({names})", "취소", null, "이로치로 만들기", "일반 색으로 만들기");
             if (pick == null || pick == "취소") return;
             foreach (var x in noShiny) x.Shiny = pick.StartsWith("이로치") ? 1 : 2;
         }
@@ -239,7 +239,7 @@ public class QuickSheet : Sheet
         const string each = "포켓몬마다 만들 수 있는 최신 게임으로";
         var opts = common.Select(Label).ToList();
         if (common.Count == 0 || orders.Count > 1) opts.Add(each);
-        var pick = await page.DisplayActionSheetAsync($"{AppState.GameName(sav.Version)}에서 만들 수 없는 포켓몬 {orders.Count}마리 ({names})\n만들 수 있는 게임으로 새 인스턴스를 열어 만들까요?", "만들지 않기", null, opts.ToArray());
+        var pick = await page.DisplayActionSheetTr($"{AppState.GameName(sav.Version)}에서 만들 수 없는 포켓몬 {orders.Count}마리 ({names})\n만들 수 있는 게임으로 새 인스턴스를 열어 만들까요?", "만들지 않기", null, opts.ToArray());
         if (pick == null || pick == "만들지 않기") return null;
         if (pick == each)
             return orders.GroupBy(o => per[o].OrderBy(v => openGames.Contains(v) ? 0 : 1).ThenBy(v => Array.IndexOf(AppState.Games, v)).First())

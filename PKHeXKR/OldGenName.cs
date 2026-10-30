@@ -69,7 +69,7 @@ public static class OldGenName
             }
             if (s is SAV3 s3)
             {
-                bool go = await page.DisplayAlertAsync("일본어 이름",
+                bool go = await page.DisplayAlertTr("일본어 이름",
                     "이 세이브는 해외판(영어 등) 형식이라 가나·한자를 쓸 수 없습니다.\n\n세이브를 일본판 형식으로 바꿔 이름을 넣을까요?\n· 일본판 게임(롬)에서 쓰는 세이브일 때만 선택하세요. 해외판 게임에서는 이름이 깨져 보입니다.\n· 이름은 최대 5글자, 박스 이름 등 다른 글자는 그대로입니다.\n· 편집 중인 포켓몬은 저장되지 않으면 사라집니다.",
                     "일본판 형식으로 바꾸기", "취소");
                 if (!go) return "이름을 바꾸지 않았습니다 (해외판 형식 세이브는 일본어를 쓸 수 없음)";

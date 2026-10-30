@@ -89,6 +89,7 @@ public static class AppState
         GameInfo.CurrentLanguage = LangCode;
         GameInfo.Strings = GameInfo.GetStrings(LangCode);
         Lexicon.Language = LangCode;                  // 빠른 생성 사전(한·영·일)
+        Loc.SetLanguage(LangCode);                    // 화면 번역
         EventData.LoadLocal();   // 자동 업데이트로 받아 둔 배포 데이터 등록
         GenHost.IsLegal = IsLegal;                    // 공통 생성 엔진: 앱 설정을 반영한 합법 판정
         GenHost.ExtraWindow = g => EventData.NewWindow(g);
@@ -721,9 +722,11 @@ public static class AppState
         GameInfo.CurrentLanguage = LangCode;
         GameInfo.Strings = GameInfo.GetStrings(LangCode);
         Lexicon.Language = LangCode;
+        Loc.SetLanguage(LangCode);
         Src = new FilteredGameDataSource(Sav, GameInfo.Sources, HaX);
         ClearLegalCache();
         SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke();
+        Loc.Refresh();                                // 열려 있는 화면 글자도 새 언어로
     }
 
     public static void ClearLegalCache() { lock (legalLock) legalCache.Clear(); }

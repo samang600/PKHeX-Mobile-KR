@@ -237,7 +237,7 @@ public class LdnSheet : Sheet
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 };
             g.Add(new Image { Source = AppState.Sprite(p), WidthRequest = 40, HeightRequest = 34 }, 0);
             var ok = LdnExport.GameOf(p)?.Game == game;
-            var l = T.L($"{i + 1}. {PKHeX.Core.GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}{(ok ? "" : $"  ⚠ {GameOf(game).Name} 포켓몬이 아님")}{(AppState.IsLegal(p) ? "" : "  · 불법")}", 13);
+            var l = T.L($"{i + 1}. {PKHeX.Core.GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}{(ok ? "" : $"  ⚠ {GameOf(game).Name} 포켓몬이 아님")}{(AppState.IsLegal(p) ? "" : "  · 불법")}{(LdnExport.SwshNoTracker(p) ? "  · HOME 트래커 없음" : "")}", 13);
             l.VerticalOptions = LayoutOptions.Center; g.Add(l, 1);
             var x = T.Pill("✕", size: 12); x.WidthRequest = 40; x.Clicked += (_, _) => { LdnTrade.Offers.RemoveAt(k); if (LdnTrade.QueueGame != null) LdnTrade.SaveQueue(); Refresh(); };
             g.Add(x, 2);
@@ -260,7 +260,7 @@ public class LdnSheet : Sheet
     private async Task PickGame()
     {
         var page = Application.Current.Windows[0].Page;
-        var pick = await page.DisplayActionSheetAsync("게임", "취소", null, LdnTrade.Games.Select(g => g.Name).ToArray());
+        var pick = await page.DisplayActionSheetTr("게임", "취소", null, LdnTrade.Games.Select(g => g.Name).ToArray());
         var g = LdnTrade.Games.FirstOrDefault(x => x.Name == pick); if (g == null) return;
         game = g.Key; Preferences.Set("ldn_game", game);
         mode = Preferences.Get("ldn_mode_" + game, "trade"); giftKey = Preferences.Get("ldn_gift_" + game, ""); giftFile = null;
@@ -271,7 +271,7 @@ public class LdnSheet : Sheet
     {
         var page = Application.Current.Windows[0].Page;
         var ok = LdnTrade.Modes.Where(m => ModeOk(m.Key)).ToList();
-        var pick = await page.DisplayActionSheetAsync("할 일", "취소", null, ok.Select(m => m.Name).ToArray());
+        var pick = await page.DisplayActionSheetTr("할 일", "취소", null, ok.Select(m => m.Name).ToArray());
         var m = ok.FirstOrDefault(x => x.Name == pick); if (m == null) return;
         mode = m.Key; Preferences.Set("ldn_mode_" + game, mode); Refresh();
     }
@@ -296,7 +296,7 @@ public class LdnSheet : Sheet
     private async Task PickGiftGroup()
     {
         var groups = GiftList().Select(x => x.Group).Distinct().ToArray(); if (groups.Length == 0) return;
-        var pick = await Application.Current.Windows[0].Page.DisplayActionSheetAsync("분류", "취소", null, groups);
+        var pick = await Application.Current.Windows[0].Page.DisplayActionSheetTr("분류", "취소", null, groups);
         if (pick == null || !groups.Contains(pick)) return;
         giftGroup = pick; giftFile = null;
         var first = GiftList().First(x => x.Group == pick); giftKey = first.Key; Preferences.Set("ldn_gift_" + game, giftKey); RefreshGift();
@@ -333,7 +333,7 @@ public class LdnSheet : Sheet
         const string cur = "지금 편집 중인 세이브", file = "파일 고르기…";
         var backups = LdnTrade.SavedBackups().Take(10).ToList();
         var opts = new List<string>(); if (AppState.Sav is SAV3FRLG) opts.Add(cur); opts.Add(file); opts.AddRange(backups.Select(b => "백업: " + b.Name));
-        var pick = await page.DisplayActionSheetAsync("콘솔에 쓸 세이브", "취소", null, opts.ToArray());
+        var pick = await page.DisplayActionSheetTr("콘솔에 쓸 세이브", "취소", null, opts.ToArray());
         if (pick == cur) { restoreCurrent = true; restoreFile = null; }
         else if (pick == file)
         {
@@ -354,7 +354,7 @@ public class LdnSheet : Sheet
         var f = await FilePicker.PickAsync(); if (f == null) return;
         await using var st = await f.OpenReadAsync(); using var ms = new MemoryStream(); await st.CopyToAsync(ms);
         var bad = LdnTrade.CheckKeys(ms.ToArray());
-        if (bad != null) { await Application.Current.Windows[0].Page.DisplayAlertAsync("prod.keys", bad, "확인"); return; }
+        if (bad != null) { await Application.Current.Windows[0].Page.DisplayAlertTr("prod.keys", bad, "확인"); return; }
         await File.WriteAllBytesAsync(LdnTrade.KeysPath, ms.ToArray());
         UpdateKeys(); Note.Show("prod.keys를 가져왔습니다");
     }
@@ -369,7 +369,7 @@ public class LdnSheet : Sheet
         if (LdnTrade.Running) { Note.Show("진행 중에는 설치할 수 없어요"); return; }
         var page = Application.Current.Windows[0].Page;
         const string normal = "무선 펌웨어 (USB 케이블로 쓸 때)", ble = "블루투스 무선 펌웨어 (ESP32-C6·클래식 ESP32)";
-        var pick = await page.DisplayActionSheetAsync($"보드 펌웨어 설치 (v{LdnTrade.FwVersion})\n\nESP32-C3·C6·S3: 보드를 뽑고 BOOT 버튼을 누른 채 다시 꽂은 뒤 1~2초 뒤 떼요. 끝나면 RST를 누르거나 다시 꽂으세요.\n\n클래식 ESP32 (CP2102·CH340 칩): 그냥 꽂아 두면 앱이 알아서 다운로드 모드로 넣고, 끝나면 다시 켜요. 안 되면 BOOT를 누른 채 EN을 눌렀다 떼세요.\n\n실패해도 보드는 망가지지 않아요.", "취소", null, normal, ble);
+        var pick = await page.DisplayActionSheetTr($"보드 펌웨어 설치 (v{LdnTrade.FwVersion})\n\nESP32-C3·C6·S3: 보드를 뽑고 BOOT 버튼을 누른 채 다시 꽂은 뒤 1~2초 뒤 떼요. 끝나면 RST를 누르거나 다시 꽂으세요.\n\n클래식 ESP32 (CP2102·CH340 칩): 그냥 꽂아 두면 앱이 알아서 다운로드 모드로 넣고, 끝나면 다시 켜요. 안 되면 BOOT를 누른 채 EN을 눌렀다 떼세요.\n\n실패해도 보드는 망가지지 않아요.", "취소", null, normal, ble);
         if (pick != normal && pick != ble) return;
         var st = LdnTrade.Bridge.UsbState();
         if (st == "none") { Note.Show("보드를 찾지 못했어요. 다시 꽂아 보세요"); return; }
@@ -387,10 +387,12 @@ public class LdnSheet : Sheet
             Note.Show("아이폰은 일반 ESP32 USB-시리얼 데이터 연결을 지원하지 않아요. 블루투스 방식을 선택하세요.");
             return;
         }
-        if (!LdnTrade.HasKeys) { await page.DisplayAlertAsync("PokeLDN 교환", "먼저 올바른 prod.keys를 가져오세요.", "확인"); return; }
+        if (!LdnTrade.HasKeys) { await page.DisplayAlertTr("PokeLDN 교환", "먼저 올바른 prod.keys를 가져오세요.", "확인"); return; }
         var sav = AppState.Sav;
         var offers = LdnTrade.Offers.Where(p => LdnExport.GameOf(p)?.Game == game).ToList();
         if (mode == "trade" && offers.Count == 0) { Note.Show("보낼 포켓몬을 추가하세요 (같은 게임 포켓몬)"); return; }
+        if (mode == "trade" && game == "swsh" && offers.Count(LdnExport.SwshNoTracker) is int noTr && noTr > 0
+            && !await page.DisplayAlertTr("HOME 트래커 없음", $"{noTr}마리가 다른 게임 출신인데 HOME 트래커가 없습니다 (소드·실드에서 이로치가 나오지 않는 포켓몬을 다른 게임 조우로 만든 경우 등).\n\n소드·실드 콘솔이 교환 확인 단계에서 이런 포켓몬을 거부해 연결이 끊길 수 있습니다. 소드·실드 안에서 만날 수 있는 조우로 다시 만들면 됩니다.\n\n그래도 보낼까요?", "보내기", "취소")) return;
         if (mode == "gift" && giftFile == null && string.IsNullOrEmpty(giftKey)) { Note.Show("보낼 이상한 소포를 고르세요"); return; }
         if (mode == "save_restore" && !restoreCurrent && restoreFile == null) { Note.Show("콘솔에 쓸 세이브를 고르세요"); return; }
         if (Ble)
@@ -421,7 +423,7 @@ public class LdnSheet : Sheet
                 await File.WriteAllBytesAsync(restore, sav.Write().ToArray());
             }
             else restore = restoreFile;
-            if (!await page.DisplayAlertAsync("세이브 복원", $"콘솔의 {(lg ? "리프그린" : "파이어레드")} 세이브를 이것으로 바꿀까요?\n\n{(restoreCurrent ? "지금 편집 중인 세이브" : Path.GetFileName(restore))}\n\n모두 쓰고 확인한 뒤에만 바뀌어요. 지금 콘솔 세이브를 아직 백업하지 않았다면 먼저 백업하세요.", "복원", "취소")) return;
+            if (!await page.DisplayAlertTr("세이브 복원", $"콘솔의 {(lg ? "리프그린" : "파이어레드")} 세이브를 이것으로 바꿀까요?\n\n{(restoreCurrent ? "지금 편집 중인 세이브" : Path.GetFileName(restore))}\n\n모두 쓰고 확인한 뒤에만 바뀌어요. 지금 콘솔 세이브를 아직 백업하지 않았다면 먼저 백업하세요.", "복원", "취소")) return;
         }
         // 보낼 포켓몬 → PokeLDN 교환 형식 파일
         var paths = new List<string>();
@@ -513,7 +515,7 @@ public class LdnSheet : Sheet
         int queued = LdnTrade.QueueCount(game);
         if (queued > 0)
         {
-            var pick = await page.DisplayActionSheetAsync($"남아 있는 리빙덱스 대기열 {queued}마리", "취소", null, "이어서 보내기 (불러오기)", "새로 만들기");
+            var pick = await page.DisplayActionSheetTr($"남아 있는 리빙덱스 대기열 {queued}마리", "취소", null, "이어서 보내기 (불러오기)", "새로 만들기");
             if (pick is null or "취소") return;
             if (pick.StartsWith("이어서")) { int n0 = LdnTrade.LoadQueue(game); Note.Show($"대기열 {n0}마리를 불러왔어요 · 교환 시작을 누르세요"); Refresh(); return; }
         }
@@ -552,7 +554,7 @@ public class LdnOffersSheet : Sheet
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
             var star = new Image { Source = "rare_icon.png", WidthRequest = 13, HeightRequest = 13, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Start, Margin = 3 };
             star.SetBinding(IsVisibleProperty, "Shiny");
-            var n = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) }; T.Sub(n); n.SetBinding(Label.TextProperty, "Info");
+            var n = new Label { FontSize = 9, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End, Margin = new Thickness(3, 0, 0, 1) }; T.Sub(n); n.SetBinding(Label.TextProperty, new Binding("Info", converter: Loc.Conv));
             g.Add(bg); g.Add(img); g.Add(star); g.Add(n);
             var t = new TapGestureRecognizer(); t.Tapped += async (_, _) => { if (g.BindingContext is Cell c) await LdnTrade.OfferActions(c.Index, CloseAll); }; g.GestureRecognizers.Add(t);
             return g;
@@ -563,7 +565,7 @@ public class LdnOffersSheet : Sheet
         clear.Clicked += async (_, _) =>
         {
             if (LdnTrade.Offers.Count == 0) return;
-            if (!await Application.Current.Windows[0].Page.DisplayAlertAsync("교환 목록 비우기", $"{LdnTrade.Offers.Count}마리를 목록에서 뺄까요?" + (LdnTrade.QueueGame != null ? " (리빙덱스 대기열도 지워요)" : ""), "비우기", "취소")) return;
+            if (!await Application.Current.Windows[0].Page.DisplayAlertTr("교환 목록 비우기", $"{LdnTrade.Offers.Count}마리를 목록에서 뺄까요?" + (LdnTrade.QueueGame != null ? " (리빙덱스 대기열도 지워요)" : ""), "비우기", "취소")) return;
             LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); LdnTrade.NotifyChanged();
         };
         var row = T.Cols(2, 8); row.Add(open, 0); row.Add(clear, 1);

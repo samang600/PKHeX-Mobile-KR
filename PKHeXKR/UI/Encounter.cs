@@ -43,9 +43,9 @@ public class EncounterSheet : Sheet
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
             var aIco = new Image { Source = "ov_alpha.png", WidthRequest = 16, HeightRequest = 16, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End }; aIco.SetBinding(IsVisibleProperty, "Alpha");
             var imgBox = new Grid { Children = { img, aIco } };
-            var t1 = T.L("", 15, bold: true); t1.SetBinding(Label.TextProperty, "Title");
-            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, "Detail"); t2.LineBreakMode = LineBreakMode.WordWrap;
-            var t3 = T.L("", 11, sub: true); t3.SetBinding(Label.TextProperty, "Info"); t3.SetBinding(IsVisibleProperty, "HasInfo"); t3.LineBreakMode = LineBreakMode.WordWrap;
+            var t1 = T.L("", 15, bold: true); t1.SetBinding(Label.TextProperty, new Binding("Title", converter: Loc.Conv));
+            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, new Binding("Detail", converter: Loc.Conv)); t2.LineBreakMode = LineBreakMode.WordWrap;
+            var t3 = T.L("", 11, sub: true); t3.SetBinding(Label.TextProperty, new Binding("Info", converter: Loc.Conv)); t3.SetBinding(IsVisibleProperty, "HasInfo"); t3.LineBreakMode = LineBreakMode.WordWrap;
             var ball = new Image { WidthRequest = 22, HeightRequest = 22 }; ball.SetBinding(Image.SourceProperty, "Ball");
             g.Add(imgBox, 0); g.Add(new VerticalStackLayout { Spacing = 1, Children = { t1, t2, t3 }, VerticalOptions = LayoutOptions.Center }, 1); g.Add(ball, 2);
             var tap = new TapGestureRecognizer(); tap.SetBinding(TapGestureRecognizer.CommandParameterProperty, ".");
@@ -404,12 +404,12 @@ public class EncounterSheet : Sheet
     private async Task Choose(Row r)
     {
         var page = Application.Current.Windows[0].Page;
-        if (AppState.Dirty && !await page.DisplayAlertAsync("저장하지 않은 변경", "편집 중인 내용을 버리고 불러올까요?", "불러오기", "취소")) return;
+        if (AppState.Dirty && !await page.DisplayAlertTr("저장하지 않은 변경", "편집 중인 내용을 버리고 불러올까요?", "불러오기", "취소")) return;
         if (generating) return;
         var why = EncCond.Impossible(r.Enc);
         if (why != null)
         {
-            if (!await page.DisplayAlertAsync("조건 불가능", $"{why}. 조건을 만족하는 개체를 만들 수 없습니다. 조건 없이 만든 개체를 불러올까요?", "불러오기", "취소")) { status.Text = why; return; }
+            if (!await page.DisplayAlertTr("조건 불가능", $"{why}. 조건을 만족하는 개체를 만들 수 없습니다. 조건 없이 만든 개체를 불러올까요?", "불러오기", "취소")) { status.Text = why; return; }
         }
         if (why == null && EncCond.SeedMode == 1)
         {
@@ -492,7 +492,7 @@ public class EncounterSheet : Sheet
         {
             var msg = noLegalOnly ? "이 조우로 만든 개체가 현재 게임에서 합법으로 판정되지 않습니다(다른 게임 조우·홈 트래커 등)."
                 : cts.IsCancellationRequested ? "탐색을 중지했습니다." : "12초 안에 조건을 모두 만족하는 합법 개체를 찾지 못했습니다.";
-            if (!await page.DisplayAlertAsync("조건 불만족", $"{msg} {(noLegalOnly ? "그래도 불러올까요?" : "지금까지 가장 가까운 개체를 불러올까요?")}", "불러오기", "취소")) { status.Text = noLegalOnly ? "설정에서 홈 트래커 검사를 끄거나 원래 게임 세이브에서 찾아 보세요" : "조건을 완화하거나 '찾을 때까지 계속'을 켜 보세요"; return; }
+            if (!await page.DisplayAlertTr("조건 불만족", $"{msg} {(noLegalOnly ? "그래도 불러올까요?" : "지금까지 가장 가까운 개체를 불러올까요?")}", "불러오기", "취소")) { status.Text = noLegalOnly ? "설정에서 홈 트래커 검사를 끄거나 원래 게임 세이브에서 찾아 보세요" : "조건을 완화하거나 '찾을 때까지 계속'을 켜 보세요"; return; }
         }
         pick = EvoUtil.ToTarget(pick, species);
         var dateNote = FixDate(r, pick);
@@ -543,8 +543,8 @@ public class EncResultSheet : Sheet
         {
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 10, Padding = new Thickness(4, 6) };
             var img = new Image { WidthRequest = 52, HeightRequest = 44 }; img.SetBinding(Image.SourceProperty, "Sprite");
-            var t1 = T.L("", 16, bold: true); t1.SetBinding(Label.TextProperty, "Main");
-            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, "Sub");
+            var t1 = T.L("", 16, bold: true); t1.SetBinding(Label.TextProperty, new Binding("Main", converter: Loc.Conv));
+            var t2 = T.L("", 12, sub: true); t2.SetBinding(Label.TextProperty, new Binding("Sub", converter: Loc.Conv));
             var aIco = new Image { Source = "ov_alpha.png", WidthRequest = 16, HeightRequest = 16, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End }; aIco.SetBinding(IsVisibleProperty, "Alpha");
             g.Add(new Grid { Children = { img, aIco } }, 0); g.Add(new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center, Children = { t1, t2 } }, 1);
             var tap = new TapGestureRecognizer(); tap.Tapped += (_, _) => { if (g.BindingContext is Item it) { Close(); pick(it.Index); } }; g.GestureRecognizers.Add(tap);
