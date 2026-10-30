@@ -21,6 +21,7 @@ public class QuickSheet : Sheet
     public QuickSheet() : base("텍스트로 빠른 생성")
     {
         input.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
+        if (AppState.LangCode != "ko") input.Placeholder = Lexicon.Current.Hint;   // 영어·일본어: 띄어쓰기 안내 등
         input.Text = lastText;
         status.LineBreakMode = LineBreakMode.WordWrap;
         parseBtn.Clicked += (_, _) => ShowParse();

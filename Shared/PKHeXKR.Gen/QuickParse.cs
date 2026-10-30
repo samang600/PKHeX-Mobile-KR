@@ -34,51 +34,48 @@ public sealed class OrderSpec
     public List<string> Ribbons = [];       // 리본·증표 속성 이름 ("RibbonMarkCurry", "RibbonChampionKalos"…) — 적은 것 모두
     public DateOnly? MetFrom, MetTo;        // 만난 날짜 (같으면 그 날, 다르면 구간 안에서)
 
-    public string Describe(GameStrings s)
+    public string Describe(GameStrings s) => Describe(s, Lexicon.Current);
+    public string Describe(GameStrings s, Lexicon L)
     {
         var p = new List<string>();
-        if (Event) p.Add("배포" + (Keywords.Count > 0 ? $"[{string.Join(" ", Keywords)}]" : ""));
+        if (Event) p.Add(L.U("EVENT") + (Keywords.Count > 0 ? $"[{string.Join(" ", Keywords)}]" : ""));
         if (Species != 0) p.Add((PreSpecies != 0 && PreSpecies != Species ? s.Species[PreSpecies] + "→" : "") + s.Species[Species] + (FormText.Length > 0 ? $"({FormText})" : ""));
         if (Gender >= 0) p.Add(Gender == 0 ? "♂" : "♀");
-        if (Alpha == 1) p.Add("우두머리");
-        p.Add(Shiny switch { 1 => "이로치", 3 => "별 이로치", 4 => "네모 이로치", 2 => "일반 색", _ => "" });
+        if (Alpha == 1) p.Add(L.U("ALPHA"));
+        p.Add(Shiny switch { 1 => L.U("SHINY"), 3 => L.U("SHINY_STAR"), 4 => L.U("SHINY_SQUARE"), 2 => L.U("NOT_SHINY"), _ => "" });
         if (Ball > 0 && Ball < s.balllist.Length) p.Add(s.balllist[Ball]);
         if (Nature >= 0) p.Add(s.natures[Nature]);
-        if (Ability >= 0) p.Add(new[] { "특성1", "특성2", "숨겨진 특성" }[Ability]);
+        if (Ability >= 0) p.Add(L.AbilityNames[Math.Min(Ability, L.AbilityNames.Length - 1)]);
         if (SizeText.Length > 0) p.Add(SizeText);
         var rib = Ribbons.Count > 0 ? Ribbons : Mark >= 0 ? ["Ribbon" + (RibbonIndex)Mark] : [];
         if (rib.Count > 0) p.Add(string.Join("·", rib.Select(n => s.Ribbons.GetNameSafe(n, out var k) ? k : n.Replace("Ribbon", ""))));
-        if (MetFrom is { } mf) p.Add("만난 날짜 " + (MetTo is { } mt && mt != mf ? $"{mf:yyyy-MM-dd}~{mt:yyyy-MM-dd}" : $"{mf:yyyy-MM-dd}"));
+        if (MetFrom is { } mf) p.Add(L.U("MET") + " " + (MetTo is { } mt && mt != mf ? $"{mf:yyyy-MM-dd}~{mt:yyyy-MM-dd}" : $"{mf:yyyy-MM-dd}"));
         if (FlawlessIVs > 0) p.Add($"{FlawlessIVs}V");
-        var ex = string.Join(" ", ExactIV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (ex.Length > 0) p.Add("개체값 " + ex);
-        var evs = string.Join(" ", EV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (evs.Length > 0) p.Add("노력치 " + evs);
+        var ex = string.Join(" ", ExactIV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (ex.Length > 0) p.Add(L.U("IV") + " " + ex);
+        var evs = string.Join(" ", EV.Select((v, i) => v < 0 ? "" : $"{"HABCDS"[i]}{v}").Where(x => x.Length > 0)); if (evs.Length > 0) p.Add(L.U("EV") + " " + evs);
         if (Level > 0) p.Add($"Lv{Level}");
-        if (Gmax) p.Add("거다이맥스");
-        if (HyperTrain) p.Add("특훈");
-        if (Tera >= 0) p.Add((Tera == 99 ? "스텔라" : Tera < s.types.Length ? s.types[Tera] : "?") + " 테라");
-        if (Moves.Count > 0) p.Add("기술 " + string.Join("·", Moves.Select(m => m < s.movelist.Length ? s.movelist[m] : "?")));
-        if (OT != null || TID >= 0) p.Add($"어버이 {OT ?? "-"}{(TID >= 0 ? $" {TID}" : "")}{(SID >= 0 ? $"/{SID}" : "")}");
+        if (Gmax) p.Add(L.U("GMAX"));
+        if (HyperTrain) p.Add(L.U("HYPERTRAIN"));
+        if (Tera >= 0) p.Add(string.Format(L.U("TERA"), Tera == 99 ? L.U("STELLAR") : Tera < s.types.Length ? s.types[Tera] : "?"));
+        if (Moves.Count > 0) p.Add(L.U("MOVES") + " " + string.Join("·", Moves.Select(m => m < s.movelist.Length ? s.movelist[m] : "?")));
+        if (OT != null || TID >= 0) p.Add($"{L.U("OT")} {OT ?? "-"}{(TID >= 0 ? $" {TID}" : "")}{(SID >= 0 ? $"/{SID}" : "")}");
         if (Count > 1) p.Add($"×{Count}");
-        return string.Join(" · ", p.Where(x => x.Length > 0));
+        return string.Join(L.U("SEP"), p.Where(x => x.Length > 0));
     }
 }
 
 /// <summary>
-/// 대충 쓴 한국어 주문 문장 → 주문 내용. 예: "빠르모트 암컷 이로치 러브볼 가장작게 / 찌리배리 레벨볼 큰증".
-/// 줄바꿈·"/"로 여러 마리, "종(폼1,폼2)"로 여러 폼, "어버이: 이름 TID" 줄은 아래 전체에 적용.
+/// 대충 쓴 주문 문장 → 주문 내용. 예: "빠르모트 암컷 이로치 러브볼 가장작게 / 찌리배리 레벨볼 큰증".
+/// 낱말은 언어별 사전(Lexicon)에서, 포켓몬·기술·볼·성격 이름은 게임 문자열(지금 언어 + 영어)에서 찾음.
+/// 줄바꿈으로 여러 마리, "종(폼1,폼2)"로 여러 폼, "어버이: 이름 TID" 줄은 아래 전체에 적용.
 /// </summary>
 public static class QuickParse
 {
-    /// <summary>기본 줄임말 사전 (줄임말 → 바꿀 말, "/"는 여러 마리).</summary>
-    public static readonly Dictionary<string, string> BuiltIn = new()
-    {
-        ["달투곰"] = "다투곰 붉은달", ["영꽃"] = "플라엣테 영원의꽃", ["영원의꽃플라엣테"] = "플라엣테 영원의꽃", ["알나인"] = "나인테일 알로라", ["알로라나인"] = "나인테일 알로라", ["히검귀"] = "대검귀 히스이", ["히스이검귀"] = "대검귀 히스이", ["붉은달다투곰"] = "다투곰 붉은달",
-        ["날치머"] = "날개치는머리", ["땅기날"] = "땅을기는날개",
-        ["미라코라"] = "미라이돈 / 코라이돈", ["코라미라"] = "코라이돈 / 미라이돈",
-        ["자시자마"] = "자시안 / 자마젠타", ["자마자시"] = "자마젠타 / 자시안", ["자마젠"] = "자마젠타",
-    };
+    private static Lexicon L => Lexicon.Current;
     /// <summary>사용자 사전 (앱 설정에 저장, 기본 사전보다 우선).</summary>
     public static Dictionary<string, string> User = new();
+    /// <summary>기본 줄임말 사전 (지금 언어). 예전 코드 호환용</summary>
+    public static IReadOnlyDictionary<string, string> BuiltInAlias => L.Aliases;
 
     /// <summary>"줄임말=바꿀말" 줄들을 사전으로.</summary>
     public static Dictionary<string, string> ParseDict(string text)
@@ -94,87 +91,20 @@ public static class QuickParse
         return d;
     }
 
-    private static bool TryAlias(string token, out string v) => User.TryGetValue(Norm(token), out v) || BuiltIn.TryGetValue(Norm(token), out v);
-
-    /// <summary>줄임말 풀기. "미라코라 이로치" → "미라이돈 이로치", "코라이돈 이로치".</summary>
-    private static IEnumerable<string> ExpandAliases(string entry)
-    {
-        var tokens = entry.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var results = new List<List<string>> { new() };
-        foreach (var t in tokens)
-        {
-            // 괄호 폼 표기는 그대로 둠: "싸리용(뻗은,젖힌)"
-            var key = t.Contains('(') ? t[..t.IndexOf('(')] : t;
-            var tail = t.Contains('(') ? t[t.IndexOf('(')..] : "";
-            if (!TryAlias(key, out var v)) { foreach (var r in results) r.Add(t); continue; }
-            var alts = v.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
-            if (alts.Count <= 1) { foreach (var r in results) r.Add(v + tail); continue; }
-            results = results.SelectMany(r => alts.Select(a => new List<string>(r) { a + tail })).Take(30).ToList();
-        }
-        return results.Select(r => string.Join(" ", r));
-    }
-    private static readonly Dictionary<string, string> BallAlias = new()
-    {
-        ["럽볼"] = "러브러브볼", ["러브"] = "러브러브볼", ["러브볼"] = "러브러브볼", ["럽럽볼"] = "러브러브볼", ["렙볼"] = "레벨볼", ["레벨"] = "레벨볼", ["프볼"] = "프리미어볼", ["프레미어"] = "프리미어볼", ["프레미어볼"] = "프리미어볼", ["프리미어"] = "프리미어볼", ["다볼"] = "다이브볼", ["다이브"] = "다이브볼",
-        ["하볼"] = "하이퍼볼", ["하이퍼"] = "하이퍼볼", ["몬볼"] = "몬스터볼", ["수볼"] = "슈퍼볼", ["수퍼볼"] = "슈퍼볼", ["슈볼"] = "슈퍼볼", ["문볼"] = "문볼", ["헤비"] = "헤비볼", ["루어"] = "루어볼",
-        ["프렌드"] = "프렌드볼", ["스피드"] = "스피드볼", ["드볼"] = "드림볼", ["드림"] = "드림볼", ["비스트"] = "울트라볼", ["비스트볼"] = "울트라볼", ["마볼"] = "마스터볼", ["사파리"] = "사파리볼", ["스포츠"] = "컴퍼티션볼", ["스포츠볼"] = "컴퍼티션볼", ["네스트"] = "네스트볼", ["프레셔스"] = "프레셔스볼",
-        ["럭볼"] = "럭셔리볼", ["울볼"] = "울트라볼", ["비볼"] = "울트라볼", ["럭셔"] = "럭셔리볼", ["퀵"] = "퀵볼", ["다크"] = "다크볼", ["힐"] = "힐볼", ["네트"] = "네트볼", ["타이머"] = "타이머볼", ["리피트"] = "리피트볼", ["럭셔리"] = "럭셔리볼", ["넷볼"] = "네트볼",
-        ["콤페볼"] = "컴퍼티션볼", ["콤페"] = "컴퍼티션볼", ["컴페볼"] = "컴퍼티션볼", ["컴퍼티션"] = "컴퍼티션볼", ["콤퍼티션볼"] = "컴퍼티션볼", ["컴피티션볼"] = "컴퍼티션볼",
-        ["몬스터"] = "몬스터볼", ["몬스볼"] = "몬스터볼", ["포케볼"] = "몬스터볼", ["포켓볼"] = "몬스터볼",
-    };
-    // 크기 표기 → 배율 범위 (PKHeX 크기 등급 기준: XS 0~24, S 25~59, M 60~195, L 196~230, XL 231~255)
-    private static readonly (string[] Words, int Min, int Max, string Name)[] Sizes =
-    [
-        (["가장작게", "가장작은", "최소", "최소사이즈", "최소크기", "xxs", "초소형", "제일작게", "제일작은", "최저크기", "미니", "조그만"], 0, 0, "최소 크기(배율 0)"),
-        (["가장크게", "가장큰", "최대", "최대사이즈", "최대크기", "xxl", "초대형", "제일크게", "제일큰", "점보", "거대", "커다란"], 255, 255, "최대 크기(배율 255)"),
-        (["xs", "xs사이즈"], 0, 24, "XS"), (["s", "s사이즈", "작게"], 25, 59, "S"), (["m", "m사이즈", "보통"], 60, 195, "M"),
-        (["l", "l사이즈", "크게"], 196, 230, "L"), (["xl", "xl사이즈"], 231, 255, "XL"),
-    ];
-
-    /// <summary>기본 줄임말·별칭. 값의 "/"는 여러 마리로 나눔 (예: 미라코라 → 미라이돈 / 코라이돈).</summary>
-    public static readonly Dictionary<string, string> BuiltInAlias = WithRotom(new()
-    {
-        ["영꽃"] = "플라엣테 영원의꽃", ["영원의꽃플라엣테"] = "플라엣테 영원의꽃", ["알나인"] = "나인테일 알로라", ["알로라나인"] = "나인테일 알로라", ["히검귀"] = "대검귀 히스이", ["히스이검귀"] = "대검귀 히스이",
-        ["달투곰"] = "다투곰 붉은달", ["붉은달다투곰"] = "다투곰 붉은달",
-        ["날치머"] = "날개치는머리", ["땅기날"] = "땅을기는날개", ["고동달"] = "고동치는달", ["위대엄니"] = "위대한엄니", ["우렁꼬리"] = "우렁찬꼬리",
-        ["미라코라"] = "미라이돈 / 코라이돈", ["코라미라"] = "코라이돈 / 미라이돈",
-        ["자시자마"] = "자시안 / 자마젠타", ["자마자시"] = "자마젠타 / 자시안", ["자마젠"] = "자마젠타",
-        ["백마"] = "버드렉스 백마탄모습", ["흑마"] = "버드렉스 흑마탄모습", ["백마버드렉스"] = "버드렉스 백마탄모습", ["흑마버드렉스"] = "버드렉스 흑마탄모습",
-        ["일격우라오스"] = "우라오스 일격의태세", ["연격우라오스"] = "우라오스 연격의태세", ["일격"] = "일격의태세", ["연격"] = "연격의태세",
-        ["한카"] = "한카리아스", ["망나"] = "망나뇽", ["보만"] = "보만다", ["메타그"] = "메타그로스", ["마기"] = "마기라스",
-        ["테파"] = "테라파고스", ["모모"] = "복숭악동",
-        ["암써르"] = "에써르 암", ["수써르"] = "에써르 수", ["암컷에써르"] = "에써르 암", ["수컷에써르"] = "에써르 수",
-        ["크세"] = "크레세리아",
-    });
-
-    /// <summary>로토무 폼 별칭: 물로톰·워시로토무 → 로토무 워시 (불·얼음·비행·풀 폼도).</summary>
-    private static Dictionary<string, string> WithRotom(Dictionary<string, string> d)
-    {
-        var forms = new (string Form, string[] Nick)[]
-        {
-            ("히트", ["불", "불꽃", "히트", "전자레인지", "렌지"]),
-            ("워시", ["물", "워시", "세탁기"]),
-            ("프로스트", ["얼음", "얼", "냉", "냉동", "냉장고", "프로스트"]),
-            ("스핀", ["비행", "바람", "선풍기", "스핀"]),
-            ("커트", ["풀", "잔디", "예초기", "커트", "컷"]),
-        };
-        foreach (var (form, nicks) in forms)
-            foreach (var n in nicks)
-                foreach (var tail in new[] { "로톰", "로토무", "토무" })
-                    d.TryAdd(n + tail, "로토무 " + form);
-        d.TryAdd("일반로토무", "로토무"); d.TryAdd("기본로토무", "로토무");
-        return d;
-    }
-
     /// <summary>사용자 사전 + 기본 사전으로 단어를 바꿔 씀. 여러 마리 값("/")은 그 줄을 여러 줄로 복제. 바꾼 결과는 다시 바꾸지 않음.</summary>
     private static List<string> ApplyAlias(string part, IReadOnlyDictionary<string, string> user)
     {
         var results = new List<List<string>> { new() };
-        foreach (var tok in Tokenize(part))
+        var toks = Tokenize(part);
+        for (int ti = 0; ti < toks.Count; ti++)
         {
+            var tok = toks[ti];
             var key = Norm(tok); string val = null;
             if (user != null) foreach (var kv in user) if (Norm(kv.Key) == key) { val = kv.Value; break; }
-            if (val == null) foreach (var kv in BuiltInAlias) if (Norm(kv.Key) == key) { val = kv.Value; break; }
+            if (val == null) foreach (var kv in User) if (Norm(kv.Key) == key) { val = kv.Value; break; }
+            // "Tapu Koko"처럼 옆 낱말과 합쳐 이미 포켓몬 이름이면 줄임말('koko')로 보지 않음
+            bool partOfName = (ti > 0 && FindSpecies(Norm(toks[ti - 1] + tok), out _)) || (ti + 1 < toks.Count && FindSpecies(Norm(tok + toks[ti + 1]), out _));
+            if (val == null && !partOfName) val = L.Alias(key);
             if (val == null) { foreach (var r in results) r.Add(tok); continue; }
             var alts = val.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
             if (alts.Count == 0) continue;
@@ -187,27 +117,29 @@ public static class QuickParse
 
     public static List<OrderSpec> Parse(string text, SaveFile sav, IReadOnlyDictionary<string, string> userAlias = null)
     {
-        var s = GenHost.Strings;
         var result = new List<OrderSpec>();
         var global = new OrderSpec(); var allSpec = new OrderSpec();
         foreach (var rawLine in ExpandRanges((text ?? "").Replace("\r", "").Split('\n'), sav))
         {
             var line = rawLine.Trim();
             if (line.Length == 0) continue;
-            // 공통 줄: "어버이: 새아 468686", "공통 어버이 새아 / TID 468686"
-            // 띄어쓰기나 ':'가 있어야 공통 줄 ("다 암컷") — 없으면 다투곰·다크라이·다부니처럼 '다'로 시작하는 이름이 공통 줄로 잡혔음
-            var allM = Regex.Match(line, @"^(모두|전부|전체|다)(\s*[:：]\s*|\s+)(.+)$");
-            if (allM.Success) { ApplyTokens(allSpec, Tokenize(allM.Groups[3].Value), sav, false); continue; }
-            if (Regex.IsMatch(line, @"^(공통|어버이\s*[:：]|tn\s*[:：])", RegexOptions.IgnoreCase))
-            { ApplyTokens(global, Tokenize(line.Replace("공통", "")), sav, onlyTrainer: true); continue; }
-            foreach (var part0 in SplitEntries(line))
-            foreach (var part in ApplyAlias(part0, userAlias))
+            // 공통 줄: "어버이: 새아 468686", "공통 어버이 새아 / TID 468686", "모두 암컷"
+            // 띄어쓰기나 ':'가 있어야 공통 줄 — 없으면 다투곰·다크라이·다부니처럼 '다'로 시작하는 이름이 공통 줄로 잡혔음
+            var allM = Regex.Match(line, @"^(\S+?)(\s*[:：]\s*|\s+)(.+)$");
+            if (allM.Success && L.AllLine.Contains(Norm(allM.Groups[1].Value))) { ApplyTokens(allSpec, Tokenize(allM.Groups[3].Value), sav, false); continue; }
+            var comM = Regex.Match(line, @"^(\S+?)(\s*[:：]\s*|\s+)(.*)$");
+            if (comM.Success && L.CommonLine.Contains(Norm(comM.Groups[1].Value)) && (comM.Groups[2].Value.Contains(':') || comM.Groups[2].Value.Contains('：') || IsCommonWord(comM.Groups[1].Value)))
+            {
+                var body = IsCommonWord(comM.Groups[1].Value) ? comM.Groups[3].Value : line;   // "공통 어버이 …" → 공통만 떼고, "어버이: …" → 그대로
+                ApplyTokens(global, Tokenize(body), sav, onlyTrainer: true); continue;
+            }
+            foreach (var part in ApplyAlias(line, userAlias))
                 foreach (var expanded in ExpandForms(part))
                 {
                     var o = new OrderSpec { Raw = expanded.Text, OT = global.OT, TID = global.TID, SID = global.SID, OTGender = global.OTGender };
                     ApplyTokens(o, Tokenize(expanded.Text), sav, false);
                     if (expanded.Form != null) ResolveFormWord(o, expanded.Form, sav);
-                    if (o.Species == 0) o.Notes.Add("포켓몬을 알아보지 못했습니다");
+                    if (o.Species == 0) o.Notes.Add(L.M("UNKNOWN_SPECIES"));
                     result.Add(o);
                 }
         }
@@ -236,6 +168,8 @@ public static class QuickParse
         }
         return result;
     }
+    /// <summary>'공통'처럼 줄 전체가 아래 모두에 적용된다는 말 (어버이·ot·tn은 ':'가 있어야 공통 줄)</summary>
+    private static bool IsCommonWord(string w) { var n = Norm(w); return L.CommonLine.Contains(n) && !L.Is(n, "OT_WORD"); }
 
     /// <summary>
     /// 범위 주문: "리빙덱스 1~151 이로치 프볼", "도감 152-251 럽볼", "1~1025번 모두", "리빙덱스 전체 이로치"
@@ -249,7 +183,7 @@ public static class QuickParse
             var line = raw.Trim();
             // '모두 암컷' 같은 공통 줄과 겹치지 않게: '전체'는 리빙덱스·도감 뒤에 올 때만 범위
             // 리빙덱스·도감·전국도감 뒤에 번호 범위가 없으면 이 게임에 나오는 종 전체 ("전국도감 이로치", "도감 럽볼")
-            var m = Regex.Match(line, @"^(?:(?:리빙\s*덱스|리빙\s*도감|전국\s*도감|도감|dex)(?:\s*(\d{1,4})\s*(?:~|∼|〜|-|–|부터)\s*(\d{1,4})\s*(?:번|까지|번까지)?|\s*(전체|전부|모두|all)|(?=\s|$))|(\d{1,4})\s*(?:~|∼|〜|-|–|부터)\s*(\d{1,4})\s*(?:번|까지|번까지)?)\s*(.*)$", RegexOptions.IgnoreCase);
+            var m = Regex.Match(line, @"^(?:(?:리빙\s*덱스|리빙\s*도감|전국\s*도감|도감|dex|livingdex|living\s*dex|pokedex|図鑑|ずかん|全国図鑑)(?:\s*(\d{1,4})\s*(?:~|∼|〜|～|-|–|부터|to|から)\s*(\d{1,4})\s*(?:번|까지|번까지|まで)?|\s*(전체|전부|모두|all|全部|すべて)|(?=\s|$))|(\d{1,4})\s*(?:~|∼|〜|～|-|–|부터|から)\s*(\d{1,4})\s*(?:번|까지|번까지|まで)?)\s*(.*)$", RegexOptions.IgnoreCase);
             if (!m.Success || Regex.IsMatch(line, @"^\d{4}\s*[-./]\s*\d{1,2}")) { yield return raw; continue; }   // 날짜("2024-03-05 …")는 범위가 아님
             int from, to;
             if (m.Groups[3].Success || !(m.Groups[1].Success || m.Groups[4].Success)) { from = 1; to = sav.MaxSpeciesID; }
@@ -271,25 +205,24 @@ public static class QuickParse
         }
     }
 
-    // "/" 로 나누되 "어버이 새아 / TID" 같은 공통 줄은 위에서 처리
-    private static IEnumerable<string> SplitEntries(string line) { var t = line.Trim(); if (t.Length > 0) yield return t; }   // 한 줄 = 한 마리 ('/'는 구분자가 아님)
-
     // "싸리용(뻗은,젖힌) 우두로치" → ("싸리용 우두로치", 뻗은), ("싸리용 우두로치", 젖힌)
     private static IEnumerable<(string Text, string Form)> ExpandForms(string part)
     {
-        var m = Regex.Match(part, @"\(([^)]*)\)");
+        var m = Regex.Match(part, @"[(（]([^)）]*)[)）]");
         if (!m.Success) { yield return (part, null); yield break; }
         if (m.Groups[1].Value.Contains('/'))   // "에써르 (수/ 작증 / 럽볼)" → 괄호 안은 속성
         {
             yield return ((part[..m.Index] + " " + m.Groups[1].Value.Replace('/', ' ') + " " + part[(m.Index + m.Length)..]).Trim(), null); yield break;
         }
-        if (m.Groups[1].Value.Contains("진화"))   // "나오하(마스카나진화)" → 나오하 다음에 진화 대상
+        var inner = m.Groups[1].Value;
+        if (L.Keys.TryGetValue("EVO_WORD", out var evo) && evo.Any(e => e.Length > 1 && Norm(inner).Contains(e)))   // "나오하(마스카나진화)" → 나오하 다음에 진화 대상
         {
-            var target = m.Groups[1].Value.Replace("진화형", "").Replace("진화", "").Replace("까지", "").Trim();
-            yield return ((part[..m.Index] + " " + target + " " + part[(m.Index + m.Length)..]).Trim(), null); yield break;
+            var target = inner;
+            foreach (var e in evo.Where(e => e.Length > 1).OrderByDescending(e => e.Length)) target = Regex.Replace(target, Regex.Escape(e) + @"(형|체|까지|後)?", "", RegexOptions.IgnoreCase);
+            yield return ((part[..m.Index] + " " + target.Trim() + " " + part[(m.Index + m.Length)..]).Trim(), null); yield break;
         }
         var rest = (part[..m.Index] + " " + part[(m.Index + m.Length)..]).Trim();
-        var forms = m.Groups[1].Value.Split(',', '，', '、').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+        var forms = inner.Split(',', '，', '、').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
         if (forms.Count == 0) { yield return (rest, null); yield break; }
         foreach (var f in forms) yield return (rest, f);
     }
@@ -298,18 +231,24 @@ public static class QuickParse
     {
         t = Dates(t);
         t = Regex.Replace(t, @"타입\s*[:：]?\s*널", "타입:널");   // 이름에 ':'가 든 포켓몬
-        t = t.Replace("타입:널", "\u0001");
-        t = Regex.Replace(t, @"([가-힣])의\s+증표", "$1의증표");   // "카레의 증표" = "카레의증표"
-        t = Regex.Replace(t, @"[,，:：/]", " ");   // '/'는 구분용으로만 쓰고 무시
-        t = t.Replace("\u0001", "타입:널");
-        return t.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        t = Regex.Replace(t, @"type\s*[:：]?\s*null", "type:null", RegexOptions.IgnoreCase);
+        t = t.Replace("타입:널", "\u0001").Replace("type:null", "\u0002").Replace("Type:null", "\u0002").Replace("TYPE:NULL", "\u0002").Replace("Type:Null", "\u0002");
+        t = Regex.Replace(t, @"([가-힣])의\s+(증표|리본|모습|태세|꽃)", "$1의$2");   // "카레의 증표" = "카레의증표", "가라르의 모습"
+        t = Regex.Replace(t, @"([가-힣])\s+(증표|리본)(?=\s|$)", "$1$2");            // "절친 리본" = "절친리본", "커다란 증표"
+        t = Regex.Replace(t, @"(?<=[\p{IsHiragana}\p{IsKatakana}\p{IsCJKUnifiedIdeographs}])\s*の\s*(あかし|アカシ|証|すがた|姿)", "の$1");   // "雨 の あかし"
+        t = Regex.Replace(t, @"[,，、。:：/·|]", " ");   // '/'·'·'는 구분용으로만 쓰고 무시 ('・'는 カプ・コケコ처럼 이름의 일부)
+        t = t.Replace("\u0001", "타입:널").Replace("\u0002", "Type:Null");
+        return t.Split([' ', '　'], StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 
-    public static string Norm(string x) => x.Trim().ToLowerInvariant().Replace(" ", "");
+    public static string Norm(string x) => Lexicon.Norm(x);
+
+    /// <summary>이름 비교용: 정규화에 더해 ':'·'.'·'’'·'-'도 뺌 (Type: Null, Mr. Mime, Ho-Oh, Farfetch’d)</summary>
+    private static string NameKey(string norm) => norm.Replace(":", "").Replace(".", "").Replace("’", "'").Replace("-", "").Replace("—", "");
 
     private static void ApplyTokens(OrderSpec o, List<string> tokens, SaveFile sav, bool onlyTrainer)
     {
-        var s = GenHost.Strings; bool range = false;
+        bool range = false;
         for (int i = 0; i < tokens.Count; i++)
         {
             var raw = tokens[i]; var t = Norm(raw);
@@ -320,32 +259,48 @@ public static class QuickParse
                 else { o.MetFrom = dw.From; o.MetTo = dw.To; }
                 range = false; continue;
             }
-            if (t == "~") { range = true; continue; }
-            if (t is "만난날짜" or "만난날" or "만난" or "날짜" or "만남" or "날" or "부터" or "까지" or "사이" or "metdate") continue;
+            if (L.Is(t, "RANGE_WORD") || t == "~") { range = true; continue; }
+            if (L.Is(t, "DATE_WORD")) continue;
             // 어버이·트레이너
-            if (t is "어버이" or "어버이작" or "tn" or "ot" or "트레이너")
+            if (L.Is(t, "OT_WORD"))
             {
                 if (i + 1 < tokens.Count && !IsNumber(tokens[i + 1]) && Norm(tokens[i + 1]) is not ("tid" or "sid")) { o.OT = tokens[++i]; }
                 if (i + 1 < tokens.Count && IsNumber(tokens[i + 1])) { o.TID = int.Parse(tokens[++i]); if (i + 1 < tokens.Count && IsNumber(tokens[i + 1]) && tokens[i + 1].Length <= 5) o.SID = int.Parse(tokens[++i]); }
                 continue;
             }
+            // "어버이우마무스메"처럼 붙여 쓴 것
+            if (!onlyTrainer && o.OT == null && L.Keys.TryGetValue("OT_WORD", out var otw) && otw.FirstOrDefault(w => w.Length >= 3 && t.StartsWith(w) && t.Length > w.Length + 1) is { } otp && !TryToken(new OrderSpec(), raw, t, sav))
+            { o.OT = raw[otp.Length..]; continue; }
             if (t is "tid" or "id" && i + 1 < tokens.Count && IsNumber(tokens[i + 1])) { o.TID = int.Parse(tokens[++i]); continue; }
             if (t == "sid" && i + 1 < tokens.Count && IsNumber(tokens[i + 1])) { o.SID = int.Parse(tokens[++i]); continue; }
+            var mtid = Regex.Match(t, @"^(tid|sid)[:：]?(\d{1,6})$"); if (mtid.Success) { if (mtid.Groups[1].Value == "tid") o.TID = int.Parse(mtid.Groups[2].Value); else o.SID = int.Parse(mtid.Groups[2].Value); continue; }
             if (onlyTrainer)
             {
                 if (IsNumber(raw)) { if (o.TID < 0) o.TID = int.Parse(raw); else o.SID = int.Parse(raw); continue; }
-                if (t is "여" or "여자" or "♀") { o.OTGender = 1; continue; }
-                if (t is "남" or "남자" or "♂") { o.OTGender = 0; continue; }
+                if (L.Is(t, "OT_FEMALE")) { o.OTGender = 1; continue; }
+                if (L.Is(t, "OT_MALE")) { o.OTGender = 0; continue; }
                 if (o.OT == null) o.OT = raw;
                 continue;
             }
-            if (t is "배포" or "이벤트" or "배포판" or "배포개체") { o.Event = true; continue; }
-            if (t is "진화" or "진화형" or "진화체" or "→" or "->") continue;
-            if (t is "기술" or "기술:" or "-" or "기술배치") continue;
-            if (t is "테라" or "테라타입" or "테라스탈" && i + 1 < tokens.Count && TeraWord(Norm(tokens[i + 1])) is int tw) { o.Tera = tw; i++; continue; }
+            if (L.Is(t, "EVENT")) { o.Event = true; continue; }
+            if (L.Is(t, "EVO_WORD")) continue;
+            if (L.Is(t, "MOVE_WORD")) continue;
+            // "테라 불꽃" / "불꽃 테라스탈" (타입이 앞뒤 어느 쪽에 와도)
+            if (L.Is(t, "TERA_WORD"))
+            {
+                if (i + 1 < tokens.Count && TeraWord(Norm(tokens[i + 1])) is int tw) { o.Tera = tw; i++; continue; }
+                if (i > 0 && TeraWord(Norm(tokens[i - 1])) is int tp) { o.Tera = tp; o.Unknown.Remove(tokens[i - 1]); continue; }
+                continue;
+            }
+            // "레벨 65", "Lv. 100", "x 3"
+            if (L.Is(t, "LEVEL_WORD") && i + 1 < tokens.Count && Regex.IsMatch(tokens[i + 1], @"^\d{1,3}$")) { o.Level = Math.Clamp(int.Parse(tokens[++i]), 1, 100); continue; }
+            // 띄어 쓴 이름 잇기: "Tapu Koko", "Dragon Claw", "Master Rank Ribbon", "최대 크기" (두세 낱말을 붙여 하나로 알아볼 수 있으면 그쪽이 먼저 — "Master"가 볼로 읽히지 않게)
+            if (TryJoin(o, tokens, ref i, sav)) continue;
             if (TryToken(o, raw, t, sav)) continue;
             // 붙여 쓴 말 나누기 시도: "러브볼암컷" 같은 경우 앞에서부터 가장 긴 단어
-            if (!SplitCompound(o, raw, sav)) o.Unknown.Add(raw);
+            if (SplitCompound(o, raw, sav)) continue;
+            if (L.Is(t, "IGNORE")) continue;
+            o.Unknown.Add(raw);
         }
         // 배포: 알아보지 못한 단어는 배포를 고르는 단서로 ("리코의" → 리코)
         if (o.Event) { foreach (var u in o.Unknown) o.Keywords.Add(u.EndsWith("의") && u.Length > 1 ? u[..^1] : u); o.Unknown.Clear(); }
@@ -354,6 +309,23 @@ public static class QuickParse
     }
 
     private static bool IsNumber(string x) => Regex.IsMatch(x, @"^\d{1,6}$");
+
+    /// <summary>다음 한두 낱말을 붙여 보고(띄어 쓴 이름) 알아볼 수 있으면 그걸로. 낱말 하나하나로도 알아볼 수 있는 것은 잇지 않음 (뜻이 바뀌지 않게)</summary>
+    private static bool TryJoin(OrderSpec o, List<string> tokens, ref int i, SaveFile sav)
+    {
+        for (int n = 2; n <= 3 && i + n - 1 < tokens.Count; n++)
+        {
+            var joined = string.Concat(tokens.Skip(i).Take(n));
+            var tn = Norm(joined);
+            if (tn.Length < 3) continue;
+            var tmp = new OrderSpec { Species = o.Species, Form = o.Form };
+            bool ok; strictForm = true;
+            try { ok = TryToken(tmp, joined, tn, sav); } finally { strictForm = false; }
+            if (!ok) continue;
+            TryToken(o, joined, tn, sav); i += n - 1; return true;
+        }
+        return false;
+    }
 
     private static bool SplitCompound(OrderSpec o, string raw, SaveFile sav)
     {
@@ -366,12 +338,15 @@ public static class QuickParse
         return false;
     }
 
+    private static void SetSize(OrderSpec o, string key) { var (mn, mx) = key == "MIN" ? (0, 0) : (255, 255); o.ScaleMin = mn; o.ScaleMax = mx; o.SizeText = L.SizeName(key); }
+
     private static bool TryToken(OrderSpec o, string raw, string t, SaveFile sav)
     {
         var s = GenHost.Strings;
+        if (t.Length == 0) return false;
         // 성별
-        if (t is "암" or "암컷" or "♀" or "여" or "f" or "female") { o.Gender = 1; return true; }
-        if (t is "아내" or "와이프" or "마누라")   // 재미: 그 게임에 나오는 무작위 암컷 포켓몬
+        if (L.Is(t, "FEMALE")) { o.Gender = 1; return true; }
+        if (L.Is(t, "WIFE"))   // 재미: 그 게임에 나오는 무작위 암컷 포켓몬
         {
             var cands = new List<ushort>();
             for (ushort wsp = 1; wsp <= sav.MaxSpeciesID; wsp++)
@@ -381,46 +356,63 @@ public static class QuickParse
                 if (wpi.Genderless || wpi.OnlyMale) continue;
                 cands.Add(wsp);
             }
-            if (cands.Count > 0 && o.Species == 0) { o.Species = cands[Random.Shared.Next(cands.Count)]; o.Notes.Add($"아내: {GenHost.Strings.Species[o.Species]} 💕"); }
+            if (cands.Count > 0 && o.Species == 0) { o.Species = cands[Random.Shared.Next(cands.Count)]; o.Notes.Add(L.M("WIFE", s.Species[o.Species])); }
             o.Gender = 1; return true;
         }
-        if (t is "수" or "수컷" or "♂" or "남" or "m♂" or "male") { o.Gender = 0; return true; }
+        if (L.Is(t, "MALE")) { o.Gender = 0; return true; }
         // 이로치·우두머리
-        if (t is "우두로치" or "색우두" or "우두이로치" or "알파이로치") { o.Alpha = 1; o.Shiny = Math.Max(o.Shiny, 1); return true; }
-        if (t is "일반우두" or "우두" or "우두머리" or "알파") { o.Alpha = 1; return true; }
-        if (t is "일로치" or "이로치" or "색이다른" or "색違い" or "shiny") { if (o.Shiny is 0 or 2) o.Shiny = 1; return true; }   // "일반 이로치" = 우두머리 아닌 이로치
-        if (t is "별" or "별이로치" or "별로치") { o.Shiny = 3; return true; }
-        if (t is "네모" or "스퀘어" or "네모이로치" or "네모로치") { o.Shiny = 4; return true; }
-        if (t is "일반색" or "노말색") { if (o.Alpha < 0) o.Alpha = 0; o.Shiny = 2; return true; }
-        if (t is "일반" or "일반개체" or "비우두") { if (o.Alpha < 0) o.Alpha = 0; if (o.Shiny == 0) o.Shiny = 2; return true; }   // 우두머리 아님 (이로치와 함께 쓰면 이로치)
+        if (L.Is(t, "ALPHA_SHINY")) { o.Alpha = 1; o.Shiny = Math.Max(o.Shiny, 1); return true; }
+        if (L.Is(t, "ALPHA")) { o.Alpha = 1; return true; }
+        if (L.Is(t, "SHINY")) { if (o.Shiny is 0 or 2) o.Shiny = 1; return true; }   // "일반 이로치" = 우두머리 아닌 이로치
+        if (L.Is(t, "SHINY_STAR")) { o.Shiny = 3; return true; }
+        if (L.Is(t, "SHINY_SQUARE")) { o.Shiny = 4; return true; }
+        if (L.Is(t, "NOT_SHINY")) { if (o.Alpha < 0) o.Alpha = 0; o.Shiny = 2; return true; }
+        if (L.Is(t, "NORMAL")) { if (o.Alpha < 0) o.Alpha = 0; if (o.Shiny == 0) o.Shiny = 2; return true; }   // 우두머리 아님 (이로치와 함께 쓰면 이로치)
         // 크기·증표
-        if (t is "가장" or "제일" or "최고로" or "완전") { o.Superl = true; return true; }
-        if (t is "크기" or "사이즈" or "size" or "짜리") return true;
-        if (o.Superl && t is "크게" or "큰" or "크기의" or "큰것") { o.Superl = false; o.ScaleMin = o.ScaleMax = 255; o.SizeText = "최대 크기(배율 255)"; return true; }
-        if (o.Superl && t is "작게" or "작은" or "작은것") { o.Superl = false; o.ScaleMin = o.ScaleMax = 0; o.SizeText = "최소 크기(배율 0)"; return true; }
-        foreach (var (words, min, max, name) in Sizes)
-            if (words.Contains(t)) { o.ScaleMin = min; o.ScaleMax = max; o.SizeText = name; return true; }
-        if (t is "작증" or "작은증표" or "최소증표" or "최소사이즈증표" or "미니증표") { AddMark(o, RibbonIndex.MarkMini); o.ScaleMin = o.ScaleMax = 0; o.SizeText = "최소 크기(배율 0)"; return true; }
-        if (t is "큰증" or "큰증표" or "최대증표" or "최대사이즈증표" or "점보증표") { AddMark(o, RibbonIndex.MarkJumbo); o.ScaleMin = o.ScaleMax = 255; o.SizeText = "최대 크기(배율 255)"; return true; }
-        if (t is "증표" or "증")   // 앞의 크기와 합쳐 작은·큰 증표
+        if (L.Is(t, "SUPERL")) { o.Superl = true; return true; }
+        if (L.Is(t, "SIZE_WORD")) return true;
+        if (o.Superl && L.Is(t, "SUPERL_BIG")) { o.Superl = false; SetSize(o, "MAX"); return true; }
+        if (o.Superl && L.Is(t, "SUPERL_SMALL")) { o.Superl = false; SetSize(o, "MIN"); return true; }
+        if (L.Size(t) is { } sz) { o.ScaleMin = sz.Min; o.ScaleMax = sz.Max; o.SizeText = sz.Name; return true; }
+        if (L.Is(t, "MINI_MARK")) { AddMark(o, RibbonIndex.MarkMini); SetSize(o, "MIN"); return true; }
+        if (L.Is(t, "JUMBO_MARK")) { AddMark(o, RibbonIndex.MarkJumbo); SetSize(o, "MAX"); return true; }
+        if (L.Is(t, "MARK_WORD"))   // 앞의 크기와 합쳐 작은·큰 증표
         {
             if (o.ScaleMax == 0) { AddMark(o, RibbonIndex.MarkMini); return true; }
             if (o.ScaleMin == 255) { AddMark(o, RibbonIndex.MarkJumbo); return true; }
-            o.Notes.Add("어떤 증표인지 알 수 없어 무시했습니다");
+            o.Notes.Add(L.M("MARK_UNKNOWN"));
             return true;
         }
-        if (t is "카레" or "카레증표" or "카레의증표") { AddMark(o, RibbonIndex.MarkCurry); return true; }
-        if (t is "최강" or "최강증표" or "최강의증표" or "최강의") { AddMark(o, RibbonIndex.MarkMightiest); return true; }
-        if (t is "낚시" or "낚시증표" or "낚시의증표") { AddMark(o, RibbonIndex.MarkFishing); return true; }
+        if (L.MarkOnly(t) is { } mo && Enum.TryParse<RibbonIndex>(mo, out var moi)) { AddMark(o, moi); return true; }
         foreach (var r in Enum.GetValues<RibbonIndex>().Where(x => x.ToString().StartsWith("Mark")))
-            if (s.Ribbons.GetNameSafe("Ribbon" + r, out var kn) && (Norm(kn) == t || Norm(kn).Replace("의", "") == t)) { AddMark(o, r); return true; }
-        foreach (var (words, mk) in MarkAlias)
-            foreach (var w in words)
-                if (t == w + "증표" || t == w + "의증표" || t == w + "증") { AddMark(o, mk); return true; }
+            if (NameMatches("Ribbon" + r, t, s, (n, w) => n == w || StripOf(n) == w || n == w + "mark")) { AddMark(o, r); return true; }
+        var ribbonSuf = L.Suf("RIBBON").Concat(["리본", "ribbon", "リボン"]).ToHashSet();
+        foreach (var suf in L.MarkSuffix.Concat(Lexicon.En.MarkSuffix).Distinct())
+        {
+            if (!t.EndsWith(suf) || t.Length <= suf.Length) continue;
+            var stem = t[..^suf.Length];
+            // "파트너리본"처럼 진짜 리본 이름이면 리본이 먼저 (증표와 이름이 겹치는 것)
+            if (ribbonSuf.Contains(suf) && FindRibbon(t, sav) is { } realRib && !realRib.StartsWith("RibbonMark")) { if (!o.Ribbons.Contains(realRib)) o.Ribbons.Add(realRib); return true; }
+            if (L.Mark(stem) is { } mk && Enum.TryParse<RibbonIndex>(mk, out var mki)) { AddMark(o, mki); return true; }
+            // "팔데아챔피언증표"처럼 리본을 증표라고 적은 것
+            if (L.Ribbon(stem) is { } ra0) { var prop = ra0 == "CHAMPION" ? ChampionRibbon(sav) : ra0; if (prop != null && RibbonProps(sav.BlankPKM.GetType()).Contains(prop)) { if (!o.Ribbons.Contains(prop)) o.Ribbons.Add(prop); return true; } }
+            if (FindRibbon(stem, sav) is { } rib0 && !rib0.StartsWith("RibbonMark")) { if (!o.Ribbons.Contains(rib0)) o.Ribbons.Add(rib0); return true; }
+        }
         // 개체값·레벨·개수
-        var mv = Regex.Match(t, @"^([0-6])v$"); if (mv.Success) { o.FlawlessIVs = int.Parse(mv.Groups[1].Value); return true; }
+        var mv = Regex.Match(t, @"^(\d{1,3})(?:v|iv|ivs)$"); if (mv.Success) { o.FlawlessIVs = Math.Min(6, int.Parse(mv.Groups[1].Value)); return true; }   // 6V, 5IV, 100V(=6V)
+        if (t is "6vs" or "perfect" or "perfectivs" or "flawless") { o.FlawlessIVs = 6; return true; }
         // 개체값·노력치 구문: 'a0'·'s31' = 개체값, 'as252'·'h4'·'b252' = 노력치 (글자 여러 개, 32 이상, 또는 4)
         var ms = Regex.Match(t, @"^([habcds]+)(\d{1,3})$");
+        if (!ms.Success)
+        {   // "0atk", "atk0", "31spe", "hp31" (영어 능력치 낱말)
+            var me = Regex.Match(t, @"^(?:(hp|atk|att|attack|def|defense|spa|spatk|spattack|spd|spdef|spdefense|spe|speed)(\d{1,3})|(\d{1,3})(hp|atk|att|attack|def|defense|spa|spatk|spattack|spd|spdef|spdefense|spe|speed))$");
+            if (me.Success)
+            {
+                var word = me.Groups[1].Success ? me.Groups[1].Value : me.Groups[4].Value; var num = me.Groups[2].Success ? me.Groups[2].Value : me.Groups[3].Value;
+                var letter = word switch { "hp" => "h", "atk" or "att" or "attack" => "a", "def" or "defense" => "b", "spa" or "spatk" or "spattack" => "c", "spd" or "spdef" or "spdefense" => "d", _ => "s" };
+                ms = Regex.Match(letter + num, @"^([habcds]+)(\d{1,3})$");
+            }
+        }
         if (ms.Success)
         {
             var letters = ms.Groups[1].Value; int val = int.Parse(ms.Groups[2].Value);
@@ -432,51 +424,58 @@ public static class QuickParse
             }
             return true;
         }
-        var ml = Regex.Match(t, @"^(?:lv\.?|레벨)(\d{1,3})$|^(\d{1,3})(?:렙|레벨|lv)$"); if (ml.Success) { o.Level = Math.Clamp(int.Parse(ml.Groups[1].Success ? ml.Groups[1].Value : ml.Groups[2].Value), 1, 100); return true; }
-        var mc = Regex.Match(t, @"^(?:x|×)(\d{1,2})$|^(\d{1,2})(?:마리|개)$"); if (mc.Success) { o.Count = Math.Clamp(int.Parse(mc.Groups[1].Success ? mc.Groups[1].Value : mc.Groups[2].Value), 1, 30); return true; }
-        if (t is "숨특" or "숨겨진특성" or "드림특성" or "숨") { o.Ability = 2; return true; }
-        // 거다이맥스·테라스탈 타입 ("노말테라", "불테라", "테라페어리", "스텔라테라")
-        if (t is "특훈" or "특훈완료" or "모두특훈" or "전부특훈" or "올특훈" or "풀특훈" or "6특훈" or "하이퍼트레이닝" or "병뚜껑" or "금병뚜껑" or "금색병뚜껑" or "ht" or "hypertrain" or "hypertrained") { o.HyperTrain = true; return true; }
-        if (t is "거다이맥스" or "거다맥" or "거다이" or "거다이맥스개체" or "gmax" or "gigantamax" or "거대맥스") { o.Gmax = true; return true; }
-        foreach (var suf in new[] { "테라타입", "테라스탈", "테라" })
-        {
-            if (t.EndsWith(suf) && t.Length > suf.Length && TeraWord(t[..^suf.Length]) is int ta) { o.Tera = ta; return true; }
-            if (t.StartsWith(suf) && t.Length > suf.Length && TeraWord(t[suf.Length..]) is int tb) { o.Tera = tb; return true; }
-        }
+        var lvWords = L.Suf("LEVEL").Concat(Lexicon.En.Suf("LEVEL")).Distinct().Select(Regex.Escape).ToList();
+        var ml = Regex.Match(t, $@"^(?:{string.Join("|", lvWords)})\.?(\d{{1,3}})$|^(\d{{1,3}})(?:{string.Join("|", lvWords)})$");
+        if (ml.Success) { o.Level = Math.Clamp(int.Parse(ml.Groups[1].Success ? ml.Groups[1].Value : ml.Groups[2].Value), 1, 100); return true; }
+        var cntWords = L.Suf("COUNT").Concat(Lexicon.En.Suf("COUNT")).Distinct().Select(Regex.Escape).ToList();
+        var mc = Regex.Match(t, $@"^(?:x|×)(\d{{1,2}})$|^(\d{{1,2}})(?:{string.Join("|", cntWords)})$"); if (mc.Success) { o.Count = Math.Clamp(int.Parse(mc.Groups[1].Success ? mc.Groups[1].Value : mc.Groups[2].Value), 1, 30); return true; }
+        if (L.Is(t, "HIDDEN_ABILITY")) { o.Ability = 2; return true; }
+        // 거다이맥스·특훈·테라스탈 타입 ("노말테라", "불테라", "테라페어리", "스텔라테라")
+        if (L.Is(t, "HYPERTRAIN")) { o.HyperTrain = true; return true; }
+        if (L.Is(t, "GMAX")) { o.Gmax = true; return true; }
+        if (L.Keys.TryGetValue("TERA_WORD", out var teraWords))
+            foreach (var suf in teraWords.Concat(Lexicon.En.Keys.TryGetValue("TERA_WORD", out var tw2) ? tw2 : []).OrderByDescending(x => x.Length))
+            {
+                if (t.EndsWith(suf) && t.Length > suf.Length && TeraWord(t[..^suf.Length]) is int ta) { o.Tera = ta; return true; }
+                if (t.StartsWith(suf) && t.Length > suf.Length && TeraWord(t[suf.Length..]) is int tb) { o.Tera = tb; return true; }
+            }
         // 볼
-        var ballName = BallAlias.TryGetValue(t, out var al) ? al : t;
-        for (int b = 1; b < s.balllist.Length; b++)
-            if (!string.IsNullOrEmpty(s.balllist[b]) && (Norm(s.balllist[b]) == Norm(ballName) || Norm(s.balllist[b]) == Norm(ballName) + "볼")) { o.Ball = b; return true; }
+        if (BallOf(t) is int ball && ball > 0) { o.Ball = ball; return true; }
         // 성격 ("고집", "고집성격")
-        var nt = t.EndsWith("성격") ? t[..^2] : t;
-        for (int n = 0; n < 25 && n < s.natures.Length; n++) if (Norm(s.natures[n]) == nt) { o.Nature = n; return true; }
+        if (NatureOf(t) is int nat && nat >= 0) { o.Nature = nat; return true; }
         // 포켓몬 (리전폼 접두어: 가라르·알로라·히스이·팔데아)
-        foreach (var region in new[] { "가라르", "알로라", "히스이", "팔데아" })
-            if (t.StartsWith(region) && t.Length > region.Length && FindSpecies(t[region.Length..], out var sr)) { o.Species = sr; ResolveFormWord(o, region, sav); return true; }
-            else if (t == region) { o.FormText = region; if (o.Species != 0) ResolveFormWord(o, region, sav); else o.Notes.Add($"{region}(폼)"); return true; }
+        foreach (var (prefix, formWord) in L.Regions.Concat(Lexicon.En.Regions).OrderByDescending(x => x.Key.Length))
+        {
+            if (t.StartsWith(prefix) && t.Length > prefix.Length && FindSpecies(t[prefix.Length..], out var sr)) { o.Species = sr; ResolveFormWord(o, formWord, sav); return true; }
+            if (t == prefix) { o.FormText = formWord; if (o.Species != 0) ResolveFormWord(o, formWord, sav); else o.Notes.Add(L.M("REGION_FORM", raw)); return true; }
+        }
         if (FindSpecies(t, out var sp)) { if (o.Species != 0 && o.Species != sp) o.PreSpecies = o.Species; o.Species = sp; if (o.FormText.Length > 0 && o.Form < 0) ResolveFormWord(o, o.FormText, sav); return true; }
         // 특성 이름
         if (o.Species != 0)
         {
             for (int a = 1; a < s.abilitylist.Length; a++)
-                if (Norm(s.abilitylist[a]) == t)
+                if (NameMatches(a, t, s.abilitylist, Lexicon.En.Lang == L.Lang ? null : GameInfo.GetStrings("en").abilitylist))
                 {
                     try { var pi = sav.Personal.GetFormEntry(o.Species, (byte)Math.Max(0, o.Form)); for (int k = 0; k < pi.AbilityCount; k++) if (pi.GetAbilityAtIndex(k) == a) { o.Ability = k; return true; } } catch { }
-                    o.Notes.Add($"{s.abilitylist[a]}: 이 포켓몬의 특성이 아닙니다"); return true;
+                    o.Notes.Add(L.M("ABILITY_NOT", s.abilitylist[a])); return true;
                 }
         }
         // 기술 이름 ("10만볼트", "thunderbolt")
         if (FindMove(t) is ushort mvid)
         {
             if (o.Moves.Count < 4 && !o.Moves.Contains(mvid)) o.Moves.Add(mvid);
-            else if (!o.Moves.Contains(mvid)) o.Notes.Add($"기술은 4개까지: {s.movelist[mvid]} 무시");
+            else if (!o.Moves.Contains(mvid)) o.Notes.Add(L.M("MOVES_MAX", s.movelist[mvid]));
             return true;
         }
         // 폼 단어 ("뻗은", "붉은달")
         if (o.Species != 0 && ResolveFormWord(o, raw, sav, quiet: true)) return true;
         // 리본 이름 ("챔피언리본", "절친리본") — 여러 개 적으면 모두
-        if (t is "챔피언리본" or "챔피언" or "챔피언의리본" or "챔피리본" or "챔리본" && ChampionRibbon(sav) is { } champ && RibbonProps(sav.BlankPKM.GetType()).Contains(champ))
-        { if (!o.Ribbons.Contains(champ)) o.Ribbons.Add(champ); return true; }
+        if (L.Ribbon(t) is { } ra)
+        {
+            var prop = ra == "CHAMPION" ? ChampionRibbon(sav) : ra;
+            if (prop != null && RibbonProps(sav.BlankPKM.GetType()).Contains(prop)) { if (!o.Ribbons.Contains(prop)) o.Ribbons.Add(prop); return true; }
+            if (ra == "CHAMPION") return false;
+        }
         if (FindRibbon(t, sav) is { } rib)
         {
             if (rib.StartsWith("RibbonMark") && Enum.TryParse<RibbonIndex>(rib[6..], out var ri)) AddMark(o, ri);
@@ -486,18 +485,24 @@ public static class QuickParse
         return false;
     }
 
-    // 증표 줄임말 ("비의증표"→강우의증표, "번개증표"→우레의증표 …)
-    private static readonly (string[] Words, RibbonIndex Mark)[] MarkAlias =
-    [
-        (["비", "강우", "비오는", "레인"], RibbonIndex.MarkRainy), (["눈", "강설", "스노우"], RibbonIndex.MarkSnowy), (["폭설", "눈보라"], RibbonIndex.MarkBlizzard),
-        (["번개", "천둥", "뇌우", "우레"], RibbonIndex.MarkStormy), (["흐림", "흐린", "구름"], RibbonIndex.MarkCloudy), (["건조", "쾌청", "맑음", "햇살", "가뭄"], RibbonIndex.MarkDry),
-        (["모래", "모래바람", "모래먼지", "모래폭풍"], RibbonIndex.MarkSandstorm), (["안개", "짙은안개"], RibbonIndex.MarkMisty),
-        (["정오", "점심", "낮"], RibbonIndex.MarkLunchtime), (["자정", "밤", "한밤"], RibbonIndex.MarkSleepyTime), (["황혼", "저녁", "노을"], RibbonIndex.MarkDusk), (["새벽", "아침"], RibbonIndex.MarkDawn),
-        (["운명", "생일"], RibbonIndex.MarkDestiny), (["가끔", "가끔보는", "언커먼"], RibbonIndex.MarkUncommon), (["레어", "본적없는", "희귀"], RibbonIndex.MarkRare),
-        (["우두머리", "알파"], RibbonIndex.MarkAlpha), (["주인", "타이탄", "누시"], RibbonIndex.MarkTitan), (["습득", "줍기"], RibbonIndex.MarkItemfinder),
-        (["미식가", "미식"], RibbonIndex.MarkGourmand), (["파트너"], RibbonIndex.MarkPartner), (["낚시", "낚아올린"], RibbonIndex.MarkFishing),
-        (["커다란", "점보", "큰"], RibbonIndex.MarkJumbo), (["조그만", "미니", "작은"], RibbonIndex.MarkMini),
-    ];
+    /// <summary>증표·리본 이름 비교: 지금 언어 이름과 영어 이름 모두, 접미사('의'·'mark'·'のあかし')를 뺀 꼴로도</summary>
+    private static bool NameMatches(string prop, string t, GameStrings s, Func<string, string, bool> eq)
+    {
+        if (s.Ribbons.GetNameSafe(prop, out var kn) && eq(Norm(Regex.Replace(kn, @"\s*\([^)]*\)", "")), t)) return true;
+        if (L.Lang != "en" && GameInfo.GetStrings("en").Ribbons.GetNameSafe(prop, out var en) && eq(Norm(Regex.Replace(en, @"\s*\([^)]*\)", "")), t)) return true;
+        return false;
+    }
+    private static bool NameMatches(int idx, string t, string[] cur, string[] en)
+    {
+        if (idx < cur.Length && Norm(cur[idx]) == t) return true;
+        return en != null && idx < en.Length && Norm(en[idx]) == t;
+    }
+    /// <summary>이름에서 꾸밈말을 뺀 꼴 ("카레의증표" → "카레증표", "rainymark" → "rainy")</summary>
+    private static string StripOf(string n)
+    {
+        foreach (var w in L.FormStrip) if (w.Length > 0) n = n.Replace(w, "");
+        return n;
+    }
 
     /// <summary>'챔피언리본' = 지금 게임 지방의 챔피언 리본.</summary>
     private static string ChampionRibbon(SaveFile sav) => sav.Context switch
@@ -518,8 +523,8 @@ public static class QuickParse
         var name = "Ribbon" + m;
         if (!o.Ribbons.Contains(name)) o.Ribbons.Add(name);
         // 커다란·조그만 증표는 크기가 정해져 있음 (배율 255 / 0) — 어떤 말로 적었든 크기도 같이 맞춤 ("커다란증표"가 크기 없이 들어가 생성 실패하던 문제)
-        if (m == RibbonIndex.MarkJumbo && o.ScaleMin != 255) { o.ScaleMin = o.ScaleMax = 255; o.SizeText = "최대 크기(배율 255)"; }
-        if (m == RibbonIndex.MarkMini && o.ScaleMax != 0) { o.ScaleMin = o.ScaleMax = 0; o.SizeText = "최소 크기(배율 0)"; }
+        if (m == RibbonIndex.MarkJumbo && o.ScaleMin != 255) SetSize(o, "MAX");
+        if (m == RibbonIndex.MarkMini && o.ScaleMax != 0) SetSize(o, "MIN");
         if (o.Mark < 0 || (EncounterMarks.Contains(m) && !EncounterMarks.Contains((RibbonIndex)o.Mark))) o.Mark = (int)m;
     }
 
@@ -535,12 +540,11 @@ public static class QuickParse
     {
         if (t.Length < 2) return null;
         var s = GenHost.Strings;
+        var ribSuf = L.Suf("RIBBON").Concat(["리본", "ribbon", "リボン"]).Distinct().ToArray();
         foreach (var prop in RibbonProps(sav.BlankPKM.GetType()))
         {
             if (Norm(prop[6..]) == t) return prop;
-            if (!s.Ribbons.GetNameSafe(prop, out var kn)) continue;
-            var n = Norm(Regex.Replace(kn, @"\s*\([^)]*\)", ""));   // "쿨리본 (3세대)" → "쿨리본"
-            if (n == t || n == t + "리본" || n.Replace("의", "") == t.Replace("의", "")) return prop;
+            if (NameMatches(prop, t, s, (n, w) => n == w || ribSuf.Any(rs => n == w + rs) || StripOf(n) == StripOf(w))) return prop;   // "쿨리본 (3세대)" → "쿨리본"
         }
         return null;
     }
@@ -549,8 +553,8 @@ public static class QuickParse
     private static string Dates(string t)
     {
         static bool Ok(int y, int m, int d) => y is >= 1990 and <= 2099 && m is >= 1 and <= 12 && d >= 1 && d <= DateTime.DaysInMonth(y, m);
-        t = Regex.Replace(t, @"[~∼〜]", " ~ ");
-        t = Regex.Replace(t, @"(?<!\d)(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?(?!\d)", m =>
+        t = Regex.Replace(t, @"[~∼〜～]", " ~ ");
+        t = Regex.Replace(t, @"(?<!\d)(\d{4})\s*[-./년年]\s*(\d{1,2})\s*[-./월月]\s*(\d{1,2})\s*[일日]?(?!\d)", m =>
         {
             int y = int.Parse(m.Groups[1].Value), mo = int.Parse(m.Groups[2].Value), d = int.Parse(m.Groups[3].Value);
             return Ok(y, mo, d) ? $" @D{y:0000}{mo:00}{d:00} " : m.Value;
@@ -560,14 +564,14 @@ public static class QuickParse
             int y = int.Parse(m.Groups[1].Value), mo = int.Parse(m.Groups[2].Value), d = int.Parse(m.Groups[3].Value);
             return Ok(y, mo, d) ? $" @D{y:0000}{mo:00}{d:00} " : m.Value;
         });
-        t = Regex.Replace(t, @"(?<![\d@A-Za-z])(\d{4})\s*[-./년]\s*(\d{1,2})\s*월?(?![\d.])", m =>
+        t = Regex.Replace(t, @"(?<![\d@A-Za-z])(\d{4})\s*[-./년年]\s*(\d{1,2})\s*[월月]?(?![\d.])", m =>
         {
             int y = int.Parse(m.Groups[1].Value), mo = int.Parse(m.Groups[2].Value);
             return Ok(y, mo, 1) ? $" @M{y:0000}{mo:00} " : m.Value;
         });
-        t = Regex.Replace(t, @"(?<![\d@A-Za-z])(\d{4})\s*년", m => int.Parse(m.Groups[1].Value) is >= 1990 and <= 2099 ? $" @Y{m.Groups[1].Value} " : m.Value);
-        t = Regex.Replace(t, @"(@[DMY]\d+)\s*(부터|에서)", "$1 ~ ");
-        t = Regex.Replace(t, @"(@[DMY]\d+)\s*(까지|사이)", "$1 ");
+        t = Regex.Replace(t, @"(?<![\d@A-Za-z])(\d{4})\s*[년年]", m => int.Parse(m.Groups[1].Value) is >= 1990 and <= 2099 ? $" @Y{m.Groups[1].Value} " : m.Value);
+        t = Regex.Replace(t, @"(@[DMY]\d+)\s*(부터|에서|から|from)", "$1 ~ ", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"(@[DMY]\d+)\s*(까지|사이|まで|until|to)", "$1 ", RegexOptions.IgnoreCase);
         return t;
     }
 
@@ -590,75 +594,102 @@ public static class QuickParse
         return null;
     }
 
-    // ===== 일괄 수정(한국어)에서 쓰는 단어 찾기 =====
+    // ===== 일괄 수정에서 쓰는 단어 찾기 =====
     public static ushort SpeciesOf(string w, IReadOnlyDictionary<string, string> user = null)
     {
         var t = Norm(w);
         if (FindSpecies(t, out var sp)) return sp;
         string v = null;
         if (user != null) foreach (var kv in user) if (Norm(kv.Key) == t) { v = kv.Value; break; }
-        if (v == null && BuiltInAlias.TryGetValue(t, out var b)) v = b;
+        v ??= L.Alias(t);
         return v != null && !v.Contains('/') && FindSpecies(Norm(v.Split(' ')[0]), out sp) ? sp : (ushort)0;
     }
+    /// <summary>볼 이름·줄임말 → 볼 번호 (없으면 -1). 지금 언어 이름, 영어 이름, '볼'을 뺀 이름 모두</summary>
     public static int BallOf(string w)
     {
-        var t = Norm(w); var s = GenHost.Strings;
-        var name = BallAlias.TryGetValue(t, out var al) ? al : t;
+        var t = Norm(w); if (t.Length == 0) return -1;
+        var s = GenHost.Strings; var en = GameInfo.GetStrings("en");
+        var ballSuf = L.Suf("BALL").Concat(Lexicon.En.Suf("BALL")).Distinct().ToArray();
+        var alias = L.Ball(t);   // 영어 볼 이름
         for (int b = 1; b < s.balllist.Length; b++)
-            if (!string.IsNullOrEmpty(s.balllist[b]) && (Norm(s.balllist[b]) == Norm(name) || Norm(s.balllist[b]) == Norm(name) + "볼")) return b;
+        {
+            if (string.IsNullOrEmpty(s.balllist[b])) continue;
+            if (alias != null && b < en.balllist.Length && Norm(en.balllist[b]) == Norm(alias)) return b;
+            if (alias != null) continue;
+            var cur = Norm(s.balllist[b]); var e = b < en.balllist.Length ? Norm(en.balllist[b]) : "";
+            if (cur == t || e == t || ballSuf.Any(suf => cur == t + suf || e == t + suf)) return b;
+        }
         return -1;
     }
     public static int NatureOf(string w)
     {
-        var t = Norm(w); if (t.EndsWith("성격")) t = t[..^2];
-        var s = GenHost.Strings;
-        for (int n = 0; n < 25 && n < s.natures.Length; n++) if (Norm(s.natures[n]) == t) return n;
+        var t = Norm(w);
+        foreach (var suf in L.Suf("NATURE").Concat(Lexicon.En.Suf("NATURE"))) if (t.EndsWith(suf) && t.Length > suf.Length) { t = t[..^suf.Length]; break; }
+        var s = GenHost.Strings; var en = L.Lang == "en" ? null : GameInfo.GetStrings("en").natures;
+        for (int n = 0; n < 25 && n < s.natures.Length; n++) if (Norm(s.natures[n]) == t || en != null && n < en.Length && Norm(en[n]) == t) return n;
         return -1;
     }
     public static int? TeraOf(string w) => TeraWord(Norm(w));
 
-    private static readonly Dictionary<string, string> TypeAlias = new() { ["불"] = "불꽃", ["요정"] = "페어리", ["노멀"] = "노말", ["에스"] = "에스퍼", ["드래"] = "드래곤", ["드라곤"] = "드래곤", ["전"] = "전기", ["얼"] = "얼음", ["고스"] = "고스트", ["강"] = "강철" };
     /// <summary>타입 이름 → 테라스탈 타입 번호 (스텔라 99). 아니면 null.</summary>
     private static int? TeraWord(string w)
     {
-        if (w.EndsWith("타입")) w = w[..^2];
+        foreach (var suf in L.Suf("TYPE").Concat(Lexicon.En.Suf("TYPE"))) if (w.EndsWith(suf) && w.Length > suf.Length) { w = w[..^suf.Length]; break; }
         if (w.Length == 0) return null;
-        if (w is "스텔라" or "stellar") return 99;
-        if (TypeAlias.TryGetValue(w, out var a)) w = a;
-        var ko = GenHost.Strings.types; var en = GameInfo.GetStrings("en").types;
-        for (int k = 0; k < 18 && k < ko.Length; k++) if (Norm(ko[k]) == w || Norm(en[k]) == w) return k;
+        if (L.IsStellar(w)) return 99;
+        var en = GameInfo.GetStrings("en").types;
+        if (L.Type(w) is { } ta) w = Norm(ta);   // 줄임말 → 영어 타입 이름
+        var cur = GenHost.Strings.types;
+        for (int k = 0; k < 18 && k < cur.Length; k++) if (Norm(cur[k]) == w || k < en.Length && Norm(en[k]) == w) return k;
         return null;
     }
 
     private static ushort? FindMove(string t)
     {
         if (t.Length < 2) return null;
-        var ko = GenHost.Strings.movelist; var en = GameInfo.GetStrings("en").movelist;
-        for (int m = 1; m < ko.Length; m++) if (Norm(ko[m]) == t || (m < en.Length && Norm(en[m]).Replace("-", "") == t.Replace("-", ""))) return (ushort)m;
+        var cur = GenHost.Strings.movelist; var en = GameInfo.GetStrings("en").movelist;
+        var key = NameKey(t);
+        for (int m = 1; m < cur.Length; m++) if (NameKey(Norm(cur[m])) == key || (m < en.Length && NameKey(Norm(en[m])) == key)) return (ushort)m;
         return null;
     }
 
     private static bool FindSpecies(string t, out ushort sp)
     {
-        var ko = GenHost.Strings.Species; var en = GameInfo.GetStrings("en").Species;
-        for (ushort i = 1; i < ko.Count; i++) if (Norm(ko[i]) == t || Norm(en[i]) == t) { sp = i; return true; }
+        var cur = GenHost.Strings.Species; var en = GameInfo.GetStrings("en").Species;
+        var key = NameKey(t);
+        if (key.Length > 0)
+            for (ushort i = 1; i < cur.Count; i++) if (NameKey(Norm(cur[i])) == key || (i < en.Count && NameKey(Norm(en[i])) == key)) { sp = i; return true; }
         sp = 0; return false;
     }
 
-    /// <summary>폼 단어를 그 포켓몬의 폼 이름과 맞춰 봄 (부분 일치).</summary>
+    /// <summary>폼 단어를 그 포켓몬의 폼 이름과 맞춰 봄 (부분 일치). 지금 언어 폼 이름, 그리고 영어 폼 이름으로도</summary>
+    [ThreadStatic] private static bool strictForm;   // 낱말을 이어 볼 때는 폼 이름이 정확히 맞아야 함 ("galar shiny"가 폼으로 읽히지 않게)
     private static bool ResolveFormWord(OrderSpec o, string word, SaveFile sav, bool quiet = false)
     {
         if (o.Species == 0) { o.FormText = word; return false; }
-        var s = GenHost.Strings; string[] names;
-        try { names = FormConverter.GetFormList(o.Species, s.types, s.forms, GameInfo.GenderSymbolUnicode, sav.Context); } catch { return false; }
-        var w = Norm(word).Replace("모습", "").Replace("폼", "").Replace("의", "");
+        var s = GenHost.Strings;
+        var w = StripOf(Norm(word));
         if (w.Length == 0) return false;
-        for (int f = 0; f < names.Length; f++)
+        foreach (var strings in L.Lang == "en" ? new[] { s } : new[] { s, GameInfo.GetStrings("en") })
         {
-            var n = Norm(names[f]).Replace("의", "");
-            if (n.Length > 0 && (n.Contains(w) || w.Contains(n.Replace("모습", "").Replace("폼", "")) && n.Replace("모습", "").Replace("폼", "").Length > 0)) { o.Form = f; o.FormText = names[f].Trim(); return true; }
+            string[] names;
+            try { names = FormConverter.GetFormList(o.Species, strings.types, strings.forms, GameInfo.GenderSymbolUnicode, sav.Context); } catch { continue; }
+            var hits = new List<int>();
+            for (int f = 0; f < names.Length; f++) { var n0 = StripOf(Norm(names[f])); if (n0.Length > 0 && n0 == w) hits.Add(f); }
+            if (hits.Count == 0 && !strictForm) for (int f = 0; f < names.Length; f++) { var n0 = StripOf(Norm(names[f])); if (n0.Length > 0 && (n0.Contains(w) || w.Contains(n0))) hits.Add(f); }
+            if (hits.Count > 1 && hits.Contains(o.Form)) return true;   // "rapid strike": 'strike'는 두 폼에 다 있으니 이미 고른 폼 유지
+            foreach (var f in hits)
+            {
+                {
+                    o.Form = f;
+                    string[] curNames = null;
+                    try { curNames = FormConverter.GetFormList(o.Species, s.types, s.forms, GameInfo.GenderSymbolUnicode, sav.Context); } catch { }
+                    o.FormText = (curNames != null && f < curNames.Length ? curNames[f] : names[f]).Trim();
+                    return true;
+                }
+            }
         }
-        if (!quiet) o.Notes.Add($"'{word}' 폼을 찾지 못했습니다");
+        if (!quiet) o.Notes.Add(L.M("FORM_NOT_FOUND", word));
         return false;
     }
 }

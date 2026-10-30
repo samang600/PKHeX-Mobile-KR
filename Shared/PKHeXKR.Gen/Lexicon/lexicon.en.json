@@ -1,0 +1,879 @@
+{
+ "lang": "en",
+ "_": "English lexicon for quick-request parsing. Words are compared lower-cased without spaces/accents. Species, moves, natures, ball and mark names come from the game strings automatically; this file only adds slang and shortcuts.",
+ "keywords": {
+  "FEMALE": [
+   "female",
+   "f",
+   "♀",
+   "girl",
+   "fem"
+  ],
+  "MALE": [
+   "male",
+   "m",
+   "♂",
+   "boy"
+  ],
+  "WIFE": [
+   "wife",
+   "waifu"
+  ],
+  "ALPHA_SHINY": [
+   "shinyalpha",
+   "alphashiny",
+   "shalpha"
+  ],
+  "ALPHA": [
+   "alpha",
+   "alphas"
+  ],
+  "SHINY": [
+   "shiny",
+   "shinies",
+   "sh",
+   "✨",
+   "★",
+   "☆",
+   "shin",
+   "shiney",
+   "shiny✨"
+  ],
+  "SHINY_STAR": [
+   "star",
+   "starshiny",
+   "starsparkle"
+  ],
+  "SHINY_SQUARE": [
+   "square",
+   "squareshiny",
+   "sq",
+   "squaresparkle"
+  ],
+  "NOT_SHINY": [
+   "nonshiny",
+   "non-shiny",
+   "notshiny",
+   "regular",
+   "normalcolor",
+   "normalcolour"
+  ],
+  "NORMAL": [
+   "normal",
+   "nonalpha",
+   "non-alpha",
+   "notalpha"
+  ],
+  "SUPERL": [],
+  "SUPERL_BIG": [],
+  "SUPERL_SMALL": [],
+  "SIZE_WORD": [
+   "size",
+   "sized",
+   "scale",
+   "height"
+  ],
+  "MINI_MARK": [
+   "minimark",
+   "mini-mark",
+   "xxxsmark",
+   "tinymark"
+  ],
+  "JUMBO_MARK": [
+   "jumbomark",
+   "jumbo-mark",
+   "xxxlmark",
+   "hugemark"
+  ],
+  "MARK_WORD": [
+   "mark",
+   "marks"
+  ],
+  "EVENT": [
+   "event",
+   "distribution",
+   "distro",
+   "wc",
+   "wondercard",
+   "mysterygift",
+   "gift",
+   "code"
+  ],
+  "EVO_WORD": [
+   "evolve",
+   "evolved",
+   "evolution",
+   "evo",
+   "→",
+   "->",
+   "into"
+  ],
+  "MOVE_WORD": [
+   "moves",
+   "move",
+   "moveset",
+   "-"
+  ],
+  "TERA_WORD": [
+   "tera",
+   "teratype",
+   "tera-type",
+   "terastal"
+  ],
+  "HIDDEN_ABILITY": [
+   "ha",
+   "hiddenability",
+   "hidden",
+   "dreamability",
+   "da"
+  ],
+  "HYPERTRAIN": [
+   "ht",
+   "hypertrained",
+   "hypertrain",
+   "hypertraining",
+   "bottlecap",
+   "bottlecaps",
+   "bottlecapped",
+   "goldbottlecap",
+   "capped"
+  ],
+  "GMAX": [
+   "gmax",
+   "gigantamax",
+   "gigantamaxed",
+   "g-max",
+   "gigamax"
+  ],
+  "OT_WORD": [
+   "ot",
+   "trainer",
+   "tn",
+   "trainername",
+   "origin"
+  ],
+  "OT_FEMALE": [
+   "female",
+   "f",
+   "♀",
+   "girl"
+  ],
+  "OT_MALE": [
+   "male",
+   "m",
+   "♂",
+   "boy"
+  ],
+  "DATE_WORD": [
+   "metdate",
+   "met",
+   "date",
+   "caught",
+   "from",
+   "to",
+   "until",
+   "between",
+   "on",
+   "since"
+  ],
+  "RANGE_WORD": [
+   "~"
+  ],
+  "LEVEL_WORD": [
+   "level",
+   "lvl",
+   "lv",
+   "lv."
+  ],
+  "IGNORE": [
+   "a",
+   "an",
+   "with",
+   "and",
+   "please",
+   "pls",
+   "plz",
+   "want",
+   "lf",
+   "looking",
+   "for",
+   "in",
+   "of",
+   "ball",
+   "nature",
+   "ribbon",
+   "ivs",
+   "iv",
+   "evs",
+   "ev",
+   "stats",
+   "spread",
+   "pokemon",
+   "pokémon",
+   "mon",
+   "one",
+   "some",
+   "any",
+   "thanks",
+   "ty",
+   "form",
+   "forme",
+   "type"
+  ]
+ },
+ "allLine": [
+  "all",
+  "everyone",
+  "every",
+  "each"
+ ],
+ "commonLine": [
+  "common",
+  "ot",
+  "trainer",
+  "tn"
+ ],
+ "sizes": {
+  "MIN": [
+   "xxxs",
+   "tiny",
+   "smallest",
+   "minimum",
+   "min",
+   "mini",
+   "teeny",
+   "scale0",
+   "size0",
+   "small",
+   "little"
+  ],
+  "MAX": [
+   "xxxl",
+   "huge",
+   "largest",
+   "biggest",
+   "maximum",
+   "max",
+   "jumbo",
+   "giant",
+   "scale255",
+   "size255",
+   "big",
+   "large"
+  ],
+  "XS": [
+   "xs",
+   "extrasmall"
+  ],
+  "S": [
+   "s"
+  ],
+  "M": [
+   "m",
+   "medium",
+   "average"
+  ],
+  "L": [
+   "l"
+  ],
+  "XL": [
+   "xl",
+   "extralarge"
+  ]
+ },
+ "sizeText": {
+  "MIN": "smallest (scale 0)",
+  "MAX": "largest (scale 255)",
+  "XS": "XS",
+  "S": "S",
+  "M": "M",
+  "L": "L",
+  "XL": "XL"
+ },
+ "_balls": "PKHeX English ball name → slang. The official name (with or without 'ball') is matched automatically.",
+ "balls": {
+  "Love Ball": [
+   "loveball",
+   "love",
+   "lb"
+  ],
+  "Level Ball": [
+   "levelball",
+   "level"
+  ],
+  "Premier Ball": [
+   "premierball",
+   "premier",
+   "pb"
+  ],
+  "Dive Ball": [
+   "diveball",
+   "dive"
+  ],
+  "Ultra Ball": [
+   "ultraball",
+   "ultra",
+   "ub"
+  ],
+  "Poké Ball": [
+   "pokeball",
+   "poke",
+   "pokéball",
+   "regularball",
+   "basicball"
+  ],
+  "Great Ball": [
+   "greatball",
+   "great",
+   "gb"
+  ],
+  "Moon Ball": [
+   "moonball",
+   "moon",
+   "mb"
+  ],
+  "Heavy Ball": [
+   "heavyball",
+   "heavy",
+   "hb"
+  ],
+  "Lure Ball": [
+   "lureball",
+   "lure"
+  ],
+  "Friend Ball": [
+   "friendball",
+   "friend",
+   "fb"
+  ],
+  "Fast Ball": [
+   "fastball",
+   "fast"
+  ],
+  "Dream Ball": [
+   "dreamball",
+   "dream",
+   "db"
+  ],
+  "Master Ball": [
+   "masterball",
+   "master"
+  ],
+  "Safari Ball": [
+   "safariball",
+   "safari"
+  ],
+  "Sport Ball": [
+   "sportball",
+   "sport",
+   "competitionball",
+   "competition",
+   "compball"
+  ],
+  "Nest Ball": [
+   "nestball",
+   "nest"
+  ],
+  "Cherish Ball": [
+   "cherishball",
+   "cherish",
+   "cb"
+  ],
+  "Luxury Ball": [
+   "luxuryball",
+   "luxury",
+   "lux"
+  ],
+  "Quick Ball": [
+   "quickball",
+   "quick"
+  ],
+  "Dusk Ball": [
+   "duskball",
+   "dusk",
+   "dark",
+   "darkball"
+  ],
+  "Heal Ball": [
+   "healball",
+   "heal"
+  ],
+  "Net Ball": [
+   "netball",
+   "net"
+  ],
+  "Timer Ball": [
+   "timerball",
+   "timer"
+  ],
+  "Repeat Ball": [
+   "repeatball",
+   "repeat"
+  ],
+  "Beast Ball": [
+   "beastball",
+   "beast",
+   "bb"
+  ],
+  "Strange Ball": [
+   "strangeball",
+   "strange"
+  ]
+ },
+ "_marks": "RibbonIndex name → slang. 'X mark' / 'Xmark' are both accepted; official mark names come from the game strings.",
+ "markSuffix": [
+  "mark",
+  "ribbon"
+ ],
+ "marks": {
+  "MarkRainy": [
+   "rainy",
+   "rain"
+  ],
+  "MarkSnowy": [
+   "snowy",
+   "snow"
+  ],
+  "MarkBlizzard": [
+   "blizzard"
+  ],
+  "MarkStormy": [
+   "stormy",
+   "storm",
+   "thunder",
+   "lightning"
+  ],
+  "MarkCloudy": [
+   "cloudy",
+   "clouds",
+   "overcast"
+  ],
+  "MarkDry": [
+   "dry",
+   "sunny",
+   "sun",
+   "harshsun",
+   "drought"
+  ],
+  "MarkSandstorm": [
+   "sandstorm",
+   "sand"
+  ],
+  "MarkMisty": [
+   "misty",
+   "mist",
+   "fog",
+   "foggy"
+  ],
+  "MarkLunchtime": [
+   "lunchtime",
+   "lunch",
+   "noon",
+   "midday"
+  ],
+  "MarkSleepyTime": [
+   "sleepy-time",
+   "sleepytime",
+   "sleepy",
+   "midnight",
+   "night"
+  ],
+  "MarkDusk": [
+   "dusk",
+   "evening",
+   "sunset"
+  ],
+  "MarkDawn": [
+   "dawn",
+   "morning",
+   "sunrise"
+  ],
+  "MarkDestiny": [
+   "destiny",
+   "birthday"
+  ],
+  "MarkUncommon": [
+   "uncommon"
+  ],
+  "MarkRare": [
+   "rare"
+  ],
+  "MarkAlpha": [
+   "alpha"
+  ],
+  "MarkTitan": [
+   "titan"
+  ],
+  "MarkItemfinder": [
+   "itemfinder",
+   "item"
+  ],
+  "MarkGourmand": [
+   "gourmand",
+   "gourmet"
+  ],
+  "MarkPartner": [
+   "partner"
+  ],
+  "MarkFishing": [
+   "fishing",
+   "fished"
+  ],
+  "MarkJumbo": [
+   "jumbo",
+   "huge",
+   "xxxl",
+   "giant",
+   "big"
+  ],
+  "MarkMini": [
+   "mini",
+   "tiny",
+   "xxxs",
+   "small"
+  ],
+  "MarkCurry": [
+   "curry"
+  ],
+  "MarkMightiest": [
+   "mightiest",
+   "mighty",
+   "7star",
+   "7-star"
+  ]
+ },
+ "markWord": {
+  "MarkCurry": [
+   "curry",
+   "currymark"
+  ],
+  "MarkMightiest": [
+   "mightiest",
+   "mightiestmark",
+   "mightymark"
+  ],
+  "MarkFishing": [
+   "fishingmark"
+  ]
+ },
+ "ribbonAlias": {
+  "CHAMPION": [
+   "championribbon",
+   "champion",
+   "champ",
+   "champribbon"
+  ],
+  "RibbonBestFriends": [
+   "bestfriends",
+   "bestfriendsribbon",
+   "bestfriend",
+   "bff"
+  ],
+  "RibbonEffort": [
+   "effort",
+   "effortribbon"
+  ],
+  "RibbonMasterRank": [
+   "masterrank",
+   "masterrankribbon"
+  ],
+  "RibbonTowerMaster": [
+   "towermaster",
+   "towermasterribbon"
+  ],
+  "RibbonClassic": [
+   "classic",
+   "classicribbon"
+  ],
+  "RibbonChampionGalar": [
+   "galarchampion",
+   "galarchamp",
+   "galarchampionribbon"
+  ],
+  "RibbonChampionPaldea": [
+   "paldeachampion",
+   "paldeachamp",
+   "paldeachampionribbon"
+  ],
+  "RibbonChampionAlola": [
+   "alolachampion",
+   "alolachamp"
+  ],
+  "RibbonChampionKalos": [
+   "kaloschampion",
+   "kaloschamp"
+  ],
+  "RibbonChampionSinnoh": [
+   "sinnohchampion",
+   "sinnohchamp"
+  ],
+  "RibbonChampionG6Hoenn": [
+   "hoennchampion",
+   "hoennchamp"
+  ]
+ },
+ "types": {
+  "Fire": [
+   "fire",
+   "flame"
+  ],
+  "Water": [
+   "water"
+  ],
+  "Grass": [
+   "grass"
+  ],
+  "Electric": [
+   "electric",
+   "elec",
+   "lightning"
+  ],
+  "Ice": [
+   "ice"
+  ],
+  "Fighting": [
+   "fighting",
+   "fight"
+  ],
+  "Poison": [
+   "poison"
+  ],
+  "Ground": [
+   "ground"
+  ],
+  "Flying": [
+   "flying",
+   "fly"
+  ],
+  "Psychic": [
+   "psychic",
+   "psy"
+  ],
+  "Bug": [
+   "bug"
+  ],
+  "Rock": [
+   "rock"
+  ],
+  "Ghost": [
+   "ghost"
+  ],
+  "Dragon": [
+   "dragon"
+  ],
+  "Dark": [
+   "dark"
+  ],
+  "Steel": [
+   "steel"
+  ],
+  "Fairy": [
+   "fairy"
+  ],
+  "Normal": [
+   "normal"
+  ]
+ },
+ "stellar": [
+  "stellar"
+ ],
+ "regions": {
+  "alolan": "Alola",
+  "alola": "Alola",
+  "galarian": "Galar",
+  "galar": "Galar",
+  "hisuian": "Hisui",
+  "hisui": "Hisui",
+  "paldean": "Paldea",
+  "paldea": "Paldea"
+ },
+ "formStrip": [
+  "form",
+  "forme",
+  "style",
+  "the"
+ ],
+ "suffix": {
+  "NATURE": [
+   "nature"
+  ],
+  "LEVEL": [
+   "lv",
+   "lvl",
+   "level"
+  ],
+  "COUNT": [
+   "x"
+  ],
+  "BALL": [
+   "ball"
+  ],
+  "TYPE": [
+   "type"
+  ]
+ },
+ "_aliases": "Species shortcuts → official name (+form). '/' means several Pokémon.",
+ "aliases": {
+  "chomp": "Garchomp",
+  "nite": "Dragonite",
+  "mence": "Salamence",
+  "gross": "Metagross",
+  "ttar": "Tyranitar",
+  "pert": "Swampert",
+  "zard": "Charizard",
+  "zardx": "Charizard Mega X",
+  "zardy": "Charizard Mega Y",
+  "venu": "Venusaur",
+  "lando": "Landorus",
+  "landot": "Landorus Therian",
+  "thundy": "Thundurus",
+  "torn": "Tornadus",
+  "pult": "Dragapult",
+  "koko": "Tapu Koko",
+  "lele": "Tapu Lele",
+  "bulu": "Tapu Bulu",
+  "fini": "Tapu Fini",
+  "mimi": "Mimikyu",
+  "ferro": "Ferrothorn",
+  "gren": "Greninja",
+  "ash-gren": "Greninja Ash",
+  "hoh": "Ho-Oh",
+  "mew2": "Mewtwo",
+  "darm": "Darmanitan",
+  "gdarm": "Darmanitan Galar",
+  "kyub": "Kyurem Black",
+  "kyuw": "Kyurem White",
+  "kyurem-b": "Kyurem Black",
+  "kyurem-w": "Kyurem White",
+  "urshifu-ss": "Urshifu Single Strike",
+  "urshifu-rs": "Urshifu Rapid Strike",
+  "ssurshifu": "Urshifu Single Strike",
+  "rsurshifu": "Urshifu Rapid Strike",
+  "icerider": "Calyrex Ice Rider",
+  "shadowrider": "Calyrex Shadow Rider",
+  "calyrex-ice": "Calyrex Ice Rider",
+  "calyrex-shadow": "Calyrex Shadow Rider",
+  "bloodmoon": "Ursaluna Bloodmoon",
+  "bmursaluna": "Ursaluna Bloodmoon",
+  "eternalflower": "Floette Eternal",
+  "eternalfloette": "Floette Eternal",
+  "ogerpon-w": "Ogerpon Wellspring",
+  "ogerpon-h": "Ogerpon Hearthflame",
+  "ogerpon-c": "Ogerpon Cornerstone",
+  "ogerpon-t": "Ogerpon Teal",
+  "mirakora": "Miraidon / Koraidon",
+  "koramira": "Koraidon / Miraidon",
+  "zaczam": "Zacian / Zamazenta",
+  "necrozma-dm": "Necrozma Dusk Mane",
+  "necrozma-dw": "Necrozma Dawn Wings",
+  "duskmane": "Necrozma Dusk Mane",
+  "dawnwings": "Necrozma Dawn Wings",
+  "ultranecrozma": "Necrozma Ultra",
+  "pdeoxys": "Deoxys",
+  "adeoxys": "Deoxys Attack",
+  "ddeoxys": "Deoxys Defense",
+  "sdeoxys": "Deoxys Speed",
+  "lugia": "Lugia",
+  "shadowlugia": "Lugia",
+  "sneasler": "Sneasler",
+  "hsneasel": "Sneasel Hisui",
+  "hzoroark": "Zoroark Hisui",
+  "hzorua": "Zorua Hisui",
+  "hgrowlithe": "Growlithe Hisui",
+  "harcanine": "Arcanine Hisui",
+  "amuk": "Muk Alola",
+  "aninetales": "Ninetales Alola",
+  "avulpix": "Vulpix Alola",
+  "amarowak": "Marowak Alola",
+  "araichu": "Raichu Alola",
+  "aexeggutor": "Exeggutor Alola",
+  "asandslash": "Sandslash Alola",
+  "gslowking": "Slowking Galar",
+  "gslowbro": "Slowbro Galar",
+  "gslowpoke": "Slowpoke Galar",
+  "gweezing": "Weezing Galar",
+  "gponyta": "Ponyta Galar",
+  "grapidash": "Rapidash Galar",
+  "gzapdos": "Zapdos Galar",
+  "garticuno": "Articuno Galar",
+  "gmoltres": "Moltres Galar",
+  "ptauros": "Tauros Paldea Combat",
+  "ptaurosfire": "Tauros Paldea Blaze",
+  "ptauroswater": "Tauros Paldea Aqua",
+  "pwooper": "Wooper Paldea"
+ },
+ "rotom": {
+  "base": "Rotom",
+  "tails": [
+   "rotom",
+   "-rotom"
+  ],
+  "plain": [
+   "normalrotom",
+   "baserotom",
+   "plainrotom"
+  ],
+  "forms": {
+   "Heat": [
+    "heat",
+    "oven",
+    "microwave",
+    "fire"
+   ],
+   "Wash": [
+    "wash",
+    "washer",
+    "water"
+   ],
+   "Frost": [
+    "frost",
+    "fridge",
+    "ice"
+   ],
+   "Fan": [
+    "fan",
+    "spin",
+    "flying"
+   ],
+   "Mow": [
+    "mow",
+    "mower",
+    "cut",
+    "grass"
+   ]
+  }
+ },
+ "ui": {
+  "EVENT": "event",
+  "ALPHA": "alpha",
+  "SHINY": "shiny",
+  "SHINY_STAR": "star shiny",
+  "SHINY_SQUARE": "square shiny",
+  "NOT_SHINY": "non-shiny",
+  "ABILITY": [
+   "ability 1",
+   "ability 2",
+   "hidden ability"
+  ],
+  "MET": "met",
+  "IV": "IVs",
+  "EV": "EVs",
+  "GMAX": "Gigantamax",
+  "HYPERTRAIN": "hyper trained",
+  "TERA": "{0} Tera",
+  "STELLAR": "Stellar",
+  "MOVES": "moves",
+  "OT": "OT",
+  "SEP": " · "
+ },
+ "msg": {
+  "UNKNOWN_SPECIES": "Couldn't find a Pokémon in this line",
+  "MARK_UNKNOWN": "Couldn't tell which mark; ignored",
+  "MOVES_MAX": "Up to 4 moves: {0} ignored",
+  "ABILITY_NOT": "{0}: not an ability of this Pokémon",
+  "FORM_NOT_FOUND": "Form '{0}' not found",
+  "WIFE": "Wife: {0} 💕",
+  "REGION_FORM": "{0} (form)"
+ },
+ "hint": "e.g. Pawmot female shiny Love Ball XXXS\nOne Pokémon per line. Species, gender, shiny, ball, size, marks and OT can be in any order. Ranges like 'dex 1~151 shiny' work too."
+}
