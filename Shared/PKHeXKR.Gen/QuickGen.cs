@@ -75,12 +75,20 @@ public static class QuickGen
         if (o.Ball == StrangeBall.BallId) return StrangeBall.Make(o, sav, tok);   // 스트레인지볼: GO 와일드 에어리어 출신으로만 가능
         SetEncCond(o, sav);
         var candidates = Candidates(o, sav);
+        string How(IEncounterInfo e, PKM p) => $"{KindName(e)} · {GenHost.GameName(e.Version)}{(e is MysteryGift mg ? $" · {mg.CardTitle} (카드 {mg.CardID})" : "")}에서 생성 · 어버이 {p.OriginalTrainerName} {p.DisplayTID}"
+            + (o.Level > 0 && p.CurrentLevel != o.Level ? $" · Lv{o.Level}로는 만들 수 없어 Lv{p.CurrentLevel}" : "");
+        // 레벨을 적었는데 다른 레벨로 만들어지면(진화 전 조우를 진화시키며 레벨이 오름 등) 다음 조우 몇 개를 더 시도해 보고, 없을 때만 그것을 씀
+        (PKM P, IEncounterInfo E) fallback = default; int extra = 0;
         foreach (var e in candidates.Take(o.SkipAlm ? 12 : 20))
         {
             if (tok.IsCancellationRequested) break;
+            if (fallback.P != null && ++extra > 6) break;
             var p = TryBoth(o, e, sav, tok, o.Seconds);
-            if (p != null) return (Finish(o, p, sav), $"{KindName(e)} · {GenHost.GameName(e.Version)}{(e is MysteryGift mg ? $" · {mg.CardTitle} (카드 {mg.CardID})" : "")}에서 생성 · 어버이 {p.OriginalTrainerName} {p.DisplayTID}");
+            if (p == null) continue;
+            if (o.Level > 0 && p.CurrentLevel != o.Level) { fallback.P ??= p; fallback.E ??= e; continue; }
+            return (Finish(o, p, sav), How(e, p));
         }
+        if (fallback.P != null) return (Finish(o, fallback.P, sav), How(fallback.E, fallback.P));
         // 조우로 못 만들면 자동 합법화(ALM)로 (배포 주문은 배포에서만 찾음)
         if (o.Event) return (null, candidates.Count == 0 ? "조건에 맞는 배포가 없습니다" : "배포로 조건을 모두 만족하는 합법 개체를 찾지 못했습니다");
         if (o.SkipAlm) return (null, "조우로 만들지 못했습니다");   // 리빙덱스: 자동 합법화는 이미 해 봄
@@ -145,7 +153,10 @@ public static class QuickGen
             // 우두머리를 적지 않았으면 일반 조우(진화 전 포함)를 먼저: 갑주무사·리자몽·데덴네 등 Z-A에서 같은 종 조우가 우두머리뿐이면
             // 진화 전 일반 조우보다 앞서 뽑혀 '이로치'만 적어도 우두머리가 되던 문제. 일반 조우가 없을 때만 우두머리로.
             + (o.Alpha < 0 && e is IAlphaReadOnly { IsAlpha: true } ? 60 : 0) + (o.OT != null && e is IFixedTrainer { IsFixedTrainer: true } ? 40 : 0) + (SameGame(e.Version, sav.Version) ? 0 : 20) + (e.Species == o.Species ? 0 : 10) + e switch { MysteryGift => 50, _ when e.GetType().Name.StartsWith("EncounterGift3") => 50, IEncounterEgg => 30, _ when e.GetType().Name.StartsWith("EncounterSlot") => 0, _ => 5 };
-        var sorted = list.Distinct().Where(Ok).OrderBy(Rank).ToList();
+        // 레벨을 적었으면 그 레벨로 만들 수 있는 조우(최저 레벨 ≤ 원하는 레벨)를 먼저: 안 그러면 Lv17을 적어도 Lv26 야생 칸이 먼저 뽑혀
+        // 만난 레벨(26) 아래로 내릴 수 없어 Lv26이 됐음 (#5431 찌리리공)
+        int LevelRank(IEncounterInfo e) => o.Level > 0 && e.LevelMin > o.Level ? 300 + Math.Min(99, e.LevelMin - o.Level) : 0;
+        var sorted = list.Distinct().Where(Ok).OrderBy(e => Rank(e) + LevelRank(e)).ToList();
         if (sav.Generation > 4 && !o.AllowTransfer) return sorted;
         // 3·4세대: 같은 종류·버전·종의 조우(예: 장소만 다른 야생 칸 수십 개)는 앞쪽에 3개까지만 → 알 등 다른 방식도 시도 순서 안에 들어오게
         return sorted
