@@ -82,7 +82,20 @@ public static class AppState
     public static event Action SaveChanged; // 세이브 교체
 
     public static readonly (string Code, string Name)[] Languages = [("ko", "한국어"), ("ja", "日本語"), ("en", "English")];
-    public static string LangCode => Preferences.Get("data_lang", "ko");
+    public static string LangCode => Preferences.Get("data_lang", DeviceLang);
+    /// <summary>언어를 고른 적이 없으면 기기 언어: 한국어·일본어는 그대로, 나머지는 영어.</summary>
+    public static string DeviceLang
+    {
+        get
+        {
+            try
+            {
+                var c = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+                return c switch { "ko" => "ko", "ja" => "ja", _ => "en" };
+            }
+            catch { return "ko"; }
+        }
+    }
 
     public static void InitLanguage()
     {
@@ -103,7 +116,7 @@ public static class AppState
     public static byte DefGender { get => (byte)Preferences.Get("def_gender", 0); set => Preferences.Set("def_gender", (int)value); }
     public static int DefTID { get => Preferences.Get("def_tid", 123456); set => Preferences.Set("def_tid", value); }
     public static int DefSID { get => Preferences.Get("def_sid", 1234); set => Preferences.Set("def_sid", value); }
-    public static int DefLang { get => Preferences.Get("def_lang", (int)LanguageID.Korean); set => Preferences.Set("def_lang", value); }
+    public static int DefLang { get => Preferences.Get("def_lang", DeviceLang switch { "ja" => (int)LanguageID.Japanese, "en" => (int)LanguageID.English, _ => (int)LanguageID.Korean }); set => Preferences.Set("def_lang", value); }
     public static GameVersion DefGame { get => (GameVersion)Preferences.Get("def_game", (int)GameVersion.ZA); set => Preferences.Set("def_game", (int)value); }
 
     public static readonly GameVersion[] Games = [GameVersion.ZA, GameVersion.SL, GameVersion.VL, GameVersion.PLA, GameVersion.BD, GameVersion.SP, GameVersion.SW, GameVersion.SH,
