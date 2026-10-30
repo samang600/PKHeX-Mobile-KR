@@ -489,7 +489,7 @@ public class MainPage : ContentPage
                 if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); AppState.ReloadLanguage(); Note.Show($"{sel.Name}(으)로 적용했습니다"); }
                 break;
             case about:
-                await this.DisplayAlertTr("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-26 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.45.3(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
+                await this.DisplayAlertTr("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-29 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.48.0(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
                 break;
         }
     }

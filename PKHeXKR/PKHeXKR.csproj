@@ -21,8 +21,10 @@
 		<!-- 안드로이드 런처 이름은 기기 언어를 따라 (Platforms/Android/Resources/values*/strings.xml) -->
 		<ApplicationTitle Condition="$(TargetFramework.Contains('-android')) And '$(SideBySide)' != 'true'">@string/app_name</ApplicationTitle>
 		<ApplicationTitle Condition="$(TargetFramework.Contains('-android')) And '$(SideBySide)' == 'true'">@string/app_name_side</ApplicationTitle>
-		<ApplicationDisplayVersion>1.7.9</ApplicationDisplayVersion>
-		<ApplicationVersion>91</ApplicationVersion>
+		<ApplicationDisplayVersion>1.8.0</ApplicationDisplayVersion>
+		<ApplicationVersion>92</ApplicationVersion>
+		<!-- 안드로이드는 arm64만 (x86_64를 넣으면 APK가 20MB 커짐 · v1.7.9에서 실수로 들어갔음) -->
+		<RuntimeIdentifiers Condition="$(TargetFramework.Contains('-android'))">android-arm64</RuntimeIdentifiers>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<NoWarn>$(NoWarn);CS1998;CS8632;XC0022;XC0025;MAUIG2045;CA1416</NoWarn>
