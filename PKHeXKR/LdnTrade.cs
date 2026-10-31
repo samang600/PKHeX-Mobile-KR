@@ -205,16 +205,17 @@ public static class LdnTrade
         if (fit.Count == 0) { Note.Show($"받은 포켓몬 {mons.Count}마리는 지금 세이브에 넣을 수 없습니다"); return; }
         var names = string.Join(", ", fit.Take(6).Select(p => PKHeX.Core.GameInfo.Strings.Species[p.Species]));
         if (!await page.DisplayAlertTr("PokeLDN 교환", $"받은 포켓몬 {fit.Count}마리를 박스 빈 칸에 넣을까요?\n{names}", "넣기", "나중에")) return;
-        var sav = AppState.Sav; int placed = 0;
+        var sav = AppState.Sav; int placed = 0; var where = new List<(int Box, int Index)>();
         for (int b = 0; b < sav.BoxCount && placed < fit.Count; b++)
         {
             int box = (AppState.Box + b) % sav.BoxCount;
             for (int i = 0; i < sav.BoxSlotCount && placed < fit.Count; i++)
             {
                 if (sav.GetBoxSlotAtIndex(box, i).Species != 0) continue;
-                sav.SetBoxSlotAtIndex(fit[placed++], box, i);
+                sav.SetBoxSlotAtIndex(fit[placed++], box, i); where.Add((box, i));
             }
         }
+        AppState.AfterBulk(where);   // 라이브헥스: 게임 박스에도
         AppState.NotifyBox();
         Note.Show(placed < fit.Count ? $"{placed}마리 넣음 (빈 칸 부족)" : $"{placed}마리를 박스에 넣었습니다 (세이브 저장 필요)");
     }

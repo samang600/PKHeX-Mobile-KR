@@ -188,7 +188,9 @@ public class QuickSheet : Sheet
         if (made.Count == 1) { if (AppState.Load(made[0])) AppState.Edited(); here = $"{GameInfo.Strings.Species[made[0].Species]}을(를) 편집기로"; }
         else if (made.Count > 1)
         {
-            int put = QuickGen.PlaceInBoxes(sav, made, AppState.Box);
+            var placed = new List<(int Box, int Index)>();
+            int put = QuickGen.PlaceInBoxes(sav, made, AppState.Box, placed);
+            AppState.AfterBulk(placed);   // 라이브헥스가 연결돼 있으면 넣은 칸을 스위치 박스에도 바로 씀
             AppState.NotifyBox();
             here = $"{made.Count}마리 중 {put}마리를 {AppState.BoxName(AppState.Box)}부터 빈 칸에 넣었습니다" + (put < made.Count ? " (박스가 가득 참)" : "");
         }
@@ -216,7 +218,7 @@ public class QuickSheet : Sheet
                         preview.Children.Add(Line(o, $"[{AppState.GameName(game)}] " + (pk == null ? how : $"{how} · {(ok ? "합법" : "불법 — 편집기에서 합법성 표시를 확인하세요")}{QuickGen.Stats(pk)}"), pk != null && ok));
                     }
                 if (made2.Count == 1) { if (AppState.Load(made2[0])) AppState.Edited(); report.Add($"{AppState.GameName(game)}: {GameInfo.Strings.Species[made2[0].Species]}을(를) 편집기로"); }
-                else if (made2.Count > 1) { int put2 = QuickGen.PlaceInBoxes(s2, made2, AppState.Box); AppState.NotifyBox(); report.Add($"{AppState.GameName(game)}: {put2}마리를 {AppState.BoxName(AppState.Box)}부터"); }
+                else if (made2.Count > 1) { var placed2 = new List<(int Box, int Index)>(); int put2 = QuickGen.PlaceInBoxes(s2, made2, AppState.Box, placed2); AppState.AfterBulk(placed2); AppState.NotifyBox(); report.Add($"{AppState.GameName(game)}: {put2}마리를 {AppState.BoxName(AppState.Box)}부터"); }
                 else report.Add($"{AppState.GameName(game)}: 만들지 못했습니다");
             }
         }

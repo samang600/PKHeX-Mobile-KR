@@ -31,14 +31,16 @@ public static class QuickGen
     }
 
     /// <summary>여러 마리를 시작 박스부터 빈 칸에. 반환: 넣은 수.</summary>
-    public static int PlaceInBoxes(SaveFile sav, IList<PKM> made, int startBox)
+    public static int PlaceInBoxes(SaveFile sav, IList<PKM> made, int startBox) => PlaceInBoxes(sav, made, startBox, null);
+    /// <param name="placed">넣은 칸 (박스, 칸) — 앱이 라이브헥스로 게임에도 쓸 때</param>
+    public static int PlaceInBoxes(SaveFile sav, IList<PKM> made, int startBox, List<(int Box, int Index)> placed)
     {
         int put = 0, box = startBox, slot = 0;
         foreach (var p in made)
         {
             while (box < sav.BoxCount && sav.GetBoxSlotAtIndex(box, slot).Species != 0) { if (++slot >= sav.BoxSlotCount) { slot = 0; box++; } }
             if (box >= sav.BoxCount) break;
-            sav.SetBoxSlotAtIndex(p, box, slot); put++;
+            sav.SetBoxSlotAtIndex(p, box, slot); placed?.Add((box, slot)); put++;
         }
         return put;
     }

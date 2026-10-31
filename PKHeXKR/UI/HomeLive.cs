@@ -337,6 +337,7 @@ public class HomeLiveSheet : Sheet
             sav.SetBoxSlotAtIndex(p ?? sav.BlankPKM, b, i % sav.BoxSlotCount);
             if (p != null && p.Species != 0) n++;
         }
+        AppState.AfterBulk(boxes: Enumerable.Range(AppState.Box, Math.Min(sav.BoxCount - AppState.Box, (loaded.Count + sav.BoxSlotCount - 1) / sav.BoxSlotCount)));   // 라이브헥스: 게임 박스에도
         AppState.NotifyBox(); Note.Show($"{n}마리를 넣었습니다");
     }
 }
