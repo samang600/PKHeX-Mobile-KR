@@ -161,6 +161,12 @@ public static class AppState
     /// <summary>그 게임에 있는 언어로 (한국판이 없는 게임은 기본 언어 규칙).</summary>
     private static int SafeLangFor(GameVersion v, int l) => l == (int)LanguageID.Korean && DefaultLang(v) != DefLang ? DefaultLang(v) : l <= 0 ? DefaultLang(v) : l;
 
+    /// <summary>
+    /// 게임 세이브 파일로 내보낼 수 없는 빈 세이브인지. 소드실드·아르세우스·SV·Z-A의 빈 세이브는 PKHeX가 데이터 덩어리 형식 없이
+    /// 만든 '편집용 임시 세이브'라, 파일로 쓰면 게임도 PKHeX도 읽지 못하는 파일이 됨 (10-31 사례: '지원하지 않는 파일').
+    /// </summary>
+    public static bool IsUnwritableBlank(SaveFile s) => s is ISCBlockArray a && a.AllBlocks.Count > 0 && a.AllBlocks.Any(b => b.Type == SCTypeCode.None);
+
     public static SaveFile NewBlankSave() => NewBlankSave(DefGame);
     public static SaveFile NewBlankSave(GameVersion v)
     {

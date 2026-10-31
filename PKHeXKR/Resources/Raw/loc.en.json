@@ -2182,5 +2182,6 @@
 "이 세이브에 쓸 수 없는 글자가 있습니다 (현재 이름: {0})": "Some characters can't be used in this save (current name: {0})",
 "합법 최대": "Legal max",
 "합법 최대: {0} (개체값이 높을수록 기본으로 더 올라가 있어 저장 최대가 작아짐)": "Legal max: {0} (higher IVs already include a bonus, so the stored max is lower)",
-"{0} 노력 레벨은 개체값 {1}이면 최대 {2}입니다": "{0} Effort Level max is {2} when its IV is {1}"
+"{0} 노력 레벨은 개체값 {1}이면 최대 {2}입니다": "{0} Effort Level max is {2} when its IV is {1}",
+"지금 열린 것은 앱이 만든 빈 {0} 세이브(편집용)라 게임 세이브 파일로 내보낼 수 없습니다. 내보내면 게임과 앱 모두 읽지 못하는 파일이 됩니다.\n\n실제 게임 세이브를 연 뒤 이 세이브의 포켓몬을 옮기거나, 박스의 '여러 칸 선택 → 선택 작업'으로 포켓몬만 박스 데이터로 내보내세요.": "This is a blank {0} save the app created for editing, so it can't be exported as a game save file. The exported file couldn't be read by the game or the app.\n\nOpen a real game save and move these Pokémon into it, or use 'Select multiple → Selection actions' in the box to export just the Pokémon as box data."
 }

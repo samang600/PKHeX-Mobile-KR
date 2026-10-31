@@ -660,6 +660,11 @@ public class MainPage : ContentPage
     private async Task ExportSave()
     {
         var sav = AppState.Sav;
+        if (AppState.IsUnwritableBlank(sav))
+        {
+            await this.DisplayAlertTr("세이브 내보내기", $"지금 열린 것은 앱이 만든 빈 {AppState.GameName(sav.Version)} 세이브(편집용)라 게임 세이브 파일로 내보낼 수 없습니다. 내보내면 게임과 앱 모두 읽지 못하는 파일이 됩니다.\n\n실제 게임 세이브를 연 뒤 이 세이브의 포켓몬을 옮기거나, 박스의 '여러 칸 선택 → 선택 작업'으로 포켓몬만 박스 데이터로 내보내세요.", "확인");
+            return;
+        }
         try
         {
             if (sav.HasBox) sav.CurrentBox = AppState.Box;
