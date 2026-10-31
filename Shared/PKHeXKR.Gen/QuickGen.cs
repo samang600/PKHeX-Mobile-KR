@@ -199,10 +199,28 @@ public static class QuickGen
         }
     }
 
+    /// <summary>레전즈 아르세우스에서 6V·5V 등 V 개수만 정했으면(개체값을 하나하나 정하지 않았으면) 만든 뒤 31로 올림</summary>
+    private static bool FixIvAfter8a(OrderSpec o, SaveFile sav, EncounterCriteria crit)
+        => sav.Context == EntityContext.Gen8a && o.FlawlessIVs > 0 && crit is { IV_HP: < 0, IV_ATK: < 0, IV_DEF: < 0, IV_SPA: < 0, IV_SPD: < 0, IV_SPE: < 0 };
+
+    /// <summary>31인 칸이 n개가 되도록 높은 개체값부터 31로 올림 (노력 레벨은 새 개체값의 합법 최대를 넘지 않게 맞춤)</summary>
+    private static void RaiseFlawless(PKM p, int n)
+    {
+        var iv = new int[6]; p.GetIVs(iv);
+        int have = 0; foreach (var v in iv) if (v == p.MaxIV) have++;
+        if (have >= n) return;
+        var order = Enumerable.Range(0, 6).Where(i => iv[i] != p.MaxIV).OrderByDescending(i => iv[i]).ToArray();
+        for (int k = 0; k < n - have && k < order.Length; k++) iv[order[k]] = p.MaxIV;
+        p.SetIVs(iv);
+        if (p is IGanbaru g) for (int i = 0; i < 6; i++) { var mx = p.GetMaxGanbaru(i); if (g.GetGV(i) > mx) g.SetGV(i, mx); }
+        p.ResetPartyStats();
+    }
+
     public static PKM TryBoth(OrderSpec o, IEncounterInfo e, SaveFile sav, CancellationToken tok, double seconds)
     {
         Seeder sd = null;
-        try { sd = Seeder.For(e, TrainerFor(e, o, sav)); } catch { }   // 시드로 만들 수 있는 조우(SV 레이드·소드실드 야생 등)는 순차·무작위 동시
+        if (!FixIvAfter8a(o, sav, EncCond.Criteria()))   // V 개수는 만든 뒤 맞추므로 시드 순차 탐색은 필요 없음
+            try { sd = Seeder.For(e, TrainerFor(e, o, sav)); } catch { }   // 시드로 만들 수 있는 조우(SV 레이드·소드실드 야생 등)는 순차·무작위 동시
         // 3·4세대 개체값 고정 주문: 개체값→시드 역산으로 가능한 경우를 모두 확인하므로 시드 순차 탐색(최대 4초)은 할 필요 없음
         if (sd == null || (sav.Generation is 3 or 4 && IvVectors(o, EncCond.Criteria()) != null)) return TryEncounter(o, e, sav, tok, seconds);
         using var race = CancellationTokenSource.CreateLinkedTokenSource(tok);
@@ -245,7 +263,10 @@ public static class QuickGen
     {
         var crit = EncCond.Criteria(); var sw = System.Diagnostics.Stopwatch.StartNew(); int illegal = 0; bool fail = false, mismatch = false; bool? sizeFree = null;
         // 6V: 조우에 개체값을 31로 정해 달라고 함 (안 그러면 무작위 개체값이 우연히 6V가 될 때까지 돌아 증표·크기 조건과 같이 쓰면 만들어지지 않았음)
-        if (o.FlawlessIVs == 6 && crit is { IV_HP: < 0, IV_ATK: < 0, IV_DEF: < 0, IV_SPA: < 0, IV_SPD: < 0, IV_SPE: < 0 })
+        // 레전즈 아르세우스: 합법 검사가 개체값과 난수의 관계를 보지 않음 → 6V·5V는 난수로 찾지 않고(일반 개체 6V는 10억분의 1이라
+        // 조우마다 4초씩 헛돌다 실패했음) 만든 뒤 모자란 칸만 31로 올림
+        bool ivAfter8a = FixIvAfter8a(o, sav, crit);
+        if (!ivAfter8a && o.FlawlessIVs == 6 && crit is { IV_HP: < 0, IV_ATK: < 0, IV_DEF: < 0, IV_SPA: < 0, IV_SPD: < 0, IV_SPE: < 0 })
             crit = crit with { IV_HP = 31, IV_ATK = 31, IV_DEF = 31, IV_SPA = 31, IV_SPD = 31, IV_SPE = 31 };
         var tr = TrainerFor(e, o, sav);
         // 3·4세대 + 개체값 고정(6V·5V·개체값 전부 지정): PKHeX가 개체값에서 시드를 거꾸로 찾아 성격·성별까지 정해서 만듦 (결과가 정해져 있음)
@@ -298,6 +319,7 @@ public static class QuickGen
             if (o.Level > 0 && o.Level >= p.MetLevel) SetLevel(p, o.Level);
             // 조건(성별·이로치·성격·개체값·크기)은 진화해도 그대로라 진화 전에 먼저 확인 → 맞는 개체만 진화 (진화는 무거움)
             p = EncCond.FitSize(p, ref sizeFree, GenHost.IsLegal);
+            if (ivAfter8a) RaiseFlawless(p, o.FlawlessIVs);
             if (!EncCond.Satisfied(p)) return null;
             if (o.FlawlessIVs > 0 && new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(v => v == p.MaxIV) < o.FlawlessIVs) return null;
             if (p.Species != o.Species) { p = EvoUtil.Evolve(p, o.Species, o.Form); if (p.Species != o.Species) return null; }
@@ -338,6 +360,11 @@ public static class QuickGen
     public static ITrainerInfo TrainerFor(IEncounterInfo e, OrderSpec o, SaveFile sav)
     {
         var tr = OrderTrainer(o, sav);
+        // 레전즈 아르세우스: 세이브를 트레이너로 넘기면 PKHeX가 그 세이브의 도감 연구·빛나는부적으로 이로치 시도 횟수를 정함
+        // (도감이 덜 찬 세이브는 1번 → 이로치 우두머리가 거의 안 나와 조우마다 시간 제한까지 돌다 실패, 한 마리에 80초).
+        // 세이브가 아닌 트레이너 정보로 넘기면 최대(7번)로 계산 → 합법 판정은 같고 바로 나옴.
+        if (tr is ITrainerInfo8a)
+            tr = new SimpleTrainerInfo(tr.Version) { OT = tr.OT, TID16 = tr.TID16, SID16 = tr.SID16, Gender = tr.Gender, Language = tr.Language };
         if (o.Form < 0 || e.Generation is not (6 or 7) || o.Species is not ((int)Species.Vivillon or (int)Species.Spewpa or (int)Species.Scatterbug)) return tr;
         if (o.Species == (int)Species.Vivillon && o.Form > 17) return tr;   // 나비(18)·몬스터볼(19) 무늬는 배포 전용
         var geo = VivillonGeo((byte)Math.Max(0, o.Form));

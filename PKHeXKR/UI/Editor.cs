@@ -1038,7 +1038,7 @@ public class MiscSection : Section
     private readonly CheckBox[] leaf = new CheckBox[6]; private readonly View leafCard;
     private readonly View medalCard; private readonly Label medalState = T.L("", 12, sub: true);
     private readonly Entry otF, htF, otA, htA; private readonly View affRow2;
-    private readonly Entry[] gv = new Entry[6], av = new Entry[6]; private readonly View gvCard, avCard;
+    private readonly Entry[] gv = new Entry[6], av = new Entry[6]; private readonly View gvCard, avCard; private readonly Label gvHint;
     private static readonly string[] Stat = ["HP", "공격", "방어", "특공", "특방", "스피드"];
 
     public MiscSection()
@@ -1089,12 +1089,15 @@ public class MiscSection : Section
         for (int i = 0; i < 6; i++)
         {
             int k = i;
-            gv[i] = Num(v => Changed(() => { if (Pk is IGanbaru g) SetGV(g, k, (byte)Math.Min(v, 10)); }), 10); gg.Add(T.Field(Stat[i], gv[i]), i % 3, i / 3);
+            // 합법 최대 = 10 - 개체값 보너스 (개체값 31 → 7, 26~30 → 8, 20~25 → 9, 그 아래 → 10). 넘게 적으면 합법 최대로 맞춤
+            gv[i] = Num(v => Changed(() => { if (Pk is IGanbaru g) { var mx = Pk.GetMaxGanbaru(k); SetGV(g, k, (byte)Math.Min(v, mx)); if (v > mx) { gv[k].Text = mx.ToString(); Note.Show($"{Stat[k]} 노력 레벨은 개체값 {Pk.GetIV(k)}이면 최대 {mx}입니다"); } } }), 10); gg.Add(T.Field(Stat[i], gv[i]), i % 3, i / 3);
             av[i] = Num(v => Changed(() => { if (Pk is IAwakened a) SetAV(a, k, (byte)Math.Min(v, 200)); }), 200); ag.Add(T.Field(Stat[i], av[i]), i % 3, i / 3);
         }
-        var gmax = T.Pill("최대 (10)"); gmax.Clicked += (_, _) => Changed(() => { if (Pk is IGanbaru g) for (int i = 0; i < 6; i++) SetGV(g, i, 10); Reload(); });
+        var gmax = T.Pill("합법 최대"); gmax.Clicked += (_, _) => Changed(() => { if (Pk is IGanbaru g) g.SetSuggestedGanbaruValues(Pk); Reload(); });   // 개체값에 맞춘 최대 (공격·스피드 개체값 0이면 0으로 둠)
+        var gzero = T.Pill("0"); gzero.Clicked += (_, _) => Changed(() => { if (Pk is IGanbaru g) g.ClearGanbaruValues(); Reload(); });
+        gvHint = new Label { FontSize = 12, Opacity = 0.7 };
         var amax = T.Pill("최대 (200)"); amax.Clicked += (_, _) => Changed(() => { if (Pk is IAwakened a) for (int i = 0; i < 6; i++) SetAV(a, i, 200); Reload(); });
-        gvCard = FoldCard("노력 레벨 (레전즈 아르세우스)", Stack(gg, gmax), "misc_gv");
+        gvCard = FoldCard("노력 레벨 (레전즈 아르세우스)", Stack(gg, gvHint, Two(gmax, gzero)), "misc_gv");
         avCard = FoldCard("각성치 AV (레츠고)", Stack(ag, amax), "misc_av");
 
         Content = Stack(friendCard, RibbonSection.SharedMem ?? new ContentView(), pkrsCard, contestCard, medalCard, leafCard, gvCard);   // 레츠고 각성치(CP)는 능력치 탭
@@ -1115,7 +1118,7 @@ public class MiscSection : Section
         medalCard.IsVisible = pk is ISuperTrain; if (pk is ISuperTrain st) medalState.Text = $"메달 플래그 0x{st.SuperTrainBitFlags:X8}";
         otF.Text = pk.OriginalTrainerFriendship.ToString(); htF.Text = pk.HandlingTrainerFriendship.ToString();
         affRow2.IsVisible = pk is IAffection; if (pk is IAffection a) { otA.Text = a.OriginalTrainerAffection.ToString(); htA.Text = a.HandlingTrainerAffection.ToString(); }
-        gvCard.IsVisible = pk is IGanbaru; if (pk is IGanbaru g) for (int i = 0; i < 6; i++) gv[i].Text = GetGV(g, i).ToString();
+        gvCard.IsVisible = pk is IGanbaru; if (pk is IGanbaru g) { for (int i = 0; i < 6; i++) gv[i].Text = GetGV(g, i).ToString(); gvHint.Text = "합법 최대: " + string.Join(" · ", Enumerable.Range(0, 6).Select(i => $"{Stat[i]} {pk.GetMaxGanbaru(i)}")) + " (개체값이 높을수록 기본으로 더 올라가 있어 저장 최대가 작아짐)"; }
         avCard.IsVisible = pk is IAwakened; if (pk is IAwakened w) for (int i = 0; i < 6; i++) av[i].Text = GetAV(w, i).ToString();
     }
 }

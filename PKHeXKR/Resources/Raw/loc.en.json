@@ -2179,5 +2179,8 @@
 "일본판 형식 세이브에 쓸 수 없는 글자가 있습니다 (가나·전각 숫자": "Some characters can't be used in a Japanese-format save (kana, full-width digits",
 "·전각 영문": ", full-width letters",
 "만 가능, 최대 5글자)": " only, up to 5 characters)",
-"이 세이브에 쓸 수 없는 글자가 있습니다 (현재 이름: {0})": "Some characters can't be used in this save (current name: {0})"
+"이 세이브에 쓸 수 없는 글자가 있습니다 (현재 이름: {0})": "Some characters can't be used in this save (current name: {0})",
+"합법 최대": "Legal max",
+"합법 최대: {0} (개체값이 높을수록 기본으로 더 올라가 있어 저장 최대가 작아짐)": "Legal max: {0} (higher IVs already include a bonus, so the stored max is lower)",
+"{0} 노력 레벨은 개체값 {1}이면 최대 {2}입니다": "{0} Effort Level max is {2} when its IV is {1}"
 }
