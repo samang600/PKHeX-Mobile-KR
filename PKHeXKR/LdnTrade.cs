@@ -429,7 +429,7 @@ public static class LdnTrade
         {
             var r = doc.RootElement;
             foreach (var l in r.GetProperty("lines").EnumerateArray()) FullLog.Append(l.GetString()).Append('\n');
-            if (FullLog.Length > 80000) FullLog.Remove(0, FullLog.Length - 60000);
+            if (FullLog.Length > 4_000_000) FullLog.Remove(0, FullLog.Length - 3_000_000);   // 응답(ACK) 한 줄이 600자라 8만 자로는 마지막 15초만 남았음 → 넉넉히
             foreach (var st in r.GetProperty("status").EnumerateArray())
             {
                 var t = st.GetString();
@@ -445,6 +445,11 @@ public static class LdnTrade
         timer.Stop(); Running = false; DeviceDisplay.Current.KeepScreenOn = false;
         var files = new List<string>();
         if (result != null) try { using var rd = JsonDocument.Parse(result); files = rd.RootElement.EnumerateArray().Select(x => x.GetString()).Where(x => x != null).ToList(); } catch { }
+        // 콘솔이 확인 단계를 멈춰 PokeLDN이 연결을 끊은 경우: 콘솔이 내놓은 포켓몬 파일은 이미 받았지만 콘솔에서는 교환이 이루어지지 않음
+        // → 마지막(끊긴) 교환의 파일은 받은 포켓몬으로 치지 않음 (앱에는 완료처럼 보이고 스위치에는 '교환하지 못했습니다'가 뜨던 문제)
+        bool stalled = RunMode == "trade" && FullLog.ToString().Contains("THE LADDER STALLED");
+        if (stalled && files.Count > 0) files.RemoveAt(files.Count - 1);
+        if (stalled) StatusLines.Add("마지막 교환은 스위치가 확인 단계에서 멈춰 이루어지지 않았어요 (연결을 끊어 1시간 교환 제한은 피함) · 그 포켓몬은 받은 것으로 치지 않아요");
         if (error != null) StatusLines.Add(error.StartsWith("중지") || error.StartsWith("설치 실패") ? error : "실패: " + error);
         else if (RunMode == "trade") StatusLines.Add(files.Count > 0 ? $"받은 포켓몬 {files.Count}마리" : "받은 포켓몬이 없어요");
         else if (RunMode == "save_backup") StatusLines.Add(files.Count > 0 ? "세이브를 백업했어요: " + Path.GetFileName(files[0]) : "백업한 세이브가 없어요");

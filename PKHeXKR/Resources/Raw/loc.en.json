@@ -2187,5 +2187,6 @@
 "로그 파일로 공유": "Share log file",
 "아직 로그가 없습니다": "No log yet",
 "PokeLDN 로그 공유": "Share PokeLDN log",
-"공유 실패: {0}": "Share failed: {0}"
+"공유 실패: {0}": "Share failed: {0}",
+"마지막 교환은 스위치가 확인 단계에서 멈춰 이루어지지 않았어요 (연결을 끊어 1시간 교환 제한은 피함) · 그 포켓몬은 받은 것으로 치지 않아요": "The last trade didn't go through: the Switch stopped at the confirmation step (the link was dropped to avoid the 1-hour trade lockout) · that Pokémon isn't counted as received"
 }
