@@ -100,6 +100,15 @@ public class LdnSheet : Sheet
         start.Clicked += async (_, _) => await Start();
         stop.Clicked += async (_, _) => { stop.IsEnabled = false; await LdnTrade.StopAsync(); };
         logB.Clicked += (_, _) => { log.IsVisible = !log.IsVisible; logB.Text = log.IsVisible ? "전체 로그 접기" : "전체 로그 보기"; Render(); };
+        // 전체 로그를 텍스트 파일로 공유 (화면에는 끝 2만 자만 보이고 복사가 안 돼 스크린샷으로 주고받던 것)
+        var logShare = T.Pill("로그 파일로 공유", size: 12);
+        logShare.Clicked += async (_, _) =>
+        {
+            var t = LdnTrade.FullLog.ToString();
+            if (t.Length == 0) { Note.Show("아직 로그가 없습니다"); return; }
+            try { await ShareUtil.ShareBytes(System.Text.Encoding.UTF8.GetBytes(t), $"PokeLDN_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt", "PokeLDN 로그 공유"); }
+            catch (Exception ex) { Note.Show("공유 실패: " + ex.Message); }
+        };
         var runRow = T.Cols(2, 6); runRow.Add(start, 0); runRow.Add(stop, 1);
 
         Body.Add(new ScrollView
@@ -110,7 +119,7 @@ public class LdnSheet : Sheet
                 Children =
                 {
                     T.L("준비", 13, sub: true), T.Card(prep), gm, versionRow, roleCard, tradeCard, giftCard, restoreCard, guide, runRow,
-                    T.L("진행 상황", 13, sub: true), T.Card(new VerticalStackLayout { Spacing = 6, Children = { summary, logB, log } }),
+                    T.L("진행 상황", 13, sub: true), T.Card(new VerticalStackLayout { Spacing = 6, Children = { summary, logB, logShare, log } }),
                     T.L(OperatingSystem.IsIOS() ? "PokeLDN(AGPLv3)으로 통신 · BLE 펌웨어 보드에 전원만 · 보드 연결은 화면을 켠 채로, 연결된 뒤에는 화면을 꺼도 교환이 이어짐" : "PokeLDN(AGPLv3)으로 통신 · USB: ESP32-C3·C6·S3, 클래식 ESP32(CP2102·CH340·CH9102) · 블루투스: BLE 펌웨어 보드에 전원만", 11, sub: true),
                 }
             }
