@@ -33,7 +33,12 @@ public static class AppDataBackup
             }
             if (Directory.Exists(PrefsPath))
                 foreach (var f in Directory.EnumerateFiles(PrefsPath, "*.xml"))
-                { z.CreateEntryFromFile(f, PrefsDir + Path.GetFileName(f), CompressionLevel.Fastest); n++; }
+                {
+                    // FTP 비밀번호는 백업 파일에 넣지 않음 (백업 zip을 다른 곳에 옮기거나 공유해도 새지 않게)
+                    var xml = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(f), "<string name=\"ftp_pass\"(?:\\s*/>|>.*?</string>)\\s*", "", System.Text.RegularExpressions.RegexOptions.Singleline);
+                    using (var w = new StreamWriter(z.CreateEntry(PrefsDir + Path.GetFileName(f), CompressionLevel.Fastest).Open())) w.Write(xml);
+                    n++;
+                }
             var info = z.CreateEntry("pkhexkr_backup.txt");
             using (var w = new StreamWriter(info.Open())) w.Write($"PKHeX 모바일 데이터 백업\n버전 {AppInfo.Current.VersionString}\n{DateTime.Now:yyyy-MM-dd HH:mm}\n");
         }
@@ -46,6 +51,9 @@ public static class AppDataBackup
         using var z = new ZipArchive(zip, ZipArchiveMode.Read);
         if (z.GetEntry("pkhexkr_backup.txt") == null) return -1;
         int n = 0; var root = FileSystem.AppDataDirectory;
+        // 경로 이탈 방지: 폴더 이름 + 구분자로 비교 (그냥 StartsWith면 "files"가 "files_evil" 같은 옆 폴더도 통과)
+        static string Dir(string p) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(p)) + Path.DirectorySeparatorChar;
+        var rootDir = Dir(root); var prefsDir = PrefsPath.Length > 0 ? Dir(PrefsPath) : null;
         foreach (var e in z.Entries)
         {
             if (e.FullName.EndsWith('/')) continue;
@@ -54,7 +62,7 @@ public static class AppDataBackup
             else if (e.FullName.StartsWith(PrefsDir) && PrefsPath.Length > 0) dest = Path.Combine(PrefsPath, Path.GetFileName(e.FullName));
             else continue;
             var full = Path.GetFullPath(dest);
-            if (!full.StartsWith(Path.GetFullPath(root)) && !(PrefsPath.Length > 0 && full.StartsWith(Path.GetFullPath(PrefsPath)))) continue;   // 경로 이탈 방지
+            if (!full.StartsWith(rootDir, StringComparison.Ordinal) && !(prefsDir != null && full.StartsWith(prefsDir, StringComparison.Ordinal))) continue;   // 경로 이탈 방지
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             e.ExtractToFile(full, true); n++;
         }

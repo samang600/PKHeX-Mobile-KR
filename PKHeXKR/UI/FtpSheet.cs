@@ -29,7 +29,6 @@ public class FtpSheet : Sheet
     private readonly Label pathL = T.L("", 13, sub: true), status = T.L("", 13, sub: true);
     // DBI 기본 세이브 백업 폴더 (dbi.config SavesFolder=sdmc:/switch/DBI/saves/). 1.5.5까지의 잘못된 기본값 /backup/saves는 새 기본값으로
     private static string DbiBackup => Preferences.Get("ftp_backup", "/switch/DBI/saves") is var v && v != "/backup/saves" ? v : "/switch/DBI/saves";
-    private bool busy;
 
     private readonly Button ftpB = T.Pill("FTP", size: 12), httpB = T.Pill("HTTP", size: 12);
     private readonly Label modeHint = T.L("", 12, sub: true);
@@ -99,22 +98,30 @@ public class FtpSheet : Sheet
         if (host.Length == 0) { status.Text = "스위치 IP를 입력하세요"; return; }
         int port = int.TryParse(portE.Text, out var p) ? p : 5000;
         Preferences.Set("ftp_host", host); Preferences.Set("ftp_port", port.ToString()); Preferences.Set("ftp_user", userE.Text ?? ""); Preferences.Set("ftp_pass", passE.Text ?? "");
-        if (busy) return; busy = true;
+        // 다른 작업(목록·업로드)과 겹치지 않게 같은 잠금으로 (작업 중에 연결을 바꾸면 쓰던 연결이 끊겼음)
+        if (!await opLock.WaitAsync(0)) { status.Text = "이전 작업이 끝나기를 기다리는 중입니다…"; return; }
         status.Text = "연결 중…";
+        AsyncFtpClient c = null;
         try
         {
             Drop();   // 기존 연결은 기다리지 않고 백그라운드에서 정리 (연결 중에 다시 누르면 멈추던 문제)
             var user = string.IsNullOrWhiteSpace(userE.Text) ? "anonymous" : userE.Text.Trim();
-            client = new AsyncFtpClient(host, user, passE.Text ?? "", port);
-            client.Encoding = Encoding.UTF8;
-            client.Config.DataConnectionType = FtpDataConnectionType.AutoPassive;
-            client.Config.ConnectTimeout = 8000; client.Config.ReadTimeout = 15000; client.Config.DataConnectionConnectTimeout = 8000; client.Config.DataConnectionReadTimeout = 15000;
-            await client.Connect();
+            c = new AsyncFtpClient(host, user, passE.Text ?? "", port);
+            c.Encoding = Encoding.UTF8;
+            c.Config.DataConnectionType = FtpDataConnectionType.AutoPassive;
+            c.Config.ConnectTimeout = 8000; c.Config.ReadTimeout = 15000; c.Config.DataConnectionConnectTimeout = 8000; c.Config.DataConnectionReadTimeout = 15000;
+            await c.Connect();
+            client = c; c = null;
             status.Text = $"{host}:{port}에 연결했습니다"; cwd = "/";
             await Refresh();
         }
-        catch (Exception ex) { status.Text = "연결 실패: " + ex.Message + " (IP·포트, 같은 와이파이인지, DBI FTP가 켜져 있는지 확인)"; client = null; }
-        finally { busy = false; }
+        catch (Exception ex)
+        {
+            status.Text = "연결 실패: " + ex.Message + " (IP·포트, 같은 와이파이인지, DBI FTP가 켜져 있는지 확인)";
+            if (c == null) { c = client; client = null; }   // 연결 뒤 목록에서 실패: 이 연결도 정리
+            if (c != null) { var dead = c; _ = Task.Run(() => { try { dead.Dispose(); } catch { } }); }   // 실패한 연결을 남기지 않음
+        }
+        finally { opLock.Release(); }
     }
 
     private static void Drop()
@@ -293,6 +300,7 @@ public class FtpSheet : Sheet
         bool zip = name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
         const string open = "앱에서 열기", keep = "앱에 복사해 두기", put = "편집 중인 세이브로 덮어쓰기";
         var pick = await page.DisplayActionSheetTr(name + (zip ? " (압축 세이브)" : ""), "취소", null, open, keep, put);
+        bool uploading = false;   // 올리기 시작한 뒤의 오류면 원본 복원 안내
         try
         {
             switch (pick)
@@ -315,7 +323,9 @@ public class FtpSheet : Sheet
                     if (!await page.DisplayAlertTr("덮어쓰기", $"'{path}'을(를) 지금 편집 중인 {AppState.GameName(sav.Version)} 세이브로 바꿉니다.{(zip ? " zip은 원래 구성 그대로 다시 묶고 세이브 파일만 바꿉니다." : "")}{(live ? " 스위치에 저장된 세이브가 바로 바뀝니다. 그 게임이 켜져 있으면 먼저 꺼 주세요 (켜진 채로 하면 게임이 저장할 때 되돌아가거나 세이브가 꼬일 수 있음)." : "")} 원본은 먼저 앱 백업 목록에 저장합니다. 계속할까요?", "덮어쓰기", "취소")) break;
                     status.Text = "원본 백업 중…";
                     var orig = await Get(path);
-                    if (orig != null) SaveStore.Backup(orig, path.Trim('/').Replace('/', '_'), "스위치FTP 원본");
+                    // 원본을 받지 못했거나 백업에 실패하면 덮어쓰지 않음 (되돌릴 방법이 없어짐)
+                    if (orig == null || orig.Length == 0) { status.Text = "원본을 받지 못해 올리지 않았습니다 (원본 백업 없이 덮어쓰지 않음)"; break; }
+                    if (!SaveStore.Backup(orig, path.Trim('/').Replace('/', '_'), "스위치FTP 원본")) { status.Text = "원본을 앱 백업 목록에 저장하지 못해 올리지 않았습니다 (저장 공간을 확인하세요)"; break; }
                     var bytes = sav.Write(sav.Metadata.GetSuggestedFlags(sav.Metadata.GetSuggestedExtension())).ToArray();
                     int origLen = orig?.Length ?? 0;
                     if (zip)
@@ -330,24 +340,29 @@ public class FtpSheet : Sheet
                     }
                     else if (orig != null && bytes.Length != orig.Length && !await page.DisplayAlertTr("크기 다름", $"원본 {orig.Length:N0} 바이트, 새 세이브 {bytes.Length:N0} 바이트로 크기가 다릅니다. 다른 게임이나 파일일 수 있습니다. 그래도 올릴까요?", "올리기", "취소")) { status.Text = "취소했습니다"; break; }
                     status.Text = "올리는 중…";
+                    uploading = true;
                     var r = await Put(bytes, path);
-                    if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")" + (live ? " · ftpsrv라면 config.ini의 save_writable=1과 쓰기가 고쳐진 ftpsrv인지 확인하세요" : ""); Note.Show("업로드 실패: " + name); break; }
-                    if (live)
-                    {
-                        // ftpsrv: 다시 받아 그대로 들어갔는지 확인 (다르면 원본으로 되돌릴 수 있게 알림)
-                        var back = await Get(path);
-                        if (back == null || !back.AsSpan().SequenceEqual(bytes)) { status.Text = "올린 뒤 다시 받아 보니 내용이 다릅니다. 백업 목록의 '스위치FTP 원본'으로 되돌리세요"; Note.Show("확인 실패: " + name); break; }
-                    }
+                    if (r != FtpStatus.Success) { status.Text = "올리지 못했습니다 (" + r + ")" + (live ? " · ftpsrv라면 config.ini의 save_writable=1과 쓰기가 고쳐진 ftpsrv인지 확인하세요" : "") + " · 파일이 반쯤 바뀌었을 수 있으니 백업 목록의 '스위치FTP 원본'을 확인하세요"; Note.Show("업로드 실패: " + name); break; }
+                    // 다시 받아 그대로 들어갔는지 확인 (다르면 원본으로 되돌릴 수 있게 알림)
+                    status.Text = "올린 파일 확인 중…";
+                    var back = await Get(path);
+                    uploading = false;
+                    if (back == null || !back.AsSpan().SequenceEqual(bytes)) { status.Text = "올린 뒤 다시 받아 보니 내용이 다릅니다. 백업 목록의 '스위치FTP 원본'으로 되돌리세요"; Note.Show("확인 실패: " + name); break; }
+                    if (AppState.Sav == sav) AppState.ClearSavDirty();
                     Note.Show($"업로드 완료: {name} ({bytes.Length:N0}바이트)");
                     status.Text = live ? "스위치 세이브를 바로 바꿨습니다 (다시 받아 확인함). 게임을 켜서 확인하세요. 문제가 있으면 백업 목록의 '스위치FTP 원본'으로 되돌리세요."
                         : zip || path.StartsWith(DbiBackup, StringComparison.OrdinalIgnoreCase)
-                        ? "백업에 덮어썼습니다. 이제 스위치에서 이 백업으로 복원(DBI: Browse saves → Backups → Restore / JKSV·Checkpoint: Restore)하세요."
-                        : "덮어썼습니다. 게임을 실행해 확인하세요 (문제가 있으면 백업 목록의 '스위치FTP 원본'으로 되돌리세요).";
+                        ? "백업에 덮어썼습니다 (다시 받아 확인함). 이제 스위치에서 이 백업으로 복원(DBI: Browse saves → Backups → Restore / JKSV·Checkpoint: Restore)하세요."
+                        : "덮어썼습니다 (다시 받아 확인함). 게임을 실행해 확인하세요 (문제가 있으면 백업 목록의 '스위치FTP 원본'으로 되돌리세요).";
                     await Refresh();
                     break;
             }
         }
-        catch (Exception ex) { status.Text = "오류: " + ex.Message; }
+        catch (Exception ex)
+        {
+            status.Text = "오류: " + ex.Message + (uploading ? " · 올리는 도중 멈췄습니다. 스위치의 파일이 반쯤 바뀌었을 수 있으니 다시 연결해 덮어쓰거나 백업 목록의 '스위치FTP 원본'으로 되돌리세요" : "");
+            if (uploading) Note.Show("업로드 중 오류: " + name);
+        }
     }
 
     // ===== 탐색기 기능: 새 폴더, 복사·잘라내기·붙여넣기·이름 바꾸기·삭제 =====
@@ -464,7 +479,7 @@ public class FtpSheet : Sheet
         if (raw.Length == 0) { status.Text = "기기 IP나 주소를 입력하세요"; return; }
         int port = int.TryParse(portE.Text, out var p) ? p : 80;
         Preferences.Set("http_host", raw); Preferences.Set("http_port", port.ToString());
-        if (busy) return; busy = true;
+        if (!await opLock.WaitAsync(0)) { status.Text = "이전 작업이 끝나기를 기다리는 중입니다…"; return; }
         status.Text = "연결 중…";
         try
         {
@@ -482,7 +497,7 @@ public class FtpSheet : Sheet
             await Refresh();
         }
         catch (Exception ex) { status.Text = "연결 실패: " + ex.Message + " (주소·포트, 같은 와이파이인지, 기기의 HTTP 파일 서버가 켜져 있는지 확인)"; httpBase = null; }
-        finally { busy = false; }
+        finally { opLock.Release(); }
     }
 
     /// <summary>HTML 폴더 목록(아파치·nginx·파이썬 http.server·기기 파일 서버 등)의 링크를 항목으로. '/'로 끝나면 폴더.</summary>

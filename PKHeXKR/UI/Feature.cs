@@ -69,7 +69,7 @@ public class ShowdownSheet : Sheet
             SaveStore.Snapshot("파티교체");
             for (int i = sav.PartyCount - 1; i >= 0; i--) sav.DeletePartySlot(i);
             foreach (var pk in made.Where(x => x != null)) { sav.SetPartySlotAtIndex(pk, sav.PartyCount); put++; if (AppState.IsLegal(pk)) legal++; }
-            AppState.AfterBulk();
+            await AppState.AfterBulk();
             AppState.PartyMode = true;
         }
         else
@@ -79,7 +79,8 @@ public class ShowdownSheet : Sheet
             {
                 while (box < sav.BoxCount && sav.GetBoxSlotAtIndex(box, slot).Species != 0) { if (++slot >= sav.BoxSlotCount) { slot = 0; box++; } }
                 if (box >= sav.BoxCount) break;
-                sav.SetBoxSlotAtIndex(pk, box, slot); AppState.LiveSync(box, slot); put++; if (AppState.IsLegal(pk)) legal++;
+                if (!AppState.PutSlot(box, slot, pk, notify: false)) continue;
+                put++; if (AppState.IsLegal(pk)) legal++;
             }
         }
         Close(); AppState.NotifyBox();
@@ -213,7 +214,7 @@ public class LiveHexSheet : Sheet
                     catch { AppState.MarkLiveLost(); break; }
                 }
             });
-            AppState.AfterBulk(); AppState.Box = cur; AppState.NotifyBox();
+            await AppState.AfterBulk(); AppState.Box = cur; AppState.NotifyBox();
             bg.Done($"박스 {done}개 읽음"); Note.Show($"게임에서 박스 {done}개를 읽었습니다");
         };
         var writeAll = T.Pill("모든 박스 쓰기"); writeAll.Clicked += async (_, _) =>

@@ -134,9 +134,13 @@ public static class SaveStore
         }
         catch { }
     }
-    public static void Backup(byte[] data, string name, string tag)
+    /// <summary>백업 목록에 사본 저장. 반환: 저장했는지 (덮어쓰기 전 원본 백업이 실패하면 덮어쓰지 않게).</summary>
+    public static bool Backup(byte[] data, string name, string tag)
     {
-        try { File.WriteAllBytes(Path.Combine(BackupDir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{tag}__{Safe(name)}"), data); Trim(BackupDir, 30); } catch { }
+        try { File.WriteAllBytes(Path.Combine(BackupDir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{tag}__{Safe(name)}"), data); }
+        catch { return false; }
+        try { Trim(BackupDir, 30); } catch { }
+        return true;
     }
     /// <summary>
     /// 1.4.4 이하 버그로 복호화된 채 저장된 스위치 세이브(SV·소드실드·Z-A 등 main) 복구.
@@ -180,6 +184,10 @@ public static class ShareUtil
         await Share.Default.RequestAsync(new ShareFileRequest { Title = title, File = new ShareFile(path) });
     }
     public static byte[] Stored(PKM p) { var b = new byte[p.SIZE_STORED]; p.WriteDecryptedDataStored(b); return b; }
+
+    /// <summary>파일 저장 결과 안내: 사용자가 취소한 것과 저장에 실패한 것을 구분.</summary>
+    public static string SaveNote(FileSaverResult r, string ok, string canceled = "취소했습니다")
+        => r.IsSuccessful ? ok : r.Exception is null or OperationCanceledException ? canceled : "저장하지 못했습니다: " + r.Exception.Message;
 }
 
 // ======================= 박스 검색 (이 박스 강조 + 모든 박스 결과) =======================
@@ -480,6 +488,7 @@ public class LivingDexSheet : Sheet
                 MainThread.BeginInvokeOnMainThread(() => { bar.Progress = total > 0 ? (double)done / total : 0; status.Text = $"{done}/{total} · {GameInfo.Strings.Species[s]}"; });
             }));
             bg.Done($"넣음 {result.Made}마리 · 만들 수 없음 {result.Fail}{(result.Canceled ? " · 중지함" : "")}");
+            if (result.Made > 0) AppState.MarkSavDirty();
             AppState.NotifyBox();
             status.Text = $"넣음 {result.Made}마리 (모두 합법{(opt.Alpha ? $", 우두머리 {result.Alpha}" : "")}) · 만들 수 없음 {result.Fail} · 대상 {result.Targets}{(result.PresetMissed > 0 ? $" · 미리 정한 성별·볼이 안 돼 기본으로 만든 수 {result.PresetMissed}" : "")}{(result.BoxFull ? " · 박스가 가득 차서 멈춤" : "")}{(result.Canceled ? " · 중지함" : "")}";
         }
@@ -522,6 +531,7 @@ public class FavoritesSheet : Sheet
     private readonly Label status = T.L("", 12, sub: true);
     private int page;
     private string query = "";
+    private List<(string Path, PKM Pk)> all;   // 파일은 한 번만 읽음 (등록·삭제 뒤에만 다시)
 
     public FavoritesSheet() : base("즐겨찾기", 0.85)
     {
@@ -553,9 +563,10 @@ public class FavoritesSheet : Sheet
         Fill();
     }
 
-    private void Fill()
+    private void Fill(bool reload = false)
     {
-        var all = Favorites.All();
+        if (reload || this.all == null) this.all = Favorites.All();
+        var all = this.all;
         int total = all.Count;
         if (query.Length > 0) all = all.Where(x => FavMatch(x.Pk, query)).ToList();
         int pages = query.Length > 0 ? Math.Max(1, (all.Count + 29) / 30) : all.Count / 30 + 1; page = Math.Clamp(page, 0, pages - 1);   // 검색이 아니면 마지막 쪽에 늘 빈 칸 (30마리째에도 빈 칸 눌러 등록)
@@ -578,7 +589,7 @@ public class FavoritesSheet : Sheet
         if (pk.Species == 0) { Note.Show("편집기에 포켓몬이 없습니다"); return; }
         var name = AppState.SpeciesName(pk);
         if (!await Application.Current.Windows[0].Page.DisplayAlertTr("즐겨찾기 등록", $"편집 중인 {name}({pk.Extension})을(를) 즐겨찾기에 등록할까요?", "등록", "취소")) return;
-        Favorites.Add(pk); Fill(); Note.Show("즐겨찾기에 등록했습니다");
+        Favorites.Add(pk); Fill(reload: true); Note.Show("즐겨찾기에 등록했습니다");
     }
 
     private async Task OnCell(Cell c)
@@ -595,13 +606,13 @@ public class FavoritesSheet : Sheet
                 if (slot < 0) { Note.Show("현재 박스에 빈 칸이 없습니다"); break; }
                 var conv = EntityConverter.ConvertToType(c.Pk, sav.PKMType, out _);
                 if (conv == null) { Note.Show("이 게임 형식으로 바꿀 수 없습니다"); break; }
-                sav.SetBoxSlotAtIndex(conv, AppState.Box, slot); AppState.LiveSync(AppState.Box, slot); AppState.NotifyBox(); Note.Show($"{slot + 1}번 칸에 넣었습니다"); break;
+                if (AppState.PutSlot(AppState.Box, slot, conv)) Note.Show($"{slot + 1}번 칸에 넣었습니다"); break;
             case "파일로 받기":
                 await using (var ms = new MemoryStream(File.ReadAllBytes(c.Path)))
                 { var r = await FileSaver.Default.SaveAsync(c.Pk.FileName, ms, CancellationToken.None); Note.Show(r.IsSuccessful ? $"{c.Pk.FileName} 저장했습니다" : "취소했습니다"); }
                 break;
             case "공유": await ShareUtil.ShareBytes(File.ReadAllBytes(c.Path), c.Pk.FileName, c.Pk.FileName); break;
-            case "즐겨찾기에서 삭제": File.Delete(c.Path); Fill(); break;
+            case "즐겨찾기에서 삭제": File.Delete(c.Path); Fill(reload: true); break;
         }
     }
 }
@@ -649,31 +660,11 @@ public static class DexFill
                     n++;
                 }
             }
+            AppState.MarkSavDirty();
             bool check = mode == 2 || sav.GetSeen(25) || sav.GetSeen(1) || sav.GetSeen(sav.MaxSpeciesID);
             done(!check ? "이 게임은 도감 일괄 등록을 지원하지 않습니다" : ok ? "도감을 일괄 처리했습니다 · 세이브 내보내기로 저장하세요" : $"{n}종을 처리했습니다 · 세이브 내보내기로 저장하세요");
         }
         catch (Exception ex) { done("이 게임에서는 일괄 등록을 지원하지 않거나 실패했습니다: " + (ex.InnerException ?? ex).Message); }
-    }
-
-    public static async Task Run(Page page)
-    {
-        var sav = AppState.Sav;
-        const string seen = "모두 본 것으로", caught = "모두 잡은 것으로 (본 것 포함)", clear = "모두 해제";
-        var pick = await page.DisplayActionSheetTr($"도감 일괄 등록 · {AppState.GameName(sav.Version)}", "취소", null, seen, caught, clear);
-        if (pick == null || pick == "취소") return;
-        int n = 0;
-        try
-        {
-            for (ushort s = 1; s <= sav.MaxSpeciesID; s++)
-            {
-                if (!sav.Personal.IsSpeciesInGame(s)) continue;
-                if (pick == clear) { sav.SetCaught(s, false); sav.SetSeen(s, false); }
-                else { sav.SetSeen(s, true); if (pick == caught) sav.SetCaught(s, true); }
-                n++;
-            }
-            Note.Show($"{n}종을 처리했습니다 · 세이브 내보내기로 저장하세요");
-        }
-        catch (Exception ex) { await page.DisplayAlertTr("도감", "이 게임에서는 일괄 등록을 지원하지 않거나 실패했습니다: " + ex.Message, "확인"); }
     }
 }
 
@@ -1008,7 +999,8 @@ public class GiftPreviewSheet : Sheet
                 {
                     int slot = -1; for (int i = 0; i < sav.BoxSlotCount; i++) if (sav.GetBoxSlotAtIndex(AppState.Box, i).Species == 0) { slot = i; break; }
                     if (slot < 0) { Note.Show("현재 박스에 빈 칸이 없습니다"); return; }
-                    sav.SetBoxSlotAtIndex(pk, AppState.Box, slot); AppState.LiveSync(AppState.Box, slot); AppState.NotifyBox(); Close(); Note.Show($"{slot + 1}번 칸에 넣었습니다");
+                    if (!AppState.PutSlot(AppState.Box, slot, pk)) return;
+                    Close(); Note.Show($"{slot + 1}번 칸에 넣었습니다");
                 };
                 stack.Children.Add(T.Card(new VerticalStackLayout { Spacing = 8, Children = { head, detail, new HorizontalStackLayout { Spacing = 8, Children = { toEditor, toBox } } } }, 10));
                 if (!la.Valid) { var rep = T.L(KoFix.Fix(la.Report(true)), 12, sub: true); rep.LineBreakMode = LineBreakMode.WordWrap; stack.Children.Add(rep); }

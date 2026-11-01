@@ -102,15 +102,20 @@ public class HomeLiveSheet : Sheet
 
     public record Cell(PKM Pk, string Sprite, HomeSlot Home = null, string Pos = "");
 
+    /// <summary>HOME과 호환되는 게임 세이브인지 (아니면 안내를 띄우고 false).</summary>
+    private bool HomeCompatible()
+    {
+        if (AppState.Sav is SAV9ZA or SAV9SV or SAV8LA or SAV8BS or SAV8SWSH or SAV7b) return true;
+        status.Text = "HOME과 호환되는 게임(Z-A·SV·PLA·BDSP·소드실드·레츠고) 세이브에서만 쓸 수 있습니다. 하단 '게임 변경'으로 바꾸세요";
+        return false;
+    }
+
     private async Task Read()
     {
-        if (AppState.Sav is not (SAV9ZA or SAV9SV or SAV8LA or SAV8BS or SAV8SWSH or SAV7b))
-        { status.Text = "HOME과 호환되는 게임(Z-A·SV·PLA·BDSP·소드실드·레츠고) 세이브에서만 쓸 수 있습니다. 하단 '게임 변경'으로 바꾸세요"; return; }
+        if (!HomeCompatible()) return;
         int start, end;
         if (rangeIdx < 0) { if (!int.TryParse(single.Text, out var b) || b < 1) b = 1; start = end = Math.Min(b, HomeBoxes) - 1; }
         else { start = rangeIdx * 32; end = Math.Min(start + 31, HomeBoxes - 1); }
-        if (AppState.Sav is not (SAV9ZA or SAV9SV or SAV8LA or SAV8BS or SAV8SWSH or SAV7b))
-        { status.Text = "HOME과 호환되는 게임(Z-A·SV·PLA·BDSP·소드실드·레츠고) 세이브에서 찾으세요. 하단 '게임 변경'으로 바꾸세요"; return; }
         Preferences.Set("home_ip", ip.Text ?? ""); Preferences.Set("home_port", port.Text ?? "6000");
         busy.IsVisible = busy.IsRunning = true; status.Text = "HOME에 연결 중…";
         DeviceExecutor<DeviceState> ex = null;
@@ -185,8 +190,7 @@ public class HomeLiveSheet : Sheet
     /// <summary>HOME 박스 데이터 위치 자동 찾기 → 찾은 위치로 1번 박스를 읽어 보여 주고 저장할지 확인.</summary>
     private async Task Scan()
     {
-        if (AppState.Sav is not (SAV9ZA or SAV9SV or SAV8LA or SAV8BS or SAV8SWSH or SAV7b))
-        { status.Text = "HOME과 호환되는 게임(Z-A·SV·PLA·BDSP·소드실드·레츠고) 세이브에서 찾으세요. 하단 '게임 변경'으로 바꾸세요"; return; }
+        if (!HomeCompatible()) return;
         Preferences.Set("home_ip", ip.Text ?? ""); Preferences.Set("home_port", port.Text ?? "6000");
         busy.IsVisible = busy.IsRunning = true; status.Text = "HOME에 연결 중…";
         DeviceExecutor<DeviceState> ex = null;
@@ -279,14 +283,13 @@ public class HomeLiveSheet : Sheet
         var sav = AppState.Sav; int slot = -1;
         for (int i = 0; i < sav.BoxSlotCount; i++) if (sav.GetBoxSlotAtIndex(AppState.Box, i).Species == 0) { slot = i; break; }
         if (slot < 0) { Note.Show("현재 박스에 빈 칸이 없습니다"); return; }
-        sav.SetBoxSlotAtIndex(pk, AppState.Box, slot); AppState.LiveSync(AppState.Box, slot); AppState.NotifyBox(); Note.Show($"{AppState.BoxName(AppState.Box)} {slot + 1}번 칸에 넣었습니다");
+        if (AppState.PutSlot(AppState.Box, slot, pk)) Note.Show($"{AppState.BoxName(AppState.Box)} {slot + 1}번 칸에 넣었습니다");
     }
 
     /// <summary>HOME 300박스를 모두 읽어 검색 목록에 넣음 (변환은 고를 때).</summary>
     private async Task ReadAll()
     {
-        if (AppState.Sav is not (SAV9ZA or SAV9SV or SAV8LA or SAV8BS or SAV8SWSH or SAV7b))
-        { status.Text = "HOME과 호환되는 게임(Z-A·SV·PLA·BDSP·소드실드·레츠고) 세이브에서만 쓸 수 있습니다. 하단 '게임 변경'으로 바꾸세요"; return; }
+        if (!HomeCompatible()) return;
         Preferences.Set("home_ip", ip.Text ?? ""); Preferences.Set("home_port", port.Text ?? "6000");
         busy.IsVisible = busy.IsRunning = true; allB.IsEnabled = false; stopB.IsVisible = true; status.Text = "HOME에 연결 중…";
         readCts = new CancellationTokenSource(TimeSpan.FromMinutes(20));
@@ -328,16 +331,18 @@ public class HomeLiveSheet : Sheet
         if (loaded.Count == 0) { status.Text = "먼저 읽어 오세요"; return; }
         var sav = AppState.Sav;
         var page = Application.Current.Windows[0].Page;
-        if (!await page.DisplayAlertTr("세이브 박스에 채우기", $"{AppState.BoxName(AppState.Box)}부터 HOME 순서 그대로 채웁니다. 해당 칸의 기존 포켓몬은 덮어씁니다.", "채우기", "취소")) return;
-        int n = 0;
+        if (!await page.DisplayAlertTr("세이브 박스에 채우기", $"{AppState.BoxName(AppState.Box)}부터 HOME 순서 그대로 채웁니다. 해당 칸의 기존 포켓몬은 덮어씁니다 (변환하지 못한 칸은 그대로 둠).", "채우기", "취소")) return;
+        SaveStore.Snapshot("HOME채우기");
+        int n = 0; var touched = new List<(int, int)>();
         for (int i = 0; i < loaded.Count; i++)
         {
             int b = AppState.Box + i / sav.BoxSlotCount; if (b >= sav.BoxCount) break;
             var p = loaded[i];
-            sav.SetBoxSlotAtIndex(p ?? sav.BlankPKM, b, i % sav.BoxSlotCount);
-            if (p != null && p.Species != 0) n++;
+            if (p == null) continue;   // 변환 실패(또는 빈 칸): 기존 포켓몬을 빈 칸으로 지우지 않음
+            sav.SetBoxSlotAtIndex(p, b, i % sav.BoxSlotCount); touched.Add((b, i % sav.BoxSlotCount));
+            if (p.Species != 0) n++;
         }
-        AppState.AfterBulk(boxes: Enumerable.Range(AppState.Box, Math.Min(sav.BoxCount - AppState.Box, (loaded.Count + sav.BoxSlotCount - 1) / sav.BoxSlotCount)));   // 라이브헥스: 게임 박스에도
+        await AppState.AfterBulk(touched);
         AppState.NotifyBox(); Note.Show($"{n}마리를 넣었습니다");
     }
 }

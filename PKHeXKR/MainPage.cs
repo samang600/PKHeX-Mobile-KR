@@ -22,7 +22,6 @@ public class MainPage : ContentPage
     private readonly Image alphaIcon = new() { Source = "ov_alpha.png", WidthRequest = 20, HeightRequest = 20, VerticalOptions = LayoutOptions.Center, IsVisible = false };
     private readonly Image gmaxIcon = new() { Source = "ov_dyna.png", WidthRequest = 20, HeightRequest = 20, VerticalOptions = LayoutOptions.Center, IsVisible = false };
     private readonly BoxView teraBar = new() { HeightRequest = 4, CornerRadius = 2, WidthRequest = 60, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.End, Margin = new Thickness(0, 0, 0, 0), IsVisible = false };
-    private readonly Label alphaLabel = new() { Text = "Ⓐ", FontSize = 20, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#DC2626"), VerticalOptions = LayoutOptions.Center, IsVisible = false };
     private readonly Label genderLabel = new() { FontSize = 20, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center, Padding = new Thickness(4, 0) };
     private readonly Button legalBtn = new() { FontSize = 12, CornerRadius = 14, HeightRequest = 28, Padding = new Thickness(10, 0), TextColor = Colors.White, VerticalOptions = LayoutOptions.Start, HorizontalOptions = LayoutOptions.End };   // 우측 상단
     private readonly Section[] sections = [new MainSection(), new StatsSection(), new MovesSection(), new MetSection(), new OTSection(), new RibbonSection(), new MiscSection()];
@@ -311,7 +310,6 @@ public class MainPage : ContentPage
         sprite.Source = AppState.Sprite(pk);
         var sp = AppState.SpeciesName(pk);   // 개체 언어 기준
         name.Text = (pk.IsNicknamed ? $"{pk.Nickname} ({sp})" : sp);
-        alphaLabel.IsVisible = false;
         alphaIcon.IsVisible = pk is IAlpha { IsAlpha: true };
         gmaxIcon.IsVisible = pk is IGigantamax { CanGigantamax: true };
         teraBar.IsVisible = pk is ITeraType; if (pk is ITeraType tt) teraBar.Color = BoxPanel.TeraColor((int)tt.TeraType);
@@ -368,8 +366,9 @@ public class MainPage : ContentPage
     public static async Task Legalize()
     {
         var page = Application.Current.Windows[0].Page;
-        var pk = AppState.Pk;
-        if (pk.Species == 0) return;
+        var live = AppState.Pk;
+        if (live.Species == 0) return;
+        var pk = live.Clone(); var pk0 = live.Clone();   // 최대 45초 걸리는 동안 편집기의 개체를 건드리지 않게 사본으로 (pk0: 시작할 때 모습)
         try
         {
             var src = AppState.Source;
@@ -385,6 +384,7 @@ public class MainPage : ContentPage
                 if (new LegalityAnalysis(r2).Valid) { movesReset = true; return r2; }
                 return r;
             });
+            if (!ReferenceEquals(AppState.Pk, live) || !ShareUtil.Stored(live).AsSpan().SequenceEqual(ShareUtil.Stored(pk0))) { Note.Show("합법화하는 동안 편집 중인 포켓몬이 바뀌어 결과를 버렸습니다"); return; }
             AppState.Load(result, src);
             AppState.Edited();
             Note.Show(new LegalityAnalysis(result).Valid ? (movesReset ? "합법으로 만들었습니다 (기술을 추천 기술로 변경)" : "합법으로 만들었습니다") : "합법으로 만들지 못했습니다");
@@ -411,14 +411,15 @@ public class MainPage : ContentPage
         Note.Show("저장할 칸을 누르세요");
     }
 
+    // 메뉴 항목 (Menu·RunMenu 공통)
+    private const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
+    private const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
+    private const string boxOne = "박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
+    private const string open = "파일 열기 (세이브·포켓몬·박스)", export = "세이브 내보내기", exportPk = "편집 중인 포켓몬 파일로 저장", showdown = "쇼다운 세트 (가져오기·내보내기)",
+        trainer = "트레이너 설정 (게임별)", game = "게임 변경", home = "HOME Live (HOME 박스 보기)", autoOT = "자동 어버이작", about = "정보", haxOn = "PKHaX 모드 켜기", haxOff = "PKHaX 모드 끄기";
+
     private Task Menu()
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
-        const string dexFill = "세이브 도감 일괄 등록";
-        const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
-        const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
-        const string open = "파일 열기 (세이브·포켓몬·박스)", export = "세이브 내보내기", exportPk = "편집 중인 포켓몬 파일로 저장", showdown = "쇼다운 세트 (가져오기·내보내기)",
-            trainer = "트레이너 설정 (게임별)", game = "게임 변경", seed = "ZA 시드 파인더", home = "HOME Live (HOME 박스 보기)", autoOT = "자동 어버이작", clearAll = "한 번에 비우기", lang = "데이터 언어", about = "정보", haxOn = "PKHaX 모드 켜기", haxOff = "PKHaX 모드 끄기";
         var groups = new (string, (string Glyph, string Key)[])[]
         {
             ("파일", [("📂", open), ("🕘", recent), ("⭐", favs), ("💾", export), ("🧬", exportPk), ("📤", sharePk), ("📦", boxOne), ("⇄", showdown)]),
@@ -433,12 +434,6 @@ public class MainPage : ContentPage
 
     private async Task RunMenu(string pick)
     {
-        const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
-        const string dexFill = "세이브 도감 일괄 등록";
-        const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
-        const string boxOne = "박스 내보내기", boxAll = "모든 박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
-        const string open = "파일 열기 (세이브·포켓몬·박스)", export = "세이브 내보내기", exportPk = "편집 중인 포켓몬 파일로 저장", showdown = "쇼다운 세트 (가져오기·내보내기)",
-            trainer = "트레이너 설정 (게임별)", game = "게임 변경", seed = "ZA 시드 파인더", home = "HOME Live (HOME 박스 보기)", autoOT = "자동 어버이작", clearAll = "한 번에 비우기", lang = "데이터 언어", about = "정보", haxOn = "PKHaX 모드 켜기", haxOff = "PKHaX 모드 끄기";
         switch (pick)
         {
             case open: await OpenFile(); break;
@@ -450,7 +445,6 @@ public class MainPage : ContentPage
             case raid: SheetHost.Show(new RaidSheet()); break;
             case sharePk: if (AppState.Pk.Species == 0) { Note.Show("공유할 포켓몬이 없습니다"); break; } await ShareUtil.ShareBytes(ShareUtil.Stored(AppState.Pk), AppState.Pk.FileName, AppState.Pk.FileName); break;
             case dex: SheetHost.Show(new LivingDexSheet()); break;
-            case dexFill: await DexFill.Run(this); break;
             case settings: SheetHost.Show(new SettingsSheet()); break;
             case export: await ExportSave(); break;
             case exportPk: await ExportPk(); break;
@@ -470,7 +464,6 @@ public class MainPage : ContentPage
                 var conv = AppState.Clipboard.GetType() == AppState.Sav.PKMType ? AppState.Clipboard.Clone() : EntityConverter.ConvertToType(AppState.Clipboard, AppState.Sav.PKMType, out _);
                 if (conv == null) { Note.Show("이 게임 형식으로 변환할 수 없습니다"); break; }
                 if (AppState.Load(conv)) { AppState.Edited(); Note.Show("붙여넣었습니다 (박스 칸을 눌러 저장)"); } break;
-            case boxAll: await ExportBoxes(true); break;
             case showdown: SheetHost.Show(new ShowdownSheet()); break;
             case trainer: SheetHost.Show(new TrainerSheet()); break;
             case game: await ChangeGame(); break;
@@ -483,11 +476,6 @@ public class MainPage : ContentPage
                 { AppState.SetHaX(true); Note.Show("PKHaX 모드를 켰습니다"); }
                 break;
             case haxOff: AppState.SetHaX(false); Note.Show("PKHaX 모드를 껐습니다"); break;
-            case lang:
-                var l = await this.DisplayActionSheetTr("데이터 언어", "취소", null, AppState.Languages.Select(x => x.Name).ToArray());
-                var sel = AppState.Languages.FirstOrDefault(x => x.Name == l);
-                if (sel.Code != null) { Preferences.Set("data_lang", sel.Code); AppState.ReloadLanguage(); Note.Show($"{sel.Name}(으)로 적용했습니다"); }
-                break;
             case about:
                 await this.DisplayAlertTr("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-10-29 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.48.0(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
                 break;
@@ -496,13 +484,12 @@ public class MainPage : ContentPage
 
     private async Task SaveMenu()
     {
-        const string a = "세이브 내보내기", b = "편집 중인 포켓몬 파일로 저장", c = "현재 박스 데이터(.bin) 내보내기", fav = "편집 중인 포켓몬 즐겨찾기 등록", ldn = "PokeLDN 교환 파일로 보내기", ldnNow = "PokeLDN 교환 (ESP32 보드)",
+        const string a = "세이브 내보내기", b = "편집 중인 포켓몬 파일로 저장", c = "현재 박스 데이터(.bin) 내보내기", fav = "편집 중인 포켓몬 즐겨찾기 등록", ldn = "PokeLDN 교환 파일로 보내기",
             share = "편집 중인 포켓몬 파일 공유", sd = "쇼다운 텍스트 복사 (시스봇 형식)";
         // LDN판: PokeLDN 교환은 앱 안에서 (메뉴 → 도구 → PokeLDN 교환) → 교환 파일 내보내기는 일반판에만
         var pick = LdnTrade.Available
             ? await this.DisplayActionSheetTr("저장 · 내보내기", "취소", null, a, b, share, sd, fav, c)
             : await this.DisplayActionSheetTr("저장 · 내보내기", "취소", null, a, b, share, sd, ldn, fav, c);
-        if (pick == ldnNow) { await TradeLdn(); return; }
         if (pick == share)
         {
             if (AppState.Pk.Species == 0) { Note.Show("공유할 포켓몬이 없습니다"); return; }
@@ -522,7 +509,7 @@ public class MainPage : ContentPage
             var sav = AppState.Sav; if (!sav.HasBox) return;
             await using var ms = new MemoryStream(sav.GetBoxBinary(AppState.Box).ToArray());
             var r = await FileSaver.Default.SaveAsync($"box{AppState.Box + 1:00}.bin", ms, CancellationToken.None);
-            Note.Show(r.IsSuccessful ? "박스를 저장했습니다" : "취소했습니다");
+            Note.Show(ShareUtil.SaveNote(r, "박스를 저장했습니다"));
         }
     }
 
@@ -536,7 +523,7 @@ public class MainPage : ContentPage
             var name = all ? $"{sav.Version}_all_boxes.bin" : $"{sav.Version}_box{AppState.Box + 1:00}.bin";
             await using var ms = new MemoryStream(data);
             var r = await FileSaver.Default.SaveAsync(name, ms, CancellationToken.None);
-            Note.Show(r.IsSuccessful ? (all ? $"모든 박스({sav.BoxCount}개)를 저장했습니다" : "현재 박스를 저장했습니다") : "취소했습니다");
+            Note.Show(ShareUtil.SaveNote(r, all ? $"모든 박스({sav.BoxCount}개)를 저장했습니다" : "현재 박스를 저장했습니다"));
         }
         catch (Exception ex) { await this.DisplayAlertTr("내보내기 실패", ex.Message, "확인"); }
     }
@@ -548,7 +535,8 @@ public class MainPage : ContentPage
         int i = Array.IndexOf(names, pick); if (i < 0) return;
         var v = AppState.Games[i];
         var loaded = !string.IsNullOrEmpty(AppState.Sav.Metadata.FileName);
-        if (!await this.DisplayAlertTr("게임 변경", $"{pick} 빈 세이브로 바꿉니다.{(loaded ? "\n열려 있는 세이브는 닫힙니다(내보내지 않은 변경은 사라집니다)." : "")}\n기본 게임으로도 저장할까요?", "바꾸기", "취소")) return;
+        var warn = AppState.SavDirty ? "\n⚠ 지금 세이브에 내보내지 않은 변경이 있습니다. 바꾸면 사라집니다." : loaded ? "\n열려 있는 세이브는 닫힙니다(내보내지 않은 변경은 사라집니다)." : "";
+        if (!await this.DisplayAlertTr("게임 변경", $"{pick} 빈 세이브로 바꿉니다.{warn}\n기본 게임으로도 저장할까요?", "바꾸기", "취소")) return;
         AppState.DefGame = v;
         AppState.SetSave(AppState.NewBlankSave(v));
         Note.Show($"{pick}(으)로 바꿨습니다");
@@ -565,21 +553,13 @@ public class MainPage : ContentPage
         {
             try
             {
-                var msg = AppState.Dirty ? "편집 중인 포켓몬이 저장되지 않았습니다.\n그래도 종료할까요?" : "PKHeX 모바일을 종료할까요?";
+                int unsaved = AppState.UnsavedCount();
+                var msg = unsaved > 0 ? $"내보내지 않은 세이브 변경이 있습니다 ({unsaved}개).\n종료하면 사라집니다. 그래도 종료할까요?"
+                    : AppState.Dirty ? "편집 중인 포켓몬이 저장되지 않았습니다.\n그래도 종료할까요?" : "PKHeX 모바일을 종료할까요?";
                 if (await this.DisplayAlertTr("종료", msg, "종료", "취소")) { if (DeviceInfo.Platform == DevicePlatform.Android) Application.Current.Quit(); }
             }
             finally { exitAsking = false; }
         });
-    }
-    private bool OldBack()
-    {
-        if (SheetHost.CloseTop()) return true;
-        Dispatcher.Dispatch(async () =>
-        {
-            var msg = AppState.Dirty ? "편집 중인 포켓몬이 저장되지 않았습니다.\n그래도 종료할까요?" : "PKHeX 모바일을 종료할까요?";
-            if (await this.DisplayAlertTr("종료", msg, "종료", "취소")) { if (DeviceInfo.Platform == DevicePlatform.Android) Application.Current.Quit(); }
-        });
-        return true;
     }
 
     private async Task OpenFile()
@@ -637,7 +617,11 @@ public class MainPage : ContentPage
                 case MysteryGift g when g.IsEntity: AppState.Load(g.ConvertToPKM(AppState.Sav)); break;
                 case ConcatenatedEntitySet set:
                     var sav = AppState.Sav; int n = 0, skipped = 0;
-                    var start = await this.DisplayAlertTr("박스 데이터", $"{set.Count}칸 분량입니다. {AppState.BoxName(AppState.Box)}부터 채울까요?", "현재 박스부터", "1번 박스부터") ? AppState.Box : 0;
+                    string fromCur = $"{AppState.BoxName(AppState.Box)}부터 넣기", fromFirst = "1번 박스부터 넣기";
+                    var where = await this.DisplayActionSheetTr($"박스 데이터 {set.Count}칸 분량 · 넣는 칸의 기존 포켓몬은 덮어씀", "취소", null, fromCur, fromFirst);
+                    if (where != fromCur && where != fromFirst) break;
+                    var start = where == fromCur ? AppState.Box : 0;
+                    SaveStore.Snapshot("박스데이터");
                     for (int i = 0; i < set.Count; i++)
                     {
                         int b = start + i / sav.BoxSlotCount; if (b >= sav.BoxCount) break;
@@ -649,7 +633,7 @@ public class MainPage : ContentPage
                         if (c == null) { skipped++; continue; }   // 이 세이브 형식으로 못 바꾸는 포켓몬은 건너뜀
                         sav.SetBoxSlotAtIndex(c, b, i % sav.BoxSlotCount); n++;
                     }
-                    AppState.AfterBulk(boxes: Enumerable.Range(start, Math.Min(sav.BoxCount - start, (set.Count + sav.BoxSlotCount - 1) / sav.BoxSlotCount)));
+                    await AppState.AfterBulk(boxes: Enumerable.Range(start, Math.Min(sav.BoxCount - start, (set.Count + sav.BoxSlotCount - 1) / sav.BoxSlotCount)));
                     AppState.NotifyBox(); Note.Show(skipped > 0 ? $"{n}마리를 넣었습니다 (이 게임에 넣을 수 없는 {skipped}마리는 건너뜀)" : $"{n}마리를 넣었습니다"); break;
                 default: await this.DisplayAlertTr("열기", "지원하지 않는 파일입니다.", "확인"); break;
             }
@@ -674,7 +658,8 @@ public class MainPage : ContentPage
             var fileName = string.IsNullOrEmpty(sav.Metadata.FileName) ? "main" : sav.Metadata.FileName;
             if (SaveStore.AutoBackup) SaveStore.Backup(ms.ToArray(), fileName, "내보내기");
             var r = await FileSaver.Default.SaveAsync(fileName, ms, CancellationToken.None);
-            Note.Show(r.IsSuccessful ? "세이브를 저장했습니다" : "저장을 취소했습니다");
+            if (r.IsSuccessful && AppState.Sav == sav) AppState.ClearSavDirty();
+            Note.Show(ShareUtil.SaveNote(r, "세이브를 저장했습니다", "저장을 취소했습니다"));
         }
         catch (Exception ex) { await this.DisplayAlertTr("저장 실패", ex.Message, "확인"); }
     }
@@ -701,6 +686,6 @@ public class MainPage : ContentPage
         var data = new byte[pk.SIZE_STORED]; pk.WriteDecryptedDataStored(data);
         await using var ms = new MemoryStream(data);
         var r = await FileSaver.Default.SaveAsync(pk.FileName, ms, CancellationToken.None);
-        Note.Show(r.IsSuccessful ? "저장했습니다" : "취소했습니다");
+        Note.Show(ShareUtil.SaveNote(r, "저장했습니다"));
     }
 }

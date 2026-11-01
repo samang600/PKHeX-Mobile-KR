@@ -193,6 +193,22 @@ public class BoxPanel : ContentView
     {
         try { RefreshCore(); } catch (Exception ex) { Note.Show("박스 표시 오류: " + ex.Message); }
     }
+    private int legalSerial;
+    /// <summary>
+    /// 합법성 표시: 캐시에 있는 것만 바로 쓰고, 없는 칸은 백그라운드에서 검사한 뒤 한 번 다시 그림 (박스를 넘길 때 UI가 멈추지 않게).
+    /// 다시 그리는 사이에 박스·세이브가 바뀌었으면 버림.
+    /// </summary>
+    private void CheckLegalLater(List<PKM> pending)
+    {
+        var my = ++legalSerial; var key = (AppState.Sav, AppState.PartyMode, AppState.Box);
+        Task.Run(() => { foreach (var p in pending) AppState.IsLegal(p); }).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (my != legalSerial || key != (AppState.Sav, AppState.PartyMode, AppState.Box)) return;
+            legalFinal = true;
+            try { RefreshCore(); } catch (Exception ex) { Note.Show("박스 표시 오류: " + ex.Message); } finally { legalFinal = false; }
+        }));
+    }
+    private bool legalFinal;   // 백그라운드 검사 뒤 다시 그릴 때: 그래도 캐시에 없으면(검사 오류 등) 여기서 검사 (반복 방지)
     private void RefreshCore()
     {
         var sav = AppState.Sav;
@@ -210,6 +226,14 @@ public class BoxPanel : ContentView
         if (!Expanded) return;
         var src = AppState.Source;
         grid.HeightRequest = (AppState.PartyMode ? 1 : 5) * 60 + 16;
+        var pending = new List<PKM>();
+        bool Illegal(PKM p)
+        {
+            if (p.Species == 0) return false;
+            if (AppState.CachedLegal(p) is bool ok) return !ok;
+            if (legalFinal) return !AppState.IsLegal(p);
+            pending.Add(p); return false;   // 검사가 끝나면 다시 그림
+        }
         grid.ItemsSource = slots.Select((p, i) =>
         {
             bool current = src is { } s && s.Party == AppState.PartyMode && (AppState.PartyMode || s.Box == AppState.Box) && s.Index == i;
@@ -220,8 +244,9 @@ public class BoxPanel : ContentView
             var stroke = sel ? T.Good : isMoving ? T.Warn : pickMode || moving != null ? T.Accent.WithAlpha(0.4f) : hl ? T.Warn : fm ? T.Good : current ? T.Accent : Colors.Transparent;
             double dim = BoxFilter.Active && !fm ? 0.3 : 1;
             if (AppState.IsBadEgg(p)) return new Slot(i, p, "a_egg.png", false, true, null, stroke, dim, sel);   // 불량알: 알 그림 + 불법 표시
-            return new Slot(i, p, AppState.Sprite(p), p.Species != 0 && p.IsShiny, p.Species != 0 && !AppState.IsLegal(p), AppState.ItemSprite(p.HeldItem), stroke, dim, sel);
+            return new Slot(i, p, AppState.Sprite(p), p.Species != 0 && p.IsShiny, Illegal(p), AppState.ItemSprite(p.HeldItem), stroke, dim, sel);
         }).ToList();
+        if (pending.Count > 0) CheckLegalLater(pending);
     }
 
     /// <summary>하단 "칸에 저장"에서 호출: 칸 고르기 모드로 펼침.</summary>
@@ -321,7 +346,7 @@ public class BoxPanel : ContentView
         {
             case move:
                 var list = Enumerable.Range(0, sav.BoxCount).Select(b => new ComboItem($"{b + 1}. {AppState.BoxName(b)}  (빈 칸 {sav.GetBoxData(b).Count(p => p.Species == 0)})", b)).ToList();
-                SheetHost.Show(new PickerSheet("옮길 박스", list, AppState.Box, c =>
+                SheetHost.Show(new PickerSheet("옮길 박스", list, AppState.Box, async c =>
                 {
                     SaveStore.Snapshot("옮기기");
                     int moved = 0, b = c.Value; var touched = new List<(int, int)>();
@@ -333,7 +358,7 @@ public class BoxPanel : ContentView
                         sav.SetBoxSlotAtIndex(sav.GetBoxSlotAtIndex(k.Box, k.Index), b, slot); sav.SetBoxSlotAtIndex(sav.BlankPKM, k.Box, k.Index); moved++;
                         touched.Add((b, slot)); touched.Add((k.Box, k.Index));
                     }
-                    AppState.AfterBulk(touched);
+                    await AppState.AfterBulk(touched);
                     Selected.Clear(); AppState.NotifyBox(); Note.Show(moved < picks.Count ? $"{moved}마리 옮김 (빈 칸이 부족해 나머지는 그대로)" : $"{moved}마리를 옮겼습니다");
                 }));
                 break;
@@ -341,7 +366,7 @@ public class BoxPanel : ContentView
                 if (!await Page().DisplayAlertTr("삭제", $"선택한 {picks.Count}마리를 삭제할까요? (실행 취소 불가 · 자동 백업이 켜져 있으면 작업 전 백업을 남김)", "삭제", "취소")) return;
                 SaveStore.Snapshot("삭제");
                 foreach (var k in picks) sav.SetBoxSlotAtIndex(sav.BlankPKM, k.Box, k.Index);
-                AppState.AfterBulk(picks.Select(k => (k.Box, k.Index)));
+                await AppState.AfterBulk(picks.Select(k => (k.Box, k.Index)));
                 Selected.Clear(); AppState.NotifyBox(); Note.Show("삭제했습니다"); break;
             case export:
                 await using (var ms = new MemoryStream(Bin())) { var r = await CommunityToolkit.Maui.Storage.FileSaver.Default.SaveAsync($"selected_{picks.Count}.bin", ms, CancellationToken.None); Note.Show(r.IsSuccessful ? "저장했습니다" : "취소했습니다"); }
@@ -403,7 +428,7 @@ public class BoxPanel : ContentView
             await Task.Run(() => { for (int b = one ? AppState.Box : 0; b <= (one ? AppState.Box : sav.BoxCount - 1); b++) for (int i = 0; i < sav.BoxSlotCount; i++) { var p = sav.GetBoxSlotAtIndex(b, i); if (p.Species != 0) AppState.IsLegal(p); } });
         }
         if (one) sav.SortBoxes(AppState.Box, AppState.Box, m); else sav.SortBoxes(0, -1, m);
-        AppState.AfterBulk(boxes: one ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));
+        await AppState.AfterBulk(boxes: one ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));
         AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show("정렬했습니다 (빈 칸은 뒤로 모임)");
     }
 
@@ -413,7 +438,7 @@ public class BoxPanel : ContentView
         if (AppState.PartyMode || AppState.Sav is not IBoxDetailName n) { Note.Show("이 게임은 박스 이름을 바꿀 수 없습니다"); return; }
         var name = await Page().DisplayPromptTr("박스 이름", $"{AppState.Box + 1}번 박스의 새 이름", "변경", "취소", initialValue: AppState.BoxName(AppState.Box), maxLength: 16);
         if (string.IsNullOrWhiteSpace(name)) return;
-        try { n.SetBoxName(AppState.Box, name.Trim()); AppState.NotifyBox(); Note.Show("박스 이름을 바꿨습니다"); }
+        try { n.SetBoxName(AppState.Box, name.Trim()); AppState.MarkSavDirty(); AppState.NotifyBox(); Note.Show("박스 이름을 바꿨습니다"); }
         catch (Exception ex) { Note.Show("바꾸지 못했습니다: " + ex.Message); }
     }
 
@@ -435,7 +460,7 @@ public class BoxPanel : ContentView
                 if (!over && sav.GetBoxSlotAtIndex(bx, i).Species != 0) continue;
                 sav.SetBoxSlotAtIndex(pk.Clone(), bx, i); n++;
             }
-        AppState.AfterBulk(boxes: all ? Enumerable.Range(0, sav.BoxCount) : [AppState.Box]);
+        await AppState.AfterBulk(boxes: all ? Enumerable.Range(0, sav.BoxCount) : [AppState.Box]);
         AppState.Source = null; AppState.NotifyBox(); Note.Show($"{n}칸을 채웠습니다");
     }
 
@@ -456,14 +481,14 @@ public class BoxPanel : ContentView
             if (!await Page().DisplayAlertTr("불법 포켓몬 비우기", $"불법으로 판정된 {bad.Count}마리를 지웁니다. 되돌릴 수 없습니다.", "지우기", "취소")) return;
             SaveStore.Snapshot("불법비우기");
             foreach (var (b, i) in bad) sav.SetBoxSlotAtIndex(sav.BlankPKM, b, i);
-            AppState.AfterBulk(bad);
+            await AppState.AfterBulk(bad);
             AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show($"불법 포켓몬 {bad.Count}마리를 지웠습니다");
             return;
         }
         if (!await Page().DisplayAlertTr("비우기", $"{what}의 포켓몬을 모두 지웁니다. 되돌릴 수 없습니다.", "비우기", "취소")) return;
         SaveStore.Snapshot("비우기");
         if (what == cur) sav.ClearBoxes(AppState.Box, AppState.Box + 1); else sav.ClearBoxes();
-        AppState.AfterBulk(boxes: what == cur ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));
+        await AppState.AfterBulk(boxes: what == cur ? [AppState.Box] : Enumerable.Range(0, sav.BoxCount));
         AppState.Source = null; Selected.Clear(); AppState.NotifyBox(); Note.Show("비웠습니다");
     }
 

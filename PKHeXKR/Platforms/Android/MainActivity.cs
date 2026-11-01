@@ -31,18 +31,22 @@ public class MainActivity : MauiAppCompatActivity
         if (i == null || (i.Action != Intent.ActionView && i.Action != Intent.ActionSend)) return;
         Android.Net.Uri uri = i.Action == Intent.ActionSend ? (Android.Net.Uri)i.GetParcelableExtra(Intent.ExtraStream) : i.Data;
         if (uri == null) return;
-        try
+        // 큰 파일(클라우드 등)을 읽는 동안 화면이 멈추지 않게 백그라운드에서 읽고, 실패하면 알림
+        _ = Task.Run(() =>
         {
-            using var st = ContentResolver.OpenInputStream(uri);
-            using var ms = new MemoryStream(); st.CopyTo(ms);
-            var data = ms.ToArray(); var name = DisplayName(uri) ?? "file.bin";
-            MainThread.BeginInvokeOnMainThread(async () =>
+            try
             {
-                for (int k = 0; k < 60 && MainPage.Instance == null; k++) await Task.Delay(100);
-                if (MainPage.Instance != null) await MainPage.Instance.OpenBytes(data, name);
-            });
-        }
-        catch { }
+                using var st = ContentResolver.OpenInputStream(uri) ?? throw new IOException("파일을 열 수 없습니다");
+                using var ms = new MemoryStream(); st.CopyTo(ms);
+                var data = ms.ToArray(); var name = DisplayName(uri) ?? "file.bin";
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    for (int k = 0; k < 60 && MainPage.Instance == null; k++) await Task.Delay(100);
+                    if (MainPage.Instance != null) await MainPage.Instance.OpenBytes(data, name);
+                });
+            }
+            catch (Exception ex) { MainThread.BeginInvokeOnMainThread(() => Note.Show("받은 파일을 열지 못했습니다: " + ex.Message)); }
+        });
     }
 
     private string DisplayName(Android.Net.Uri uri)

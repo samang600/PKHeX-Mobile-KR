@@ -31,7 +31,22 @@ public static class AppState
         }
     }
     public static PokeSysBotMini Remote;
-    public static bool LiveConnected => Remote?.Connected == true && (LiveSav == null || LiveSav == Sav);
+    public static bool LiveConnected => Remote?.Connected == true && LiveSav == Sav;
+
+    /// <summary>세이브(박스 등)를 바꾼 뒤 아직 내보내지 않았는지. 세이브를 열거나 내보내기·FTP 덮어쓰기에 성공하면 지움.</summary>
+    public static bool SavDirty { get => savDirty || Sav?.State.Edited == true; private set { savDirty = value; if (!value && Sav != null) Sav.State.Edited = false; } }
+    private static bool savDirty;
+    public static void MarkSavDirty() => savDirty = true;
+    public static void ClearSavDirty() => SavDirty = false;
+    /// <summary>내보내지 않은 변경이 있는 세이브 수 (모든 인스턴스).</summary>
+    public static int UnsavedCount()
+    {
+        if (Instances.Count == 0) return SavDirty ? 1 : 0;
+        int n = 0;
+        for (int i = 0; i < Instances.Count; i++)
+            if (i == Active ? SavDirty : Instances[i].SavDirty || Instances[i].Sav.State.Edited) n++;
+        return n;
+    }
 
     public static event Action PkLoaded;
     public static event Action HistoryChanged;
@@ -58,8 +73,8 @@ public static class AppState
         if (from.Count == 0) return;
         var a = from.Pop();
         if (a is PkAct p) { to.Push(new PkAct(Pk.Clone(), Dirty, Source)); Pk = p.Pk; Dirty = p.Dirty; Source = p.Src; lastEdit = default; PkLoaded?.Invoke(); }
-        else if (a is SlotAct sa) { SetSlotRaw(sa.Party, sa.Box, sa.Index, from == undo ? sa.Before : sa.After, insert: sa.Party && from == undo && sa.After.Species == 0); to.Push(sa); BoxChanged?.Invoke(); }
-        else if (a is SwapAct sw) { SwapRaw(sw.BoxA, sw.IndexA, sw.BoxB, sw.IndexB); to.Push(sw); BoxChanged?.Invoke(); }
+        else if (a is SlotAct sa) { SetSlotRaw(sa.Party, sa.Box, sa.Index, from == undo ? sa.Before : sa.After, insert: sa.Party && from == undo && sa.After.Species == 0); to.Push(sa); MarkSavDirty(); BoxChanged?.Invoke(); }
+        else if (a is SwapAct sw) { SwapRaw(sw.BoxA, sw.IndexA, sw.BoxB, sw.IndexB); to.Push(sw); MarkSavDirty(); BoxChanged?.Invoke(); }
         HistoryChanged?.Invoke();
     }
     private static PKM GetSlot(bool party, int box, int index) => party ? (index < Sav.PartyCount ? Sav.GetPartySlotAtIndex(index) : Sav.BlankPKM) : Sav.GetBoxSlotAtIndex(box, index);
@@ -210,6 +225,7 @@ public static class AppState
         Pk = string.IsNullOrEmpty(s.Metadata.FileName) ? Placeholder(s) : s.BlankPKM; Dirty = false; Source = null; undo.Clear(); redo.Clear(); HistoryChanged?.Invoke();
         // 세이브를 바꾸면 연결 해제 (백그라운드). 새 인스턴스를 추가할 때는 연결된 인스턴스가 그대로 남으므로 끊지 않음
         if (Remote != null && !keepLive) { var r = Remote; Remote = null; LiveSav = null; _ = Task.Run(() => { try { r.com.Disconnect(); } catch { } }); }
+        ClearSavDirty();
         if (notify) { SaveChanged?.Invoke(); PkLoaded?.Invoke(); BoxChanged?.Invoke(); }
     }
 
@@ -263,7 +279,7 @@ public static class AppState
     {
         if (boxA == boxB && indexA == indexB) return;
         SwapRaw(boxA, indexA, boxB, indexB);
-        Push(new SwapAct(boxA, indexA, boxB, indexB));
+        Push(new SwapAct(boxA, indexA, boxB, indexB)); MarkSavDirty();
         if (Source is { Party: false } src)
         {
             if (src.Box == boxA && src.Index == indexA) Source = (false, boxB, indexB);
@@ -275,7 +291,7 @@ public static class AppState
     {
         var a = Sav.GetBoxSlotAtIndex(boxA, indexA); var b = Sav.GetBoxSlotAtIndex(boxB, indexB);
         Sav.SetBoxSlotAtIndex(b, boxA, indexA); Sav.SetBoxSlotAtIndex(a, boxB, indexB);
-        if (boxA == Box || boxB == Box) { LiveSync(boxA, indexA); LiveSync(boxB, indexB); }
+        LiveSync(boxA, indexA); LiveSync(boxB, indexB);   // 화면에 없는 박스도 (안 쓰면 그 박스를 열 때 게임 쪽 값으로 다시 읽혀 옮긴 것이 사라짐)
     }
     /// <summary>요약 카드 등에서 바꾼 값을 편집 탭에도 반영.</summary>
     public static void ReloadEditors() => PkLoaded?.Invoke();
@@ -283,7 +299,7 @@ public static class AppState
     // ===== 여러 인스턴스 (세이브 여러 개를 동시에 열어 오가며 편집) =====
     public sealed class Instance
     {
-        public SaveFile Sav; public FilteredGameDataSource Src; public PKM Pk; public bool Dirty; public int Box; public bool PartyMode;
+        public SaveFile Sav; public FilteredGameDataSource Src; public PKM Pk; public bool Dirty; public int Box; public bool PartyMode; public bool SavDirty;
         public (bool, int, int)? Source; public Act[] Undo = []; public Act[] Redo = [];
         public string Title => $"{GameName(Sav.Version)} · {Sav.OT}" + (string.IsNullOrEmpty(Sav.Metadata.FileName) ? "" : $" · {Sav.Metadata.FileName}");
     }
@@ -292,10 +308,10 @@ public static class AppState
     public static SaveFile LiveSav;              // 라이브헥스는 한 번에 한 인스턴스(세이브)만
     public static PKM Clipboard;                 // 인스턴스 간 복사·붙여넣기
 
-    private static Instance Snapshot() => new() { Sav = Sav, Src = Src, Pk = Pk, Dirty = Dirty, Box = Box, PartyMode = PartyMode, Source = Source, Undo = undo.Reverse().ToArray(), Redo = redo.Reverse().ToArray() };
+    private static Instance Snapshot() => new() { Sav = Sav, Src = Src, Pk = Pk, Dirty = Dirty, Box = Box, PartyMode = PartyMode, SavDirty = savDirty, Source = Source, Undo = undo.Reverse().ToArray(), Redo = redo.Reverse().ToArray() };
     private static void Restore(Instance i)
     {
-        Sav = i.Sav; Src = new FilteredGameDataSource(i.Sav, GameInfo.Sources, HaX); Pk = i.Pk; Dirty = i.Dirty; Box = i.Box; PartyMode = i.PartyMode; Source = i.Source;   // PKHaX·언어가 바뀌었을 수 있어 목록은 새로
+        Sav = i.Sav; Src = new FilteredGameDataSource(i.Sav, GameInfo.Sources, HaX); Pk = i.Pk; Dirty = i.Dirty; Box = i.Box; PartyMode = i.PartyMode; Source = i.Source; savDirty = i.SavDirty;   // PKHaX·언어가 바뀌었을 수 있어 목록은 새로
         undo.Clear(); foreach (var a in i.Undo) undo.Push(a); redo.Clear(); foreach (var a in i.Redo) redo.Push(a);
         ApplyParse();   // 세이브 주인 대조·핸들러 검사 끔 등 합법성 옵션을 이 세이브에도 적용 (예전엔 빠져서 불러오면 어버이 관련 불법이 뜸)
         RegisterTrainers(Sav);
@@ -319,7 +335,7 @@ public static class AppState
     {
         if (Instances.Count <= 1) return;
         SaveActive();
-        if (Instances[index].Sav == LiveSav) { try { Remote?.com.Disconnect(); } catch { } LiveSav = null; }
+        if (Instances[index].Sav == LiveSav) MarkLiveLost();   // 연결도 정리 (Remote가 남아 다른 인스턴스에서 연결된 것처럼 보이지 않게)
         Instances.RemoveAt(index);
         Active = Math.Min(Active > index ? Active - 1 : Active, Instances.Count - 1);
         Restore(Instances[Active]);
@@ -437,8 +453,20 @@ public static class AppState
             Sav.SetBoxSlotAtIndex(p, Box, index);
             LiveSync(Box, index);   // 라이브헥스: 게임에도 바로 기록
         }
-        Dirty = false; Source = (PartyMode, Box, index);
+        Dirty = false; Source = (PartyMode, Box, index); MarkSavDirty();
         BoxChanged?.Invoke();
+    }
+
+    /// <summary>박스 빈 칸에 넣기 (HOME·즐겨찾기·배포 카드·쇼다운 팀 등): 되돌리기 기록 + 라이브헥스 + 박스 갱신.</summary>
+    public static bool PutSlot(int box, int index, PKM p, bool notify = true)
+    {
+        if (ForSave(p) is not { } fit) { Note.Show($"{ContextName(p.Context)} 포켓몬은 이 세이브에 넣을 수 없습니다"); return false; }
+        Push(new SlotAct(false, box, index, Sav.GetBoxSlotAtIndex(box, index).Clone(), fit.Clone()));
+        Sav.SetBoxSlotAtIndex(fit, box, index);
+        LiveSync(box, index);
+        MarkSavDirty();
+        if (notify) BoxChanged?.Invoke();
+        return true;
     }
 
     public static void DeleteSlot(int index)
@@ -446,6 +474,7 @@ public static class AppState
         Push(new SlotAct(PartyMode, Box, index, GetSlot(PartyMode, Box, index).Clone(), Sav.BlankPKM));
         if (PartyMode) { if (index < Sav.PartyCount) Sav.DeletePartySlot(index); }
         else { Sav.SetBoxSlotAtIndex(Sav.BlankPKM, Box, index); LiveSync(Box, index); }
+        MarkSavDirty();
         BoxChanged?.Invoke();
     }
 
@@ -474,18 +503,30 @@ public static class AppState
     /// <summary>
     /// 여러 칸을 한꺼번에 바꾼 뒤(옮기기·삭제·채우기·비우기·정렬·박스 데이터 넣기): 되돌리기 기록은 더 이상 맞지 않으므로 비우고,
     /// 라이브헥스가 연결돼 있으면 바뀐 칸을 게임에도 씀 (안 쓰면 박스를 넘길 때 게임 쪽 값으로 다시 읽혀 바뀐 것이 사라짐).
-    /// boxes: 통째로 다시 쓸 박스 (null이면 slots만)
+    /// boxes: 통째로 다시 쓸 박스 (null이면 slots만). 게임에 쓰는 동안 화면이 멈추지 않게 통신은 백그라운드에서.
     /// </summary>
-    public static void AfterBulk(IEnumerable<(int Box, int Index)> slots = null, IEnumerable<int> boxes = null)
+    public static async Task AfterBulk(IEnumerable<(int Box, int Index)> slots = null, IEnumerable<int> boxes = null)
     {
         undo.Clear(); redo.Clear(); HistoryChanged?.Invoke();
+        MarkSavDirty();
         if (!LiveConnected) return;
-        var set = new HashSet<(int, int)>(slots ?? []);
-        if (boxes != null) foreach (var b in boxes) { if (LiveSyncBox(b)) continue; for (int i = 0; i < Sav.BoxSlotCount; i++) set.Add((b, i)); }
-        // 한 박스의 칸이 많이 바뀌었으면 박스를 통째로 (명령 1번), 아니면 칸마다
-        foreach (var g in set.GroupBy(x => x.Item1).ToList())
-            if (g.Count() >= 8 && LiveSyncBox(g.Key)) foreach (var x in g) set.Remove(x);
-        foreach (var (b, i) in set) { LiveSync(b, i); if (!LiveConnected) break; }
+        var slotList = slots?.ToList() ?? []; var boxList = boxes?.ToList() ?? [];
+        if (slotList.Count == 0 && boxList.Count == 0) return;
+        using var bg = BgTask.Begin("라이브헥스 쓰기");
+        if (boxList.Count > 1 || slotList.Count > 8) Note.Show("게임에 쓰는 중…");
+        await Task.Run(() =>
+        {
+            var set = new HashSet<(int, int)>(slotList);
+            for (int k = 0; k < boxList.Count && LiveConnected; k++)
+            {
+                var b = boxList[k]; bg.Report($"{k + 1}/{boxList.Count}", k + 1, boxList.Count);
+                if (LiveSyncBox(b)) continue; for (int i = 0; i < Sav.BoxSlotCount; i++) set.Add((b, i));
+            }
+            // 한 박스의 칸이 많이 바뀌었으면 박스를 통째로 (명령 1번), 아니면 칸마다
+            foreach (var g in set.GroupBy(x => x.Item1).ToList())
+                if (g.Count() >= 8 && LiveSyncBox(g.Key)) foreach (var x in g) set.Remove(x);
+            foreach (var (b, i) in set) { LiveSync(b, i); if (!LiveConnected) break; }
+        });
     }
 
     /// <summary>
@@ -761,6 +802,14 @@ public static class AppState
         var b = new byte[p.SIZE_STORED]; p.WriteDecryptedDataStored(b);
         ulong h = 14695981039346656037UL; foreach (var x in b) { h ^= x; h *= 1099511628211UL; }
         return h ^ ((ulong)p.Format << 56);
+    }
+    /// <summary>캐시에 있는 합법성만 (없으면 null) — 화면 그리기에서 검사를 기다리지 않게.</summary>
+    public static bool? CachedLegal(PKM p)
+    {
+        if (HaX) return true;
+        if (p.Species == 0) return false;
+        try { var key = Hash(p); lock (legalLock) return legalCache.TryGetValue(key, out var v) ? v : null; }
+        catch { return false; }
     }
     public static bool IsLegal(PKM p)
     {

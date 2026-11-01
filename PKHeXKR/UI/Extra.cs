@@ -101,7 +101,9 @@ public class AutoOTSheet : Sheet
             var pk = AppState.Pk; if (pk.Species == 0) { Note.Show("먼저 포켓몬을 불러오세요"); return; }
             if (string.IsNullOrWhiteSpace(ot.Text)) { status.Text = "교환 상대 이름이 필요합니다"; return; }
             int.TryParse(tid.Text, out var t); int.TryParse(sid.Text, out var sd);
-            uint id32 = six ? (uint)Math.Min(Math.Max(sd, 0) * 1_000_000L + Math.Clamp(t, 0, 999_999), uint.MaxValue) : (uint)((Math.Clamp(sd, 0, 65535) << 16) | (t & 0xFFFF));
+            // SID는 4294까지 (그 이상은 32비트를 넘어 TID까지 바뀜) → 맞춘 값을 입력칸에도 다시 보여 줌
+            uint id32 = six ? (uint)Math.Min(Math.Clamp(sd, 0, 4294) * 1_000_000L + Math.Clamp(t, 0, 999_999), uint.MaxValue) : (uint)((Math.Clamp(sd, 0, 65535) << 16) | (Math.Clamp(t, 0, 65535) & 0xFFFF));
+            SetIds(id32, six);
             var partner = new AppState.Partner(ot.Text.Trim(), id32, six, gender, lang);
             Preferences.Set("partner_ot", partner.OT); Preferences.Set("partner_id32", (int)id32); Preferences.Set("partner_gender", (int)gender); Preferences.Set("partner_lang", lang);
             AppState.Checkpoint(true); AppState.AutoOT(pk, partner); AppState.Edited(); AppState.ReloadEditors();
@@ -301,9 +303,10 @@ public class BatchSheet : Sheet
                 var now = new byte[p.SIZE_STORED]; p.WriteDecryptedDataStored(now); if (!before[k].AsSpan().SequenceEqual(now)) { changed++; if (b >= 0) touched.Add((b, i)); }
                 if (b < 0) sav.SetPartySlotAtIndex(p, i); else sav.SetBoxSlotAtIndex(p, b, i);
             }
-            AppState.AfterBulk(touched);
+            await AppState.AfterBulk(touched);
             AppState.NotifyBox();
-            int illegal = mons.Count(m => !AppState.IsLegal(m));
+            result.Text = $"{slots.Count}마리 중 {changed}마리 변경 · 합법성 확인 중…";
+            int illegal = await Task.Run(() => mons.Count(m => !AppState.IsLegal(m)));   // 수백 마리 검사는 UI 스레드 밖에서
             result.Text = $"{slots.Count}마리 중 {changed}마리 변경{(illegal > 0 ? $" · 불법 {illegal}마리 (박스에서 확인)" : "")}\n" + string.Join("\n", report.Where(x => !string.IsNullOrWhiteSpace(x)));
         }
         catch (Exception ex) { result.Text = "실행 실패: " + ex.Message; }
@@ -360,13 +363,13 @@ public class PlayerSheet : Sheet
             try
             {
                 if (money.IsEnabled && uint.TryParse(money.Text, out var m)) { uint cap = 9_999_999; try { cap = (uint)sav.MaxMoney; } catch { } try { sav.Money = Math.Min(m, cap); } catch { } }
-                bag?.CopyTo(sav); status.Text = "세이브에 적용했습니다 (세이브 내보내기로 저장하세요)";
+                bag?.CopyTo(sav); AppState.MarkSavDirty(); status.Text = "세이브에 적용했습니다 (세이브 내보내기로 저장하세요)";
             }
             catch (Exception ex) { status.Text = "적용 실패: " + ex.Message; }
         };
         var liveRead = T.Pill("게임에서 읽기"); var liveWrite = T.Pill("게임에 쓰기");
         liveRead.IsEnabled = liveWrite.IsEnabled = AppState.LiveConnected;
-        liveRead.Clicked += (_, _) => { try { var ok = AppState.Remote.Injector.ReadBlockFromString(AppState.Remote, sav, "Items", out _); if (ok) { Load(); status.Text = "게임에서 가방을 읽었습니다"; } else status.Text = "이 게임은 가방 블록 읽기를 지원하지 않습니다"; } catch (Exception ex) { status.Text = "읽기 실패: " + ex.Message; } };
+        liveRead.Clicked += (_, _) => { try { var ok = AppState.Remote.Injector.ReadBlockFromString(AppState.Remote, sav, "Items", out _); if (ok) { ReadBag(); Render(); status.Text = "게임에서 가방을 읽었습니다"; } else status.Text = "이 게임은 가방 블록 읽기를 지원하지 않습니다"; } catch (Exception ex) { status.Text = "읽기 실패: " + ex.Message; } };
         liveWrite.Clicked += (_, _) => { try { bag?.CopyTo(sav); AppState.Remote.Injector.WriteBlocksFromSAV(AppState.Remote, "Items", sav); status.Text = "게임에 가방을 썼습니다 (게임에서 가방을 다시 열어 확인하세요)"; } catch (Exception ex) { status.Text = "쓰기 실패: " + ex.Message; } };
         var hint = T.L("가방의 도구·개수와 돈을 고칩니다. 라이브헥스가 연결되어 있으면 게임의 가방을 바로 읽고 쓸 수 있습니다 (지원 게임에 한함).", 12, sub: true);
         hint.LineBreakMode = LineBreakMode.WordWrap;
@@ -396,7 +399,7 @@ public class PlayerSheet : Sheet
                 if (six) { t = Math.Clamp(t, 0, 999999); sd = Math.Clamp(sd, 0, 4294); } else { t = Math.Clamp(t, 0, 65535); sd = Math.Clamp(sd, 0, 65535); }
                 var nm = string.IsNullOrWhiteSpace(otE.Text) ? sav.OT : otE.Text.Trim();
                 if (OldGenName.IsOld(sav) && OldGenName.HasJapanese(nm)) lang = (int)LanguageID.Japanese;
-                AppState.SetTrainerFor(sav.Version, nm, gender, t, sd, lang);
+                AppState.SetTrainerFor(sav.Version, nm, gender, t, sd, lang); AppState.MarkSavDirty();
                 if (hasTime) { try { if (int.TryParse(hh.Text, out var h)) sav.PlayedHours = Math.Clamp(h, 0, 999); if (int.TryParse(mm.Text, out var m2)) sav.PlayedMinutes = Math.Clamp(m2, 0, 59); if (int.TryParse(ss.Text, out var s2)) sav.PlayedSeconds = Math.Clamp(s2, 0, 59); } catch { } }
                 Dispatcher.Dispatch(async () =>   // 세이브 트레이너 + ALM 트레이너 + 게임별 저장값 갱신 (1~3세대 글자 체계 확인 포함)
                 {
@@ -441,20 +444,24 @@ public class PlayerSheet : Sheet
         var cosHint = T.L("PKHeX가 지원하는 게임(소드실드 의상, 레츠고 액세서리, XY 액세서리, SV 던지기 동작 등)만 동작합니다.", 12, sub: true); cosHint.LineBreakMode = LineBreakMode.WordWrap;
         var cosCard = UiFold.Card("의상·꾸미기", "pl_cos", false, new VerticalStackLayout { Spacing = 10, Children = { cosHint, cosBtn } });
         Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { trCard, bagCard, dexCard, cosCard, status } } });
-        Load();
+        ReadBag(); Render();
     }
 
-    private void Load()
+    /// <summary>세이브에서 가방 읽기. sav.Inventory는 부를 때마다 새 가방을 만들어서, 주머니를 바꿀 때마다 읽으면 고친 내용이 사라졌음 → 처음과 '게임에서 읽기' 뒤에만.</summary>
+    private void ReadBag()
     {
-        var sav = AppState.Sav;
-        try { bag = sav.Inventory; } catch { bag = null; }
+        try { bag = AppState.Sav.Inventory; } catch { bag = null; }
+    }
+
+    private void Render()
+    {
         pouchBar.Children.Clear(); list.Children.Clear();
         if (bag == null || bag.Pouches.Count == 0) { bagInfo.Text = "이 게임은 가방 편집을 지원하지 않습니다"; return; }
         for (int i = 0; i < bag.Pouches.Count; i++)
         {
             int k = i; var b = T.Pill(PouchName(bag.Pouches[i].Type), size: 13);
             if (k == pouchIdx) { b.BackgroundColor = T.Accent; b.TextColor = Colors.White; }
-            b.Clicked += (_, _) => { pouchIdx = k; Load(); };
+            b.Clicked += (_, _) => { pouchIdx = k; Render(); };
             pouchBar.Children.Add(b);
         }
         pouchIdx = Math.Min(pouchIdx, bag.Pouches.Count - 1);
@@ -466,7 +473,7 @@ public class PlayerSheet : Sheet
         foreach (var it in shown.Take(400))
         {
             var item = it;
-            (var cv, var cl) = T.Chooser(() => SheetHost.Show(new PickerSheet("도구", itemList, item.Index, c => { if (c.Value == 0) { item.Count = 0; } else { item.Index = c.Value; if (item.Count == 0) item.Count = 1; } Load(); }, c => AppState.ItemSprite(c.Value))));
+            (var cv, var cl) = T.Chooser(() => SheetHost.Show(new PickerSheet("도구", itemList, item.Index, c => { if (c.Value == 0) { item.Count = 0; } else { item.Index = c.Value; if (item.Count == 0) item.Count = 1; } Render(); }, c => AppState.ItemSprite(c.Value))));
             cl.Text = AppState.Src.Items.FirstOrDefault(c => c.Value == item.Index)?.Text ?? item.Index.ToString();
             var cnt = T.Input(Keyboard.Numeric); cnt.WidthRequest = 80; cnt.HorizontalTextAlignment = TextAlignment.Center; cnt.Text = item.Count.ToString();
             int max = pouch.MaxCount;
@@ -479,7 +486,7 @@ public class PlayerSheet : Sheet
         {
             var slot = pouch.Items.FirstOrDefault(x => x.Index == c.Value) ?? pouch.Items.FirstOrDefault(x => x.Index == 0);
             if (slot == null) { bagInfo.Text = "이 주머니에 빈 칸이 없습니다"; return; }
-            slot.Index = c.Value; if (slot.Count == 0) slot.Count = 1; Load();
+            slot.Index = c.Value; if (slot.Count == 0) slot.Count = 1; Render();
         }, c => AppState.ItemSprite(c.Value))));
         al.Text = "+ 도구 추가";
         list.Children.Add(av);
@@ -518,7 +525,8 @@ public class InstanceSheet : Sheet
             close.Clicked += async (_, _) =>
             {
                 var page = Application.Current.Windows[0].Page;
-                if (!await page.DisplayAlertTr("인스턴스 닫기", $"{k + 1}번 인스턴스를 닫습니다. 내보내지 않은 변경은 사라집니다.", "닫기", "취소")) return;
+                bool unsaved = k == AppState.Active ? AppState.SavDirty : inst.SavDirty || inst.Sav.State.Edited;
+                if (!await page.DisplayAlertTr("인스턴스 닫기", $"{k + 1}번 인스턴스를 닫습니다. {(unsaved ? "⚠ 이 세이브에 내보내지 않은 변경이 있습니다. 닫으면 사라집니다." : "내보내지 않은 변경은 사라집니다.")}", "닫기", "취소")) return;
                 Close(); AppState.CloseInstance(k);
             };
             var btns = new HorizontalStackLayout { Spacing = 6, Children = { go, send, close } };
