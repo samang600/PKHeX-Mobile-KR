@@ -62,17 +62,6 @@ public abstract class Section : ContentView
         return g;
     }
     protected static VerticalStackLayout Stack(params View[] v) { var s = new VerticalStackLayout { Spacing = 12, Padding = new Thickness(0, 4, 0, 24) }; foreach (var x in v) s.Children.Add(x); return s; }
-    /// <summary>머리글을 눌러 접고 펴는 카드. 상태는 기기에 저장.</summary>
-    protected static View FoldCard(string title, View inner, string key, bool def = false)
-    {
-        bool open = Preferences.Get(key, def);
-        var head = T.L((open ? "▾  " : "▸  ") + title, 15, bold: true);
-        inner.IsVisible = open;
-        var t = new TapGestureRecognizer();
-        t.Tapped += (_, _) => { open = !open; Preferences.Set(key, open); inner.IsVisible = open; head.Text = (open ? "▾  " : "▸  ") + title; };
-        head.GestureRecognizers.Add(t);
-        return T.Card(new VerticalStackLayout { Spacing = 10, Children = { head, inner } });
-    }
     /// <summary>한 줄에 여러 개 넣는 작은 버튼.</summary>
     protected static Button Small(string text) { var b = T.Pill(text, size: 12); b.Padding = new Thickness(4, 0); b.HeightRequest = 34; b.HorizontalOptions = LayoutOptions.Fill; return b; }
     protected static Label Wrap(Label l) { l.LineBreakMode = LineBreakMode.WordWrap; l.MaxLines = -1; return l; }
@@ -82,16 +71,15 @@ public abstract class Section : ContentView
 // ======================= 기본 =======================
 public class MainSection : Section
 {
-    private Button mintBtn;
     private readonly Label species, form, nature, statNature, ability, item, ball, lang;
     private readonly View formRow, statNatureRow, abilityRow, natureRow, ballRow;
     private readonly Entry nick, level, friend;
     private readonly Switch nickSw, shinySw, eggSw;
     private readonly Button genderBtn;
-    private readonly Entry formArg, dmax;
-    private readonly Label tera, teraOv, plusState;
-    private readonly Switch gmax, alpha;
-    private readonly View formArgRow, dmaxRow, gmaxRow, teraRow, alphaRow, plusRow, gameCard;
+    private readonly Entry formArg;
+    private readonly Label plusState;
+    private readonly Switch alpha;
+    private readonly View formArgRow, alphaRow, plusRow, gameCard;
 
     public static MainSection Current;
     /// <summary>종 고르기 (편집기 종 칸, 상단 아이콘 꾹 누르기).</summary>
@@ -112,7 +100,14 @@ public class MainSection : Section
             Pick("폼", names.Select((n, i) => new ComboItem(n, i)).ToList(), Pk.Form, c => Changed(() => { Pk.Form = (byte)c.Value; Pk.SetGender(Pk.GetSaneGender()); Reload(); }), c => AppState.Sprite(Pk.Species, (byte)c.Value, false));
         });
         formRow = T.Field("폼", fv);
-        nick = T.Input(); nick.TextChanged += (_, e) => Changed(() => { Pk.Nickname = e.NewTextValue ?? ""; AppState.ClearNickTrash(Pk); });
+        nick = T.Input(); nick.TextChanged += (_, e) => Changed(() =>
+        {
+            Pk.Nickname = e.NewTextValue ?? ""; AppState.ClearNickTrash(Pk);
+            // 종 이름과 다르게 적으면 닉네임 (안 그러면 게임·합법성 검사가 종 이름으로 되돌림), 스위치도 맞춤
+            Pk.IsNicknamed = Pk.Nickname != SpeciesName.GetSpeciesNameGeneration(Pk.Species, Pk.Language, Pk.Format);
+            var was = Loading; Loading = true;
+            try { nickSw.IsToggled = Pk.IsNicknamed; } finally { Loading = was; }
+        });
         var nickRow = Switch("닉네임 직접 지정", out nickSw);
         nickSw.Toggled += (_, e) => Changed(() => { Pk.IsNicknamed = e.Value; if (!e.Value) { ResetNickname(); Reload(); } });
         level = Num(v => Changed(() => { int old = Pk.CurrentLevel; Pk.CurrentLevel = (byte)Math.Clamp(v, 1, 100); if (old != Pk.CurrentLevel) AppState.SyncPlusForLevel(Pk, old); }), 100);
@@ -120,10 +115,7 @@ public class MainSection : Section
         genderBtn = T.Pill("♂"); genderBtn.HeightRequest = 44;
         genderBtn.Clicked += (_, _) => Changed(() => CycleGender());
         (var nv, nature) = T.Chooser(() => Pick("성격", AppState.NatureItems(), (int)Pk.Nature, c => Changed(() => { Pk.Nature = (Nature)c.Value; if (Pk.Format < 8) Pk.StatAlignment = Pk.Nature; Reload(); })));
-        mintBtn = T.Pill("(민트)", size: 11); mintBtn.Padding = new Thickness(8, 0); mintBtn.HeightRequest = 36;
-        mintBtn.Clicked += (_, _) => Pick("능력 성격(민트)", AppState.MintItems(Pk), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); }));
-        var natGrid = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 6 }; natGrid.Add(nv, 0); natGrid.Add(mintBtn, 1);
-        natureRow = T.Field("성격", natGrid);
+        natureRow = T.Field("성격", nv);   // 민트는 '능력 성격' 칸과 편집기 상단 성격 옆 (괄호)에서
         (var snv, statNature) = T.Chooser(() => Pick("능력 성격(민트)", AppState.MintItems(Pk), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); })));
         statNatureRow = T.Field("능력 성격 (민트)", snv);
         (var av, ability) = T.Chooser(() =>
@@ -149,14 +141,7 @@ public class MainSection : Section
         var faGrid = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 }; faGrid.Add(formArg, 0); faGrid.Add(faMax, 1);
         formArgRow = T.Field("폼 인수 (진화·폼 조건 값)", faGrid);
 
-        // 게임 전용 항목
-        dmax = Num(v => Changed(() => { if (Pk is IDynamaxLevel d) d.DynamaxLevel = (byte)Math.Min(v, 10); }), 10);
-        dmaxRow = T.Field("다이맥스 레벨 (0~10)", dmax);
-        gmaxRow = Switch("거다이맥스 가능", out gmax);
-        gmax.Toggled += (_, e) => Changed(() => { if (Pk is IGigantamax g) g.CanGigantamax = e.Value; });
-        (var tv, tera) = T.Chooser(() => { if (Pk is ITeraType t) Pick("테라스탈 타입", TeraList(false), (int)t.TeraTypeOriginal, c => Changed(() => { t.TeraTypeOriginal = (MoveType)c.Value; Reload(); })); });
-        (var tov, teraOv) = T.Chooser(() => { if (Pk is ITeraType t) Pick("변경된 테라스탈 타입", TeraList(true), (int)t.TeraTypeOverride, c => Changed(() => { t.TeraTypeOverride = (MoveType)c.Value; Reload(); })); });
-        teraRow = Two(T.Field("테라스탈 타입", tv), T.Field("변경(테라피스)", tov));
+        // 게임 전용 항목 (다이맥스·거다이맥스·테라스탈은 능력치 탭)
         alphaRow = Switch("우두머리(알파)", out alpha);
         alpha.Toggled += (_, e) => Changed(() => { if (Pk is IAlpha a) a.IsAlpha = e.Value; });
         plusState = T.L("", 13, sub: true);
@@ -305,9 +290,6 @@ public class MainSection : Section
         form.Text = forms.Length <= 1 ? "(폼 없음)" : pk.Form < forms.Length ? forms[pk.Form] : pk.Form.ToString();
         formArgRow.IsVisible = pk is IFormArgument && FormArgumentUtil.GetFormArgumentMax(pk.Species, pk.Form, pk.Context) > 0;
         if (pk is IFormArgument fa) formArg.Text = fa.FormArgument.ToString();
-        dmaxRow.IsVisible = pk is IDynamaxLevel; if (pk is IDynamaxLevel d) dmax.Text = d.DynamaxLevel.ToString();
-        gmaxRow.IsVisible = pk is IGigantamax; if (pk is IGigantamax g) gmax.IsToggled = g.CanGigantamax;
-        teraRow.IsVisible = pk is ITeraType; if (pk is ITeraType t) { tera.Text = TeraName((int)t.TeraTypeOriginal); teraOv.Text = TeraName((int)t.TeraTypeOverride); }
         alphaRow.IsVisible = pk is IAlpha; if (pk is IAlpha a) alpha.IsToggled = a.IsAlpha;
         plusRow.IsVisible = pk is PA9; if (pk is IPlusRecord pr) plusState.Text = pr.GetMovePlusFlagAny() ? "기술플러스 기록 있음" : "기술플러스 기록 없음";
         gameCard.IsVisible = pk.Species != 0 && (alphaRow.IsVisible || plusRow.IsVisible);
@@ -319,8 +301,6 @@ public class MainSection : Section
         natureRow.IsVisible = abilityRow.IsVisible = ballRow.IsVisible = g3;
         statNatureRow.IsVisible = pk.Format >= 8;
         nature.Text = NameOf(AppState.Src.Natures, (int)pk.Nature); statNature.Text = NameOf(AppState.Src.Natures, (int)pk.StatAlignment);
-        if (mintBtn != null) { mintBtn.IsVisible = false;   // 민트는 편집기 상단 성격 옆 (괄호)에서
-            mintBtn.Text = $"(민트: {NameOf(AppState.Src.Natures, (int)pk.StatAlignment)})"; }
         var abil = AppState.Src.GetAbilityList(pk.PersonalInfo);
         string AbilName(int a) => a >= 0 && a < GameInfo.Strings.abilitylist.Length ? GameInfo.Strings.abilitylist[a] : "-";
         ability.Text = pk.Format < 3 ? "-" : AppState.HaX ? AbilName(pk.Ability) : AbilityIndex() < abil.Count ? abil[AbilityIndex()].Text : AbilName(pk.Ability);
@@ -624,7 +604,7 @@ public class MovesSection : Section
         var tNone = Small("모두 해제"); tNone.Clicked += (_, _) => Changed(() => { if (Pk is ITechRecord t) t.ClearRecordFlags(); Reload(); });
         var tBtns = T.Cols(3, 6); tBtns.Add(tAll, 0); tBtns.Add(tCur, 1); tBtns.Add(tNone, 2);
         var tHint = T.L("파란색 = 이 포켓몬이 배울 수 있는 기술 (기술머신·기술레코드로 다시 배울 수 있음을 기록하는 플래그)", 12, sub: true); tHint.LineBreakMode = LineBreakMode.WordWrap;
-        trCard = FoldCard("재학습 플래그", new VerticalStackLayout { Spacing = 8, Children = { tHint, tBtns, trList } }, "tr_open", false);
+        trCard = UiFold.Card("재학습 플래그", "tr_open", false, new VerticalStackLayout { Spacing = 8, Children = { tHint, tBtns, trList } });
         var pAll = T.Pill("합법 전부"); pAll.Clicked += (_, _) => Changed(() => { if (Pk is IPlusRecord r && Pk.PersonalInfo is IPermitPlus p) r.SetPlusFlags(Pk, p, PlusRecordApplicatorOption.LegalSeedTM); Reload(); });
         var pCur = T.Pill("현재 기술만"); pCur.Clicked += (_, _) => Changed(() => { if (Pk is IPlusRecord r && Pk.PersonalInfo is IPermitPlus p) r.SetPlusFlags(Pk, p, PlusRecordApplicatorOption.LegalCurrent); Reload(); });
         var pNone = T.Pill("모두 해제"); pNone.Clicked += (_, _) => Changed(() => { if (Pk is IPlusRecord r && Pk.PersonalInfo is IPermitPlus p) r.ClearPlusFlags(p.PlusCountTotal); Reload(); });
@@ -760,12 +740,12 @@ public class MetSection : Section
         loc.Text = NameOf(GameInfo.GetLocationList(LocVer(pk), pk.Context, false), pk.MetLocation);
         metLevel.Text = pk.MetLevel.ToString();
         dateRow.IsVisible = pk.Format >= 4;
-        if (pk.MetDate is { } d) metDate.Date = d.ToDateTime(TimeOnly.MinValue);
+        metDate.Date = pk.MetDate?.ToDateTime(TimeOnly.MinValue);   // 날짜가 없으면 비움 (이전 포켓몬의 날짜가 남지 않게)
         fateful.IsToggled = pk.FatefulEncounter;
         bool egg = pk.Format >= 4 && pk.EggLocation != 0;
         hatched.IsToggled = egg; eggCard.IsVisible = egg;
         eggLoc.Text = NameOf(GameInfo.GetLocationList(LocVer(pk), pk.Context, true), pk.EggLocation);
-        if (pk.EggMetDate is { } e) eggDate.Date = e.ToDateTime(TimeOnly.MinValue);
+        eggDate.Date = pk.EggMetDate?.ToDateTime(TimeOnly.MinValue);
     }
 }
 
@@ -845,7 +825,17 @@ public class OTSection : Section
     private void SetIds()
     {
         if (!int.TryParse(tid.Text, out var t) || !int.TryParse(sid.Text, out var s)) return;
-        if (G7) Pk.ID32 = (uint)Math.Min(Math.Max(s, 0) * 1_000_000L + Math.Clamp(t, 0, 999999), uint.MaxValue);
+        if (G7)
+        {
+            // SID는 4294까지 (32비트): 넘기면 TID까지 바뀌던 것을 막고, 맞춘 값을 입력칸에 다시 보여 줌
+            long v = Math.Clamp(s, 0, 4294) * 1_000_000L + Math.Clamp(t, 0, 999999);
+            Pk.ID32 = (uint)Math.Min(v, uint.MaxValue);
+            if (v != Math.Max(s, 0) * 1_000_000L + Math.Max(t, 0) || v > uint.MaxValue)
+            {
+                var was = Loading; Loading = true;
+                try { tid.Text = (Pk.ID32 % 1_000_000).ToString("000000"); sid.Text = (Pk.ID32 / 1_000_000).ToString("0000"); } finally { Loading = was; }
+            }
+        }
         else { Pk.TID16 = (ushort)Math.Min(t, 65535); Pk.SID16 = (ushort)Math.Min(s, 65535); }
     }
 
@@ -894,16 +884,10 @@ public class RibbonSection : Section
         return null;
     }
 
-    public static View SharedMem;
     private readonly VerticalStackLayout ribbonList = new() { Spacing = 2 }, markList = new() { Spacing = 2 };
     private readonly Label ribbonCount = T.L("", 13, sub: true), ribbonHead = T.L("", 15, bold: true), markHead = T.L("", 15, bold: true);
     private static bool ribbonOpen = Preferences.Get("ribbon_open", false), markOpen = Preferences.Get("mark_open", false);
     private View markCard;
-    private readonly View medalCard, memCard;
-    private readonly Label medalState = T.L("", 13, sub: true);
-    private readonly Label otMem, otInt, otFeel, htMem, htInt, htFeel;
-    private readonly Entry otVar, htVar, otFriend, htFriend, otAff, htAff;
-    private readonly View htMemBlock, affRow;
 
     private string ribbonQuery = "";
     public RibbonSection()
@@ -917,53 +901,13 @@ public class RibbonSection : Section
         var ribbonCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { new HorizontalStackLayout { Spacing = 8, Children = { all, none } }, search, ribbonCount, ribbonHead, ribbonList } });
         markCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { markHead, markList } });
 
-        var mAll = T.Pill("메달 모두 획득"); mAll.Clicked += (_, _) => Changed(() => { if (Pk is ISuperTrain st) { st.SuperTrainBitFlags = RibbonRules.SetSuperTrainSupremelyTrained(st.SuperTrainBitFlags) | 0xFFFFFFFCu; } Reload(); });
-        var mNone = T.Pill("메달 초기화"); mNone.Clicked += (_, _) => Changed(() => { if (Pk is ISuperTrain st) st.SuperTrainBitFlags = 0; Reload(); });
-        medalCard = T.Card(new VerticalStackLayout { Spacing = 8, Children = { T.L("대단한 트레이닝 메달 (6·7세대)", 13, sub: true), new HorizontalStackLayout { Spacing = 8, Children = { mAll, mNone } }, medalState } });
-
-        (var a1, otMem) = T.Chooser(() => PickMem(true, 0)); (var a2, otInt) = T.Chooser(() => PickMem(true, 1)); (var a3, otFeel) = T.Chooser(() => PickMem(true, 2));
-        (var b1, htMem) = T.Chooser(() => PickMem(false, 0)); (var b2, htInt) = T.Chooser(() => PickMem(false, 1)); (var b3, htFeel) = T.Chooser(() => PickMem(false, 2));
-        otVar = Num(v => Changed(() => { if (Pk is IMemoryOT m) m.OriginalTrainerMemoryVariable = (ushort)v; }));
-        htVar = Num(v => Changed(() => { if (Pk is IMemoryHT m) m.HandlingTrainerMemoryVariable = (ushort)v; }));
-        otFriend = Num(v => Changed(() => Pk.OriginalTrainerFriendship = (byte)v), 255);
-        htFriend = Num(v => Changed(() => Pk.HandlingTrainerFriendship = (byte)v), 255);
-        otAff = Num(v => Changed(() => { if (Pk is IAffection a) a.OriginalTrainerAffection = (byte)v; }), 255);
-        htAff = Num(v => Changed(() => { if (Pk is IAffection a) a.HandlingTrainerAffection = (byte)v; }), 255);
-        affRow = Two(T.Field("어버이 친밀도(애정)", otAff), T.Field("현재 트레이너 애정", htAff));
-        htMemBlock = new VerticalStackLayout { Spacing = 8, Children = { T.L("현재 트레이너와의 추억", 13, sub: true), T.Field("추억", b1), Two(T.Field("강도", b2), T.Field("감정", b3)), T.Field("대상(변수 번호)", htVar) } };
-        memCard = FoldCard("추억", Stack(T.L("어버이와의 추억", 13, sub: true), T.Field("추억", a1), Two(T.Field("강도", a2), T.Field("감정", a3)), T.Field("대상(변수 번호)", otVar), htMemBlock), "mem_open", false);
-        SharedMem = memCard;   // "기타" 탭에 표시 (친밀도·애정은 기타 탭의 카드와 중복이라 제거)
-        Content = Stack(ribbonCard, markCard);   // 메달은 "기타" 탭으로
+        Content = Stack(ribbonCard, markCard);   // 메달·추억은 "기타" 탭으로
     }
-
-    private static MemoryStrings Mem => new(GameInfo.Strings);
-    private int MemGen => Pk.Format >= 8 ? 8 : 6;
-    private void PickMem(bool ot, int kind)
-    {
-        if (ot ? Pk is not IMemoryOT : Pk is not IMemoryHT) return;
-        IReadOnlyList<ComboItem> list = kind switch
-        {
-            0 => Mem.Memory,
-            1 => ToList(Mem.GetMemoryQualities()),
-            _ => ToList(Mem.GetMemoryFeelings(MemGen)),
-        };
-        int cur = ot ? kind switch { 0 => ((IMemoryOT)Pk).OriginalTrainerMemory, 1 => ((IMemoryOT)Pk).OriginalTrainerMemoryIntensity, _ => ((IMemoryOT)Pk).OriginalTrainerMemoryFeeling }
-                     : kind switch { 0 => ((IMemoryHT)Pk).HandlingTrainerMemory, 1 => ((IMemoryHT)Pk).HandlingTrainerMemoryIntensity, _ => ((IMemoryHT)Pk).HandlingTrainerMemoryFeeling };
-        Pick(kind == 0 ? "추억 종류" : kind == 1 ? "강도" : "감정", list, cur, c => Changed(() =>
-        {
-            var v = (byte)c.Value;
-            if (ot) { var m = (IMemoryOT)Pk; if (kind == 0) m.OriginalTrainerMemory = v; else if (kind == 1) m.OriginalTrainerMemoryIntensity = v; else m.OriginalTrainerMemoryFeeling = v; }
-            else { var m = (IMemoryHT)Pk; if (kind == 0) m.HandlingTrainerMemory = v; else if (kind == 1) m.HandlingTrainerMemoryIntensity = v; else m.HandlingTrainerMemoryFeeling = v; }
-            Reload();
-        }));
-    }
-    private static List<ComboItem> ToList(ReadOnlySpan<string> s) { var l = new List<ComboItem>(); for (int i = 0; i < s.Length; i++) l.Add(new ComboItem(string.IsNullOrEmpty(s[i]) ? $"({i})" : s[i], i)); return l; }
-    private static string At(IReadOnlyList<ComboItem> l, int v) => l.FirstOrDefault(x => x.Value == v)?.Text ?? v.ToString();
 
     protected override void Load(PKM pk)
     {
         ribbonList.Children.Clear(); markList.Children.Clear();
-        if (pk.Species == 0) { ribbonCount.Text = "포켓몬을 불러오면 리본을 편집할 수 있습니다"; ribbonHead.Text = ""; medalCard.IsVisible = memCard.IsVisible = markCard.IsVisible = false; return; }
+        if (pk.Species == 0) { ribbonCount.Text = "포켓몬을 불러오면 리본을 편집할 수 있습니다"; ribbonHead.Text = ""; markCard.IsVisible = false; return; }
         var infos = RibbonInfo.GetRibbonInfo(pk);
         bool IsMark(RibbonInfo r) => r.Name.StartsWith("RibbonMark");
         bool Has(RibbonInfo r) => r.HasRibbon || r.RibbonCount > 0;
@@ -1009,23 +953,6 @@ public class RibbonSection : Section
             }
             (IsMark(r) ? markList : ribbonList).Children.Add(g);
         }
-        medalCard.IsVisible = pk is ISuperTrain;
-        if (pk is ISuperTrain st) medalState.Text = $"메달 플래그 0x{st.SuperTrainBitFlags:X8}";
-        memCard.IsVisible = pk is IMemoryOT;
-        if (pk is IMemoryOT o)
-        {
-            otMem.Text = At(Mem.Memory, o.OriginalTrainerMemory); otInt.Text = At(ToList(Mem.GetMemoryQualities()), o.OriginalTrainerMemoryIntensity);
-            otFeel.Text = At(ToList(Mem.GetMemoryFeelings(MemGen)), o.OriginalTrainerMemoryFeeling); otVar.Text = o.OriginalTrainerMemoryVariable.ToString();
-        }
-        htMemBlock.IsVisible = pk is IMemoryHT;
-        if (pk is IMemoryHT h)
-        {
-            htMem.Text = At(Mem.Memory, h.HandlingTrainerMemory); htInt.Text = At(ToList(Mem.GetMemoryQualities()), h.HandlingTrainerMemoryIntensity);
-            htFeel.Text = At(ToList(Mem.GetMemoryFeelings(MemGen)), h.HandlingTrainerMemoryFeeling); htVar.Text = h.HandlingTrainerMemoryVariable.ToString();
-        }
-        otFriend.Text = pk.OriginalTrainerFriendship.ToString(); htFriend.Text = pk.HandlingTrainerFriendship.ToString();
-        affRow.IsVisible = pk is IAffection;
-        if (pk is IAffection af) { otAff.Text = af.OriginalTrainerAffection.ToString(); htAff.Text = af.HandlingTrainerAffection.ToString(); }
     }
 }
 
@@ -1038,7 +965,10 @@ public class MiscSection : Section
     private readonly CheckBox[] leaf = new CheckBox[6]; private readonly View leafCard;
     private readonly View medalCard; private readonly Label medalState = T.L("", 12, sub: true);
     private readonly Entry otF, htF, otA, htA; private readonly View affRow2;
-    private readonly Entry[] gv = new Entry[6], av = new Entry[6]; private readonly View gvCard, avCard; private readonly Label gvHint;
+    private readonly Entry[] gv = new Entry[6]; private readonly View gvCard; private readonly Label gvHint;
+    private readonly View memCard, htMemBlock;
+    private readonly Label otMem, otInt, otFeel, htMem, htInt, htFeel;
+    private readonly Entry otVar, htVar;
     private static readonly string[] Stat = ["HP", "공격", "방어", "특공", "특방", "스피드"];
 
     public MiscSection()
@@ -1049,7 +979,7 @@ public class MiscSection : Section
         var inf = T.Pill("감염"); inf.Clicked += (_, _) => Changed(() => { Pk.PokerusStrain = Math.Max(1, Pk.PokerusStrain); Pk.PokerusDays = Math.Max(1, (Pk.PokerusStrain % 4) + 1); Reload(); });
         var cur = T.Pill("완치"); cur.Clicked += (_, _) => Changed(() => { Pk.PokerusStrain = Math.Max(1, Pk.PokerusStrain); Pk.PokerusDays = 0; Reload(); });
         var no = T.Pill("없음"); no.Clicked += (_, _) => Changed(() => { Pk.PokerusStrain = 0; Pk.PokerusDays = 0; Reload(); });
-        pkrsCard = FoldCard("포켓러스", Stack(Two(T.Field("균주 (0~15)", pkrsStrain), T.Field("남은 일수 (0~15)", pkrsDays)), new HorizontalStackLayout { Spacing = 8, Children = { inf, cur, no } }), "misc_pkrs");
+        pkrsCard = UiFold.Card("포켓러스", "misc_pkrs", false, Stack(Two(T.Field("균주 (0~15)", pkrsStrain), T.Field("남은 일수 (0~15)", pkrsDays)), new HorizontalStackLayout { Spacing = 8, Children = { inf, cur, no } }));
 
         // 콘테스트 능력
         string[] cn = ["멋짐", "아름다움", "귀여움", "슬기로움", "강인함", "윤기"];
@@ -1058,7 +988,7 @@ public class MiscSection : Section
         if (cg.RowDefinitions.Count < 2) { cg.RowDefinitions.Add(new(GridLength.Auto)); cg.RowDefinitions.Add(new(GridLength.Auto)); }
         var cmax = T.Pill("최대"); cmax.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetContest(i, 255); Reload(); });
         var c0 = T.Pill("0"); c0.Clicked += (_, _) => Changed(() => { for (int i = 0; i < 6; i++) SetContest(i, 0); Reload(); });
-        contestCard = FoldCard("콘테스트 능력", Stack(cg, new HorizontalStackLayout { Spacing = 8, Children = { cmax, c0 } }), "misc_contest");
+        contestCard = UiFold.Card("콘테스트 능력", "misc_contest", false, Stack(cg, new HorizontalStackLayout { Spacing = 8, Children = { cmax, c0 } }));
 
         // 빛나는 나뭇잎 (하트골드·소울실버)
         var lg = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap };
@@ -1069,46 +999,73 @@ public class MiscSection : Section
             leaf[i].CheckedChanged += (_, e) => Changed(() => { if (Pk is G4PKM g) g.ShinyLeaf = e.Value ? g.ShinyLeaf | (1 << k) : g.ShinyLeaf & ~(1 << k); });
             lg.Children.Add(new HorizontalStackLayout { Margin = new Thickness(0, 0, 10, 4), Children = { leaf[i], T.L(ln[i], 14) } });
         }
-        leafCard = FoldCard("빛나는 나뭇잎 (HGSS)", lg, "misc_leaf");
+        leafCard = UiFold.Card("빛나는 나뭇잎 (HGSS)", "misc_leaf", false, lg);
 
         // 메달
         var mAll = T.Pill("메달 모두 획득"); mAll.Clicked += (_, _) => Changed(() => { if (Pk is ISuperTrain st) st.SuperTrainBitFlags = RibbonRules.SetSuperTrainSupremelyTrained(st.SuperTrainBitFlags) | 0xFFFFFFFCu; Reload(); });
         var mNone = T.Pill("메달 초기화"); mNone.Clicked += (_, _) => Changed(() => { if (Pk is ISuperTrain st) st.SuperTrainBitFlags = 0; Reload(); });
-        medalCard = FoldCard("대단한 트레이닝 메달 (6·7세대)", Stack(new HorizontalStackLayout { Spacing = 8, Children = { mAll, mNone } }, medalState), "misc_medal");
+        medalCard = UiFold.Card("대단한 트레이닝 메달 (6·7세대)", "misc_medal", false, Stack(new HorizontalStackLayout { Spacing = 8, Children = { mAll, mNone } }, medalState));
 
         // 친밀도·애정
         otF = Num(v => Changed(() => Pk.OriginalTrainerFriendship = (byte)v), 255); htF = Num(v => Changed(() => Pk.HandlingTrainerFriendship = (byte)v), 255);
         otA = Num(v => Changed(() => { if (Pk is IAffection a) a.OriginalTrainerAffection = (byte)v; }), 255); htA = Num(v => Changed(() => { if (Pk is IAffection a) a.HandlingTrainerAffection = (byte)v; }), 255);
         affRow2 = Two(T.Field("어버이 애정(절친도)", otA), T.Field("현재 트레이너 애정", htA));
         var fmax = T.Pill("친밀도·애정 최대"); fmax.Clicked += (_, _) => Changed(() => { Pk.OriginalTrainerFriendship = 255; if (Pk.Format >= 6) Pk.HandlingTrainerFriendship = 255; if (Pk is IAffection a) { a.OriginalTrainerAffection = 255; } Reload(); });
-        var friendCard = FoldCard("친밀도 · 애정", Stack(Two(T.Field("어버이 친밀도", otF), T.Field("현재 트레이너 친밀도", htF)), affRow2, fmax), "misc_friend", true);
+        var friendCard = UiFold.Card("친밀도 · 애정", "misc_friend", true, Stack(Two(T.Field("어버이 친밀도", otF), T.Field("현재 트레이너 친밀도", htF)), affRow2, fmax));
+
+        // 추억 (예전엔 리본 탭에서 만들고 채워서, 리본 탭을 열기 전에는 이전 포켓몬의 추억이 보였음)
+        (var a1, otMem) = T.Chooser(() => PickMem(true, 0)); (var a2, otInt) = T.Chooser(() => PickMem(true, 1)); (var a3, otFeel) = T.Chooser(() => PickMem(true, 2));
+        (var b1, htMem) = T.Chooser(() => PickMem(false, 0)); (var b2, htInt) = T.Chooser(() => PickMem(false, 1)); (var b3, htFeel) = T.Chooser(() => PickMem(false, 2));
+        otVar = Num(v => Changed(() => { if (Pk is IMemoryOT m) m.OriginalTrainerMemoryVariable = (ushort)v; }));
+        htVar = Num(v => Changed(() => { if (Pk is IMemoryHT m) m.HandlingTrainerMemoryVariable = (ushort)v; }));
+        htMemBlock = new VerticalStackLayout { Spacing = 8, Children = { T.L("현재 트레이너와의 추억", 13, sub: true), T.Field("추억", b1), Two(T.Field("강도", b2), T.Field("감정", b3)), T.Field("대상(변수 번호)", htVar) } };
+        memCard = UiFold.Card("추억", "mem_open", false, Stack(T.L("어버이와의 추억", 13, sub: true), T.Field("추억", a1), Two(T.Field("강도", a2), T.Field("감정", a3)), T.Field("대상(변수 번호)", otVar), htMemBlock));
 
         // 노력 레벨 GV (레전즈 아르세우스) · 각성치 AV (레츠고)
-        var gg = T.Cols(3); var ag = T.Cols(3);
-        gg.RowDefinitions.Add(new(GridLength.Auto)); gg.RowDefinitions.Add(new(GridLength.Auto)); ag.RowDefinitions.Add(new(GridLength.Auto)); ag.RowDefinitions.Add(new(GridLength.Auto));
+        var gg = T.Cols(3);
+        gg.RowDefinitions.Add(new(GridLength.Auto)); gg.RowDefinitions.Add(new(GridLength.Auto));
         for (int i = 0; i < 6; i++)
         {
             int k = i;
             // 합법 최대 = 10 - 개체값 보너스 (개체값 31 → 7, 26~30 → 8, 20~25 → 9, 그 아래 → 10). 넘게 적으면 합법 최대로 맞춤
             gv[i] = Num(v => Changed(() => { if (Pk is IGanbaru g) { var mx = Pk.GetMaxGanbaru(k); SetGV(g, k, (byte)Math.Min(v, mx)); if (v > mx) { gv[k].Text = mx.ToString(); Note.Show($"{Stat[k]} 노력 레벨은 개체값 {Pk.GetIV(k)}이면 최대 {mx}입니다"); } } }), 10); gg.Add(T.Field(Stat[i], gv[i]), i % 3, i / 3);
-            av[i] = Num(v => Changed(() => { if (Pk is IAwakened a) SetAV(a, k, (byte)Math.Min(v, 200)); }), 200); ag.Add(T.Field(Stat[i], av[i]), i % 3, i / 3);
         }
         var gmax = T.Pill("합법 최대"); gmax.Clicked += (_, _) => Changed(() => { if (Pk is IGanbaru g) g.SetSuggestedGanbaruValues(Pk); Reload(); });   // 개체값에 맞춘 최대 (공격·스피드 개체값 0이면 0으로 둠)
         var gzero = T.Pill("0"); gzero.Clicked += (_, _) => Changed(() => { if (Pk is IGanbaru g) g.ClearGanbaruValues(); Reload(); });
         gvHint = new Label { FontSize = 12, Opacity = 0.7 };
-        var amax = T.Pill("최대 (200)"); amax.Clicked += (_, _) => Changed(() => { if (Pk is IAwakened a) for (int i = 0; i < 6; i++) SetAV(a, i, 200); Reload(); });
-        gvCard = FoldCard("노력 레벨 (레전즈 아르세우스)", Stack(gg, gvHint, Two(gmax, gzero)), "misc_gv");
-        avCard = FoldCard("각성치 AV (레츠고)", Stack(ag, amax), "misc_av");
+        gvCard = UiFold.Card("노력 레벨 (레전즈 아르세우스)", "misc_gv", false, Stack(gg, gvHint, Two(gmax, gzero)));
 
-        Content = Stack(friendCard, RibbonSection.SharedMem ?? new ContentView(), pkrsCard, contestCard, medalCard, leafCard, gvCard);   // 레츠고 각성치(CP)는 능력치 탭
+        Content = Stack(friendCard, memCard, pkrsCard, contestCard, medalCard, leafCard, gvCard);   // 레츠고 각성치(CP)는 능력치 탭
     }
 
     private void SetContest(int i, byte v) { if (Pk is not IContestStats c) return; switch (i) { case 0: c.ContestCool = v; break; case 1: c.ContestBeauty = v; break; case 2: c.ContestCute = v; break; case 3: c.ContestSmart = v; break; case 4: c.ContestTough = v; break; default: c.ContestSheen = v; break; } }
     private static byte GetContest(IContestStats c, int i) => i switch { 0 => c.ContestCool, 1 => c.ContestBeauty, 2 => c.ContestCute, 3 => c.ContestSmart, 4 => c.ContestTough, _ => c.ContestSheen };
     private static void SetGV(IGanbaru g, int i, byte v) { switch (i) { case 0: g.GV_HP = v; break; case 1: g.GV_ATK = v; break; case 2: g.GV_DEF = v; break; case 3: g.GV_SPA = v; break; case 4: g.GV_SPD = v; break; default: g.GV_SPE = v; break; } }
     private static byte GetGV(IGanbaru g, int i) => i switch { 0 => g.GV_HP, 1 => g.GV_ATK, 2 => g.GV_DEF, 3 => g.GV_SPA, 4 => g.GV_SPD, _ => g.GV_SPE };
-    private static void SetAV(IAwakened a, int i, byte v) { switch (i) { case 0: a.AV_HP = v; break; case 1: a.AV_ATK = v; break; case 2: a.AV_DEF = v; break; case 3: a.AV_SPA = v; break; case 4: a.AV_SPD = v; break; default: a.AV_SPE = v; break; } }
-    private static byte GetAV(IAwakened a, int i) => i switch { 0 => a.AV_HP, 1 => a.AV_ATK, 2 => a.AV_DEF, 3 => a.AV_SPA, 4 => a.AV_SPD, _ => a.AV_SPE };
+    private static MemoryStrings Mem => new(GameInfo.Strings);
+    private int MemGen => Pk.Format >= 8 ? 8 : 6;
+    private void PickMem(bool ot, int kind)
+    {
+        if (ot ? Pk is not IMemoryOT : Pk is not IMemoryHT) return;
+        IReadOnlyList<ComboItem> list = kind switch
+        {
+            0 => Mem.Memory,
+            1 => ToList(Mem.GetMemoryQualities()),
+            _ => ToList(Mem.GetMemoryFeelings(MemGen)),
+        };
+        int cur = ot ? kind switch { 0 => ((IMemoryOT)Pk).OriginalTrainerMemory, 1 => ((IMemoryOT)Pk).OriginalTrainerMemoryIntensity, _ => ((IMemoryOT)Pk).OriginalTrainerMemoryFeeling }
+                     : kind switch { 0 => ((IMemoryHT)Pk).HandlingTrainerMemory, 1 => ((IMemoryHT)Pk).HandlingTrainerMemoryIntensity, _ => ((IMemoryHT)Pk).HandlingTrainerMemoryFeeling };
+        Pick(kind == 0 ? "추억 종류" : kind == 1 ? "강도" : "감정", list, cur, c => Changed(() =>
+        {
+            var v = (byte)c.Value;
+            if (ot) { var m = (IMemoryOT)Pk; if (kind == 0) m.OriginalTrainerMemory = v; else if (kind == 1) m.OriginalTrainerMemoryIntensity = v; else m.OriginalTrainerMemoryFeeling = v; }
+            else { var m = (IMemoryHT)Pk; if (kind == 0) m.HandlingTrainerMemory = v; else if (kind == 1) m.HandlingTrainerMemoryIntensity = v; else m.HandlingTrainerMemoryFeeling = v; }
+            Reload();
+        }));
+    }
+    private static List<ComboItem> ToList(ReadOnlySpan<string> s) { var l = new List<ComboItem>(); for (int i = 0; i < s.Length; i++) l.Add(new ComboItem(string.IsNullOrEmpty(s[i]) ? $"({i})" : s[i], i)); return l; }
+    private static string At(IReadOnlyList<ComboItem> l, int v) => l.FirstOrDefault(x => x.Value == v)?.Text ?? v.ToString();
+
 
     protected override void Load(PKM pk)
     {
@@ -1119,6 +1076,17 @@ public class MiscSection : Section
         otF.Text = pk.OriginalTrainerFriendship.ToString(); htF.Text = pk.HandlingTrainerFriendship.ToString();
         affRow2.IsVisible = pk is IAffection; if (pk is IAffection a) { otA.Text = a.OriginalTrainerAffection.ToString(); htA.Text = a.HandlingTrainerAffection.ToString(); }
         gvCard.IsVisible = pk is IGanbaru; if (pk is IGanbaru g) { for (int i = 0; i < 6; i++) gv[i].Text = GetGV(g, i).ToString(); gvHint.Text = "합법 최대: " + string.Join(" · ", Enumerable.Range(0, 6).Select(i => $"{Stat[i]} {pk.GetMaxGanbaru(i)}")) + " (개체값이 높을수록 기본으로 더 올라가 있어 저장 최대가 작아짐)"; }
-        avCard.IsVisible = pk is IAwakened; if (pk is IAwakened w) for (int i = 0; i < 6; i++) av[i].Text = GetAV(w, i).ToString();
+        memCard.IsVisible = pk is IMemoryOT;
+        if (pk is IMemoryOT o)
+        {
+            otMem.Text = At(Mem.Memory, o.OriginalTrainerMemory); otInt.Text = At(ToList(Mem.GetMemoryQualities()), o.OriginalTrainerMemoryIntensity);
+            otFeel.Text = At(ToList(Mem.GetMemoryFeelings(MemGen)), o.OriginalTrainerMemoryFeeling); otVar.Text = o.OriginalTrainerMemoryVariable.ToString();
+        }
+        htMemBlock.IsVisible = pk is IMemoryHT;
+        if (pk is IMemoryHT h)
+        {
+            htMem.Text = At(Mem.Memory, h.HandlingTrainerMemory); htInt.Text = At(ToList(Mem.GetMemoryQualities()), h.HandlingTrainerMemoryIntensity);
+            htFeel.Text = At(ToList(Mem.GetMemoryFeelings(MemGen)), h.HandlingTrainerMemoryFeeling); htVar.Text = h.HandlingTrainerMemoryVariable.ToString();
+        }
     }
 }
