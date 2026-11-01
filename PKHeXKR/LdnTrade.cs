@@ -65,6 +65,8 @@ public static class LdnTrade
         var page = Application.Current.Windows[0].Page; var p = Offers[i];
         const string load = "편집기로 불러오기 (확인·편집)", put = "편집 중인 포켓몬으로 바꾸기", del = "목록에서 빼기";
         var pick = await page.DisplayActionSheetTr($"{i + 1}. {GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}", "취소", null, load, put, del);
+        if (Running && pick is put or del) { Note.Show("교환 중에는 목록을 바꿀 수 없어요"); return; }   // 끝나면 보낸 포켓몬을 목록에서 빼므로
+        if (i >= Offers.Count || !ReferenceEquals(Offers[i], p)) return;   // 고르는 사이에 목록이 바뀜
         switch (pick)
         {
             case load:
@@ -188,36 +190,67 @@ public static class LdnTrade
         return Task.CompletedTask;
     }
 
-    /// <summary>받은 포켓몬 파일들 → 박스 빈 칸에 넣을지 물어봄.</summary>
+    /// <summary>
+    /// 받은 포켓몬 파일들 → 박스 빈 칸에 넣을지 물어봄. 넣은 파일은 received/게임/imported/로 옮김
+    /// (넣지 않은 것은 그대로 남아 교환 화면의 '받은 포켓몬'으로 나중에 넣을 수 있음).
+    /// </summary>
     public static async Task ImportReceived(IReadOnlyList<string> files)
     {
-        var page = MainPage.Instance; if (page == null || AppState.Sav == null) return;
-        var mons = new List<PKM>();
+        var page = MainPage.Instance; if (page == null) return;
+        var mons = new List<(string File, PKM Pk)>();
         foreach (var f in files)
             try
             {
                 var pk = EntityFormat.GetFromBytes(await File.ReadAllBytesAsync(f), EntityFileExtension.GetContextFromExtension(f));
-                if (pk != null && pk.Species != 0) mons.Add(pk);
+                if (pk != null && pk.Species != 0) mons.Add((f, pk));
             }
             catch { }
         if (mons.Count == 0) return;
-        var fit = mons.Select(AppState.ForSave).Where(p => p != null).ToList();
+        if (AppState.Sav == null || string.IsNullOrEmpty(AppState.Sav.Metadata.FileName))
+        { Note.Show($"받은 포켓몬 {mons.Count}마리는 앱에 보관했어요 · 세이브를 연 뒤 PokeLDN 교환 화면의 '받은 포켓몬'으로 넣으세요"); return; }
+        var fit = mons.Select(m => (m.File, Pk: AppState.ForSave(m.Pk))).Where(m => m.Pk != null).ToList();
         if (fit.Count == 0) { Note.Show($"받은 포켓몬 {mons.Count}마리는 지금 세이브에 넣을 수 없습니다"); return; }
-        var names = string.Join(", ", fit.Take(6).Select(p => PKHeX.Core.GameInfo.Strings.Species[p.Species]));
-        if (!await page.DisplayAlertTr("PokeLDN 교환", $"받은 포켓몬 {fit.Count}마리를 박스 빈 칸에 넣을까요?\n{names}", "넣기", "나중에")) return;
-        var sav = AppState.Sav; int placed = 0; var where = new List<(int Box, int Index)>();
+        var names = string.Join(", ", fit.Take(6).Select(p => PKHeX.Core.GameInfo.Strings.Species[p.Pk.Species]));
+        if (!await page.DisplayAlertTr("PokeLDN 교환", $"받은 포켓몬 {fit.Count}마리를 박스 빈 칸에 넣을까요?\n{names}", "넣기", "나중에"))
+        { Note.Show("받은 포켓몬은 앱에 보관했어요 · PokeLDN 교환 화면의 '받은 포켓몬'으로 넣을 수 있어요"); return; }
+        var sav = AppState.Sav; int placed = 0;
         for (int b = 0; b < sav.BoxCount && placed < fit.Count; b++)
         {
             int box = (AppState.Box + b) % sav.BoxCount;
             for (int i = 0; i < sav.BoxSlotCount && placed < fit.Count; i++)
             {
                 if (sav.GetBoxSlotAtIndex(box, i).Species != 0) continue;
-                sav.SetBoxSlotAtIndex(fit[placed++], box, i); where.Add((box, i));
+                var (file, pk) = fit[placed++];
+                if (!AppState.PutSlot(box, i, pk, notify: false)) continue;
+                try
+                {
+                    var dir = Path.Combine(Path.GetDirectoryName(file)!, "imported"); Directory.CreateDirectory(dir);
+                    File.Move(file, Path.Combine(dir, Path.GetFileName(file)), true);   // 다시 넣지 않게
+                }
+                catch { }
             }
         }
-        AppState.AfterBulk(where);   // 라이브헥스: 게임 박스에도
         AppState.NotifyBox();
-        Note.Show(placed < fit.Count ? $"{placed}마리 넣음 (빈 칸 부족)" : $"{placed}마리를 박스에 넣었습니다 (세이브 저장 필요)");
+        Note.Show(placed < fit.Count ? $"{placed}마리 넣음 · 박스에 빈 칸이 없어 {fit.Count - placed}마리는 남겨 뒀어요 (빈 칸을 만든 뒤 '받은 포켓몬'으로)" : $"{placed}마리를 박스에 넣었습니다 (세이브 저장 필요)");
+    }
+
+    /// <summary>
+    /// 이번 교환에서 받은 파일 (받은 순서). 결과가 없으면(중지·오류) 시작한 뒤에 생긴 파일로.
+    /// 소드실드에서 교환 확인 단계가 멈춰(THE LADDER STALLED) 끊긴 경우 마지막 파일은 콘솔이 내민 포켓몬을 미리 저장한 것이라
+    /// 실제로는 교환되지 않음 → 넣지 않고 stalled/로 옮김. 이름순으로는 첫 교환 파일(swsh-시각.pk8)이 맨 뒤라 쓰기 시각으로 고름.
+    /// </summary>
+    private static List<string> TradeFiles(List<string> files)
+    {
+        if (files.Count == 0 && RunGame != null)
+            files = ReceivedFiles(RunGame).Where(f => f.LastWriteTimeUtc >= beganUtc.AddSeconds(-2)).Select(f => f.FullName).ToList();
+        files = files.Where(File.Exists).OrderBy(File.GetLastWriteTimeUtc).ThenBy(f => f, StringComparer.Ordinal).ToList();
+        if (RunGame == "swsh" && files.Count > 0 && FullLog.ToString().Contains("THE LADDER STALLED"))
+        {
+            var last = files[^1]; files.RemoveAt(files.Count - 1);
+            try { var dir = Path.Combine(Path.GetDirectoryName(last)!, "stalled"); Directory.CreateDirectory(dir); File.Move(last, Path.Combine(dir, Path.GetFileName(last)), true); } catch { }
+            StatusLines.Add("마지막 포켓몬은 교환 확인 중에 끊겨 교환되지 않았어요 (박스에 넣지 않음)");
+        }
+        return files;
     }
 
     /// <summary>받은 포켓몬 (최근 것부터).</summary>
@@ -399,16 +432,22 @@ public static class LdnTrade
     public static string RunMode { get; private set; }
     public static string RunGame { get; private set; }
     public static event Action Changed;
+    /// <summary>진행 로그·상태만 바뀜 (0.4초마다). 목록은 그대로라 화면을 다시 만들 필요 없음.</summary>
+    public static event Action Progress;
     private static IDispatcherTimer timer;
     private static BgTask bg;
+    private static List<PKM> sentOffers = [];   // 이번에 보낸 포켓몬 (순서대로 교환) — 끝나면 교환한 만큼 이것들을 목록에서 뺌
+    private static DateTime beganUtc;
 
-    public static bool Begin(string request, string mode, string game, bool ble, bool flash = false)
+    /// <param name="sent">교환이면 보낸 포켓몬 (Offers 안의 같은 개체, 보낸 순서)</param>
+    public static bool Begin(string request, string mode, string game, bool ble, bool flash = false, IReadOnlyList<PKM> sent = null)
     {
         if (Running || Bridge.Busy) return false;
         FullLog.Clear(); StatusLines.Clear(); BoardLine = ""; ProgressLine = "";
         bool ok = flash ? Bridge.Flash(ble) : Bridge.Start(request, ble);
         if (!ok) return false;
         Running = true; RunMode = flash ? "flash" : mode; RunGame = game;
+        sentOffers = sent?.ToList() ?? []; beganUtc = DateTime.UtcNow;
         bg?.Dispose();
         bg = BgTask.Begin(flash ? "보드 펌웨어 설치" : mode switch { "trade" => $"PokeLDN 교환 ({Offers.Count}마리)", "evolve" => "PokeLDN 교환 진화", "gift" => "PokeLDN 이상한 소포", "save_backup" => "FRLG 세이브 백업", "save_restore" => "FRLG 세이브 복원", _ => "PokeLDN" });
         timer ??= Application.Current.Dispatcher.CreateTimer();
@@ -441,30 +480,29 @@ public static class LdnTrade
             if (r.TryGetProperty("result", out var rr)) result = rr.GetString();
             if (r.TryGetProperty("error", out var er)) error = er.GetString();
         }
-        if (!done) { bg?.Report(ProgressLine.Length > 0 ? ProgressLine : StatusLines.LastOrDefault() ?? "진행 중…"); Changed?.Invoke(); return; }
+        if (!done) { bg?.Report(ProgressLine.Length > 0 ? ProgressLine : StatusLines.LastOrDefault() ?? "진행 중…"); Progress?.Invoke(); return; }
         timer.Stop(); Running = false; DeviceDisplay.Current.KeepScreenOn = false;
         var files = new List<string>();
         if (result != null) try { using var rd = JsonDocument.Parse(result); files = rd.RootElement.EnumerateArray().Select(x => x.GetString()).Where(x => x != null).ToList(); } catch { }
-        // 콘솔이 확인 단계를 멈춰 PokeLDN이 연결을 끊은 경우: 콘솔이 내놓은 포켓몬 파일은 이미 받았지만 콘솔에서는 교환이 이루어지지 않음
-        // → 마지막(끊긴) 교환의 파일은 받은 포켓몬으로 치지 않음 (앱에는 완료처럼 보이고 스위치에는 '교환하지 못했습니다'가 뜨던 문제)
-        bool stalled = RunMode == "trade" && FullLog.ToString().Contains("THE LADDER STALLED");
-        if (stalled && files.Count > 0) files.RemoveAt(files.Count - 1);
-        if (stalled) StatusLines.Add("마지막 교환은 스위치가 확인 단계에서 멈춰 이루어지지 않았어요 (연결을 끊어 1시간 교환 제한은 피함) · 그 포켓몬은 받은 것으로 치지 않아요");
+        // 교환: 중지·오류로 끝나도 이미 마친 교환은 살림 (받은 파일·보낼 목록)
+        if (RunMode == "trade") files = TradeFiles(files);
         if (error != null) StatusLines.Add(error.StartsWith("중지") || error.StartsWith("설치 실패") ? error : "실패: " + error);
-        else if (RunMode == "trade") StatusLines.Add(files.Count > 0 ? $"받은 포켓몬 {files.Count}마리" : "받은 포켓몬이 없어요");
-        else if (RunMode == "save_backup") StatusLines.Add(files.Count > 0 ? "세이브를 백업했어요: " + Path.GetFileName(files[0]) : "백업한 세이브가 없어요");
+        if (RunMode == "trade" && (error == null || files.Count > 0)) StatusLines.Add(files.Count > 0 ? $"받은 포켓몬 {files.Count}마리" : "받은 포켓몬이 없어요");
+        else if (error == null && RunMode == "save_backup") StatusLines.Add(files.Count > 0 ? "세이브를 백업했어요: " + Path.GetFileName(files[0]) : "백업한 세이브가 없어요");
         bg?.Done(StatusLines.LastOrDefault() ?? "끝"); bg = null;
         Changed?.Invoke();
-        if (error != null) return;
         if (RunMode == "trade" && files.Count > 0)
         {
-            int n = Math.Min(files.Count, Offers.Count);
-            if (n > 0) Offers.RemoveRange(0, n);   // 교환을 마친 포켓몬은 보낼 목록에서 뺌
+            // 교환을 마친 포켓몬은 보낼 목록에서 뺌: 보낸 순서대로 받은 수만큼 (목록의 앞에서부터 세지 않음 — 다른 게임 포켓몬은 보내지 않았음)
+            foreach (var p in sentOffers.Take(files.Count)) Offers.Remove(p);
+            sentOffers = [];
             if (QueueGame == RunGame) SaveQueue();   // 리빙덱스 대기열: 남은 것만 (다음에 이어서)
             Changed?.Invoke();
             await ImportReceived(files);
+            return;
         }
-        else if (RunMode == "save_backup" && files.Count > 0 && MainPage.Instance is { } page
+        if (error != null) return;
+        if (RunMode == "save_backup" && files.Count > 0 && MainPage.Instance is { } page
                  && await page.DisplayAlertTr("세이브 백업", "받은 세이브를 지금 열까요?\n" + Path.GetFileName(files[0]), "열기", "나중에"))
             await page.OpenBytes(await File.ReadAllBytesAsync(files[0]), Path.GetFileName(files[0]));
     }

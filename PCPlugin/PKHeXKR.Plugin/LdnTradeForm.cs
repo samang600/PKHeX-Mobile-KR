@@ -274,7 +274,7 @@ public sealed class LdnTradeForm : Form
         psi.Environment["POKELDN_MANAGED_RUN"] = "1";   // 중지 = 입력 닫기 → PokeLDN이 정리하고 끝냄
         psi.Environment["PYTHONIOENCODING"] = "utf-8";
         psi.Environment["PYTHONUNBUFFERED"] = "1";
-        log.Clear();
+        log.Clear(); runGame = g.Key; stallMarked = false;
         if (langNote != "") Append("※ " + langNote);
         Append($"> {Path.GetFileName(cmd.Value.exe)} {cmd.Value.args}");
         try
@@ -331,6 +331,8 @@ public sealed class LdnTradeForm : Form
     }
 
     private readonly List<string> receivedFiles = [];
+    private readonly HashSet<string> stalledFiles = [];   // 교환 확인 중에 끊겨 실제로는 교환되지 않은 파일 (가져오기 막음)
+    private string runGame; private bool stallMarked;
 
     private void RefreshReceived()
     {
@@ -345,6 +347,16 @@ public sealed class LdnTradeForm : Form
             var pk = Load(f);
             if (pk != null) name = $"{GameInfo.Strings.Species[pk.Species]} Lv.{pk.CurrentLevel}{(pk.IsShiny ? " ★" : "")}  ({name})";
             received.Items.Add(name);
+        }
+        // 소드실드: 콘솔이 내민 포켓몬은 교환을 마치기 전에 미리 저장됨 → 교환 확인 단계가 멈춰(THE LADDER STALLED) 끊겼으면
+        // 가장 늦게 쓴 파일은 교환되지 않은 것 (이름순이면 첫 교환 파일 swsh-시각.pk8이 맨 뒤라 쓰기 시각으로 고름)
+        if (!stallMarked && runGame == "swsh" && found.Count > 0 && log.Text.Contains("THE LADDER STALLED"))
+        {
+            stallMarked = true;
+            var last = found[^1];
+            stalledFiles.Add(last);
+            int idx = receivedFiles.IndexOf(last);
+            if (idx >= 0) received.Items[idx] = "[교환 안 됨] " + received.Items[idx];
         }
     }
 
@@ -363,6 +375,7 @@ public sealed class LdnTradeForm : Form
     {
         var i = received.SelectedIndex;
         if (i < 0 || i >= receivedFiles.Count) { MessageBox.Show("받은 포켓몬을 고르세요.", Text); return null; }
+        if (stalledFiles.Contains(receivedFiles[i])) { MessageBox.Show("이 포켓몬은 교환 확인 중에 연결이 끊겨 실제로는 교환되지 않았습니다 (콘솔에 그대로 있음). 가져오지 않습니다.", Text); return null; }
         var pk = Load(receivedFiles[i]);
         if (pk == null) { MessageBox.Show("파일을 읽지 못했습니다.", Text); return null; }
         var sav = plugin.SaveFileEditor.SAV;

@@ -16,6 +16,8 @@ public class LdnSheet : Sheet
         frB = T.Pill("파이어레드", size: 12), lgB = T.Pill("리프그린", size: 12), start = T.Pill("교환 시작", primary: true), stop = T.Pill("중지"), logB = T.Pill("전체 로그 보기", size: 12);
     private readonly Switch manual = new() { OnColor = T.Accent }, lowPower = new() { OnColor = T.Accent }, autoOt = new() { OnColor = T.Accent };
     private View autoOtRow;
+    private readonly Button addCur, clearOffers;
+    private int shownLog = -1;   // 전체 로그를 마지막으로 그린 길이
     private readonly Label dexStatus = T.L("", 12, sub: true);
     private readonly Entry code = T.Input(Keyboard.Numeric);
     private readonly View versionRow, codeRow;
@@ -69,12 +71,14 @@ public class LdnSheet : Sheet
         roleCard.Children.Add(Row("방식 직접 고르기 (고급)", manual)); roleCard.Children.Add(roleRow); roleCard.Children.Add(codeRow);
 
         // 교환: 보낼 포켓몬
-        var addCur = T.Pill("편집 중인 포켓몬 추가", size: 12); addCur.Clicked += (_, _) => AddCurrent();
-        var clear = T.Pill("비우기", size: 12); clear.Clicked += (_, _) => { LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); Refresh(); };
+        addCur = T.Pill("편집 중인 포켓몬 추가", size: 12); addCur.Clicked += (_, _) => AddCurrent();
+        clearOffers = T.Pill("비우기", size: 12); clearOffers.Clicked += (_, _) => { if (LdnTrade.Running) return; LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); Refresh(); };
         var all = T.Pill("전체 보기", size: 12); all.Clicked += (_, _) => SheetHost.Show(new LdnOffersSheet(true));
-        var offerBtns = T.Cols(3, 6); offerBtns.Add(addCur, 0); offerBtns.Add(all, 1); offerBtns.Add(clear, 2);
+        var offerBtns = T.Cols(3, 6); offerBtns.Add(addCur, 0); offerBtns.Add(all, 1); offerBtns.Add(clearOffers, 2);
+        // 받은 포켓몬: 교환이 끝났을 때 '나중에'를 눌렀거나 박스가 가득 찼거나 세이브가 없었던 것을 다시 넣기
+        var recvB = T.Pill("받은 포켓몬", size: 12); recvB.Clicked += async (_, _) => await ImportReceived();
         tradeCard.Children.Add(T.L("보낼 포켓몬 (제한 없음, 순서대로 교환) · 박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기'", 12, sub: true));
-        tradeCard.Children.Add(offersBox); tradeCard.Children.Add(offerBtns);
+        tradeCard.Children.Add(offersBox); tradeCard.Children.Add(offerBtns); tradeCard.Children.Add(recvB);
         autoOt.IsToggled = Preferences.Get("ldn_auto_ot", false); autoOt.Toggled += (_, e) => Preferences.Set("ldn_auto_ot", e.Value);
         autoOtRow = new VerticalStackLayout { Spacing = 2, Children = { Row("자동 어버이작 (SV): 콘솔 트레이너의 이름·ID로 바꿔 보내기", autoOt),
             T.L("호스트일 때만 · 콘솔 트레이너로 어버이·ID·성별·언어를 바꿔 보냄 (이로치 모양 유지, 바꾸면 불법인 개체는 그대로)", 11, sub: true).Also(x => x.LineBreakMode = LineBreakMode.WordWrap) } };
@@ -99,7 +103,7 @@ public class LdnSheet : Sheet
 
         start.Clicked += async (_, _) => await Start();
         stop.Clicked += async (_, _) => { stop.IsEnabled = false; await LdnTrade.StopAsync(); };
-        logB.Clicked += (_, _) => { log.IsVisible = !log.IsVisible; logB.Text = log.IsVisible ? "전체 로그 접기" : "전체 로그 보기"; Render(); };
+        logB.Clicked += (_, _) => { log.IsVisible = !log.IsVisible; logB.Text = log.IsVisible ? "전체 로그 접기" : "전체 로그 보기"; shownLog = -1; Render(); };
         // 전체 로그를 텍스트 파일로 공유 (화면에는 끝 2만 자만 보이고 복사가 안 돼 스크린샷으로 주고받던 것)
         var logShare = T.Pill("로그 파일로 공유", size: 12);
         logShare.Clicked += async (_, _) =>
@@ -125,8 +129,8 @@ public class LdnSheet : Sheet
             }
         });
 
-        LdnTrade.Changed += OnChanged;
-        Closed += () => { LdnTrade.Changed -= OnChanged; boardTimer?.Stop(); };
+        LdnTrade.Changed += OnChanged; LdnTrade.Progress += OnProgress;
+        Closed += () => { LdnTrade.Changed -= OnChanged; LdnTrade.Progress -= OnProgress; boardTimer?.Stop(); };
         boardTimer = Dispatcher.CreateTimer(); boardTimer.Interval = TimeSpan.FromSeconds(1.5); boardTimer.Tick += (_, _) => { if (!LdnTrade.Running) UpdateBoard(); }; boardTimer.Start();
         if (LdnTrade.Gifts(game).Count > 0) giftKey = Preferences.Get("ldn_gift_" + game, "");
         Styles(); UpdateBoard(); UpdateKeys(); Refresh(); Render();
@@ -237,6 +241,8 @@ public class LdnSheet : Sheet
 
     private void RefreshOffers()
     {
+        // 교환 중에는 목록을 바꾸지 않음 (끝나면 보낸 포켓몬을 목록에서 빼야 하므로)
+        addCur.IsEnabled = clearOffers.IsEnabled = !LdnTrade.Running;
         offersBox.Children.Clear();
         if (LdnTrade.Offers.Count == 0) { offersBox.Children.Add(T.L("없음", 13, sub: true)); return; }
         for (int i = 0; i < LdnTrade.Offers.Count; i++)
@@ -248,7 +254,8 @@ public class LdnSheet : Sheet
             var ok = LdnExport.GameOf(p)?.Game == game;
             var l = T.L($"{i + 1}. {PKHeX.Core.GameInfo.Strings.Species[p.Species]} Lv.{p.CurrentLevel}{(p.IsShiny ? " ★" : "")}{(ok ? "" : $"  ⚠ {GameOf(game).Name} 포켓몬이 아님")}{(AppState.IsLegal(p) ? "" : "  · 불법")}{(LdnExport.SwshNoTracker(p) ? "  · HOME 트래커 없음" : "")}", 13);
             l.VerticalOptions = LayoutOptions.Center; g.Add(l, 1);
-            var x = T.Pill("✕", size: 12); x.WidthRequest = 40; x.Clicked += (_, _) => { LdnTrade.Offers.RemoveAt(k); if (LdnTrade.QueueGame != null) LdnTrade.SaveQueue(); Refresh(); };
+            var x = T.Pill("✕", size: 12); x.WidthRequest = 40; x.IsEnabled = !LdnTrade.Running;
+            x.Clicked += (_, _) => { if (LdnTrade.Running || k >= LdnTrade.Offers.Count) return; LdnTrade.Offers.RemoveAt(k); if (LdnTrade.QueueGame != null) LdnTrade.SaveQueue(); Refresh(); };
             g.Add(x, 2);
             var tap = new TapGestureRecognizer(); tap.Tapped += async (_, _) => await LdnTrade.OfferActions(k, Close); l.GestureRecognizers.Add(tap);
             offersBox.Children.Add(g);
@@ -258,6 +265,7 @@ public class LdnSheet : Sheet
     private void AddCurrent()
     {
         var pk = AppState.Pk;
+        if (LdnTrade.Running) { Note.Show("교환 중에는 목록을 바꿀 수 없어요"); return; }
         if (pk == null || pk.Species == 0) { Note.Show("편집 중인 포켓몬이 없습니다"); return; }
         if (LdnExport.GameOf(pk) == null) { Note.Show("이 게임은 PokeLDN 교환을 지원하지 않습니다"); return; }
         if (LdnTrade.QueueGame != null) { Note.Show("리빙덱스 대기열이 있어요 · 먼저 '비우기'를 누르세요"); return; }
@@ -491,7 +499,7 @@ public class LdnSheet : Sheet
             }
             w.WriteEndObject();
         }
-        if (!LdnTrade.Begin(System.Text.Encoding.UTF8.GetString(ms.ToArray()), mode, game, Ble))
+        if (!LdnTrade.Begin(System.Text.Encoding.UTF8.GetString(ms.ToArray()), mode, game, Ble, sent: mode == "trade" ? offers : null))
         {
             Note.Show(LdnTrade.Running || LdnTrade.Bridge.Busy
                 ? "이미 진행 중입니다"
@@ -531,7 +539,18 @@ public class LdnSheet : Sheet
         SheetHost.Show(new LivingDexSheet(game));
     }
 
+    /// <summary>받은 포켓몬 (아직 박스에 넣지 않은 것) → 지금 세이브 박스로.</summary>
+    private async Task ImportReceived()
+    {
+        if (LdnTrade.Running) { Note.Show("교환이 끝난 뒤에 넣을 수 있어요"); return; }
+        var files = LdnTrade.ReceivedFiles(game).OrderBy(f => f.LastWriteTimeUtc).Select(f => f.FullName).ToList();
+        if (files.Count == 0) { Note.Show($"{GameOf(game).Name}에서 받아 두고 아직 넣지 않은 포켓몬이 없어요"); return; }
+        await LdnTrade.ImportReceived(files);
+    }
+
+    // 목록(보낼 포켓몬)은 목록·진행 상태가 바뀔 때(Changed)만 다시 만들고, 0.4초마다 오는 진행(Progress)은 글자만 바꿈
     private void OnChanged() => MainThread.BeginInvokeOnMainThread(() => { Render(); Refresh(); });
+    private void OnProgress() => MainThread.BeginInvokeOnMainThread(Render);
 
     private void Render()
     {
@@ -539,7 +558,14 @@ public class LdnSheet : Sheet
         if (LdnTrade.ProgressLine.Length > 0) lines.Add(LdnTrade.ProgressLine);
         if (LdnTrade.BoardLine.Length > 0) lines.Add("📶 " + LdnTrade.BoardLine);
         summary.Text = lines.Count > 0 ? string.Join("\n", lines) : (LdnTrade.Running ? "시작하는 중…" : "아직 시작하지 않았어요");
-        if (log.IsVisible) { var t = LdnTrade.FullLog.ToString(); log.Text = t.Length > 20000 ? t[^20000..] : t; }
+        // 전체 로그: 늘어났을 때만, 뒤쪽 2만 자만 꺼냄 (예전엔 0.4초마다 최대 8만 자를 통째로 복사)
+        var full = LdnTrade.FullLog;
+        if (log.IsVisible && full.Length != shownLog)
+        {
+            shownLog = full.Length;
+            int len = Math.Min(20000, full.Length);
+            log.Text = full.ToString(full.Length - len, len);
+        }
     }
 }
 
