@@ -119,27 +119,15 @@ public static class GenHost
     /// 개체를 만들 때 쓸 트레이너. 1~3세대 세이브는 언어가 0으로 읽혀 영어 개체가 되고,
     /// 일본판 세이브의 가나 이름이 영어 글자표에 안 들어가 어버이 이름이 비는 문제(OT 너무 짧음) → 세이브 언어를 채운 사본.
     /// </summary>
-    public static ITrainerInfo TrainerOf(SaveFile sav) => With8a(TrainerOverride(sav) ?? (sav.Language > 0 ? sav : new SimpleTrainerInfo(sav) { Language = GenTrainers.SaveLanguage(sav, (int)LanguageID.English) }), sav);
+    public static ITrainerInfo TrainerOf(SaveFile sav) => No8aRolls(TrainerOverride(sav) ?? (sav.Language > 0 ? sav : new SimpleTrainerInfo(sav) { Language = GenTrainers.SaveLanguage(sav, (int)LanguageID.English) }));
 
     /// <summary>
-    /// 레전즈 아르세우스: 세이브의 도감 연구 단계에 따른 이로치 추첨 횟수(ITrainerInfo8a)를 세이브가 아닌 트레이너(설정 트레이너·어버이 지정)로 만들 때도 쓰게 감쌈.
-    /// 안 감싸면 PKHeX가 추첨 1회로 보고 만들어, 세이브 기준으로 가능한 이로치가 덜 나옴.
+    /// 레전즈 아르세우스: 세이브(ITrainerInfo8a)를 넘기면 PKHeX가 그 세이브의 도감 연구·빛나는부적으로 이로치 추첨 횟수를 정함
+    /// (도감이 덜 찬 세이브는 1번 → 이로치 우두머리가 거의 안 나와 시간 제한까지 돌다 실패). 트레이너 정보만 넘기면 최대로 계산되고 합법 판정은 같음.
     /// </summary>
-    public static ITrainerInfo With8a(ITrainerInfo tr, SaveFile sav) => tr is ITrainerInfo8a || sav is not ITrainerInfo8a la ? tr : new Trainer8a(tr, la);
-
-    private sealed class Trainer8a(ITrainerInfo tr, ITrainerInfo8a la) : ITrainerInfo, ITrainerInfo8a
-    {
-        public string OT => tr.OT;
-        public byte Gender => tr.Gender;
-        public GameVersion Version => tr.Version;
-        public int Language => tr.Language;
-        public byte Generation => tr.Generation;
-        public EntityContext Context => tr.Context;
-        public uint ID32 => tr.ID32;
-        public ushort TID16 => tr.TID16;
-        public ushort SID16 => tr.SID16;
-        public byte GetShinyRolls(ushort species) => la.GetShinyRolls(species);
-    }
+    public static ITrainerInfo No8aRolls(ITrainerInfo tr) => tr is ITrainerInfo8a
+        ? new SimpleTrainerInfo(tr.Version) { OT = tr.OT, TID16 = tr.TID16, SID16 = tr.SID16, Gender = tr.Gender, Language = tr.Language }
+        : tr;
 
     /// <summary>
     /// 지금 세이브 대신 쓸 트레이너 (null이면 세이브 트레이너).

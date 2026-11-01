@@ -375,12 +375,12 @@ public static class QuickGen
         int sid = o.SID;
         uint id32 = GenTrainers.Id32(six, tid, sid);
         var ro = me as IRegionOrigin;
-        return GenHost.With8a(new SimpleTrainerInfo(sav.Version)
+        return (new SimpleTrainerInfo(sav.Version)
         {
             OT = o.OT ?? me.OT, TID16 = (ushort)(id32 & 0xFFFF), SID16 = (ushort)(id32 >> 16),
             Gender = (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), Language = me.Language > 0 ? me.Language : 2,
             ConsoleRegion = ro?.ConsoleRegion ?? 1, Country = ro?.Country ?? 49, Region = ro?.Region ?? 7,
-        }, sav);
+        });
     }
 
     /// <summary>
