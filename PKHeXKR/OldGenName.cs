@@ -9,7 +9,7 @@ public static class OldGenName
 {
     public static bool HasJapanese(string s) => s.Any(c => c is >= '぀' and <= 'ヿ' or >= '一' and <= '鿿' or >= 'ｦ' and <= 'ﾟ');
     public static bool IsOld(SaveFile s) => s is SAV1 or SAV2 or SAV3;
-    public static bool IsJapaneseSave(SaveFile s) => s is SAV1 { Japanese: true } or SAV2 { Japanese: true } or SAV3 { Japanese: true };
+    public static bool IsJapaneseSave(SaveFile s) => GenTrainers.IsJapaneseSave(s);
 
     /// <summary>일본판 형식이면 반각 숫자(3세대는 영문도)를 전각으로 (일본판 게임의 글자표에는 전각만 있음).</summary>
     public static string ForSave(SaveFile s, string name)

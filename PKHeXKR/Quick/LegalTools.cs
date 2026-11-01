@@ -22,7 +22,8 @@ public static class LegalTools
             try
             {
                 var t = pk.Clone(); t.Ball = (byte)c.Value; t.RefreshChecksum();
-                if (!Bad(t).Except(baseBad).Any() && !(baseBad.Any(b => b.Item1 == CheckIdentifier.Ball) && c.Value != pk.Ball && Bad(t).Any(b => b.Item1 == CheckIdentifier.Ball))) ok.Add(c.Value);
+                var bad = Bad(t);   // 볼마다 합법성 검사 한 번 (예전에는 두 번)
+                if (!bad.Except(baseBad).Any() && !(baseBad.Any(b => b.Item1 == CheckIdentifier.Ball) && c.Value != pk.Ball && bad.Any(b => b.Item1 == CheckIdentifier.Ball))) ok.Add(c.Value);
             }
             catch { }
         }

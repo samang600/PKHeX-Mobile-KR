@@ -124,7 +124,8 @@ public static class LegalHelp
         [LegalityCheckResultCode.FatefulInvalid] = new("배포가 아닌데 '운명적인 만남' 표시가 있습니다.", "표시를 끄세요.", "운명적인 만남 끄기", p => { p.FatefulEncounter = false; p.RefreshChecksum(); return true; }),
         [LegalityCheckResultCode.FatefulMysteryMissing] = new("이 배포 개체에는 '운명적인 만남' 표시가 필요합니다.", "표시를 켜세요.", "운명적인 만남 켜기", p => { p.FatefulEncounter = true; p.RefreshChecksum(); return true; }),
         // 추억·친밀도
-        [LegalityCheckResultCode.MemoryMissingHT] = new("현재 트레이너와의 추억이 비어 있습니다.", "추억을 넣거나 현재 트레이너 정보를 지우세요.", "추억 지우기", p => { try { p.ClearMemories(); p.RefreshChecksum(); return true; } catch { return false; } }),
+        // 추억을 지우면(ClearMemories) 빈 추억이 그대로라 고쳐지지 않음 → 지금 상황에 맞는 추억을 넣음
+        [LegalityCheckResultCode.MemoryMissingHT] = new("현재 트레이너와의 추억이 비어 있습니다.", "추억을 넣거나 현재 트레이너 정보를 지우세요.", "추억 추천값", p => { try { PKHeX.Core.AutoMod.SimpleEdits.SetSuggestedMemories(p); p.RefreshChecksum(); return true; } catch { return false; } }),
         [LegalityCheckResultCode.MemoryMissingOT] = new("어버이와의 추억이 비어 있습니다 (6세대).", "추억을 넣으세요 (자동 합법화)."),
         [LegalityCheckResultCode.MemoryHTLanguage] = new("현재 트레이너 언어가 비어 있거나 잘못되었습니다.", "현재 트레이너 언어를 넣으세요."),
         [LegalityCheckResultCode.MemoryStatFriendshipHT0] = new("현재 트레이너 친밀도가 0이면 안 됩니다.", "친밀도를 추천값으로.", "친밀도 추천값", Batch(".HandlingTrainerFriendship=$suggest")),

@@ -248,18 +248,23 @@ public static class RaidTools
         ("drop_rewards", 0x680EEB85), ("bonus_rewards", 0xEFCAE04E), ("dai_encount", 0xAD3920F5),
     ];
 
-    /// <summary>이벤트 파일을 소드실드 세이브 블록에 씀 (블록보다 큰 파일은 거절, 작으면 뒤를 0으로). 반환: 쓴 블록 이름들.</summary>
+    /// <summary>
+    /// 이벤트 파일을 소드실드 세이브 블록에 씀 (블록보다 큰 파일은 거절, 작으면 뒤를 0으로). 반환: 쓴 블록 이름들.
+    /// 파일을 모두 먼저 확인하고, 하나라도 문제가 있으면 아무것도 쓰지 않음 (일부만 써서 이벤트 굴 정보가 서로 어긋나지 않게).
+    /// </summary>
     public static List<string> Import8(SAV8SWSH sav, IReadOnlyDictionary<string, byte[]> files, List<string> errors)
     {
-        var done = new List<string>();
+        var done = new List<string>(); var ready = new List<(string Name, SCBlock Block, byte[] Buf)>(); int bad = 0;
         foreach (var (name, key) in Files8)
         {
             if (!files.TryGetValue(name, out var data)) continue;
             var b = sav.Accessor.GetBlockSafe(key);
-            if (b.Type == SCTypeCode.None) { errors.Add($"세이브에 {name} 블록이 없음"); continue; }
-            if (data.Length > b.Data.Length) { errors.Add($"{name}: 파일이 블록보다 큼 ({data.Length} > {b.Data.Length})"); continue; }
-            var buf = new byte[b.Data.Length]; data.CopyTo(buf, 0); b.ChangeData(buf); done.Add(name);
+            if (b.Type == SCTypeCode.None) { errors.Add($"세이브에 {name} 블록이 없음"); bad++; continue; }
+            if (data.Length > b.Data.Length) { errors.Add($"{name}: 파일이 블록보다 큼 ({data.Length} > {b.Data.Length})"); bad++; continue; }
+            var buf = new byte[b.Data.Length]; data.CopyTo(buf, 0); ready.Add((name, b, buf));
         }
+        if (bad > 0) return done;   // 하나라도 못 쓰면 전부 쓰지 않음
+        foreach (var (name, b, buf) in ready) { b.ChangeData(buf); done.Add(name); }
         return done;
     }
 

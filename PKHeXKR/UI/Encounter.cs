@@ -413,16 +413,18 @@ public class EncounterSheet : Sheet
         }
         if (why == null && EncCond.SeedMode == 1)
         {
-            var sd = Seeder.For(r.Enc, AppState.Sav);
+            var sd = Seeder.For(r.Enc, GenHost.TrainerOf(AppState.Sav));
             if (sd != null) { await SeqSearch(sd, page); return; }
             Note.Show("이 조우는 시드로 만들 수 없어 무작위로 탐색합니다");
         }
         var sav = AppState.Sav;
+        // 만들 때 쓸 트레이너: 세이브 그대로가 아니라 빠른 생성과 같은 트레이너 (1~3세대 세이브 언어 0 → 영어 개체가 되던 문제, PLA 이로치 추첨 횟수 유지)
+        var tr = GenHost.TrainerOf(sav);
         // 조건이 없으면 바로 한 마리 만들어 불러오기
         if (why != null || !EncCond.HasAny)
         {
             PKM p0 = null;
-            try { var t0 = r.Enc.ConvertToPKM(sav, EncounterCriteria.Unrestricted); p0 = EntityConverter.ConvertToType(t0, sav.PKMType, out _) ?? t0; if (why == null) EncCond.ApplyMark(p0); else EncCond.FixTradedEgg(p0); } catch { }
+            try { var t0 = r.Enc.ConvertToPKM(tr, EncounterCriteria.Unrestricted); p0 = EntityConverter.ConvertToType(t0, sav.PKMType, out _) ?? t0; if (why == null) EncCond.ApplyMark(p0); else EncCond.FixTradedEgg(p0); } catch { }
             if (p0 == null) { status.Text = "이 인카운터로는 개체를 만들 수 없습니다"; return; }
             var note0 = FixDate(r, p0);
             p0 = EvoUtil.ToTarget(p0, species); Close(); if (AppState.Load(p0)) AppState.Edited();
@@ -448,7 +450,7 @@ public class EncounterSheet : Sheet
                 while (!link.IsCancellationRequested && (unlimited || sw.Elapsed.TotalSeconds < 12))
                 {
                     PKM p;
-                    try { p = r.Enc.ConvertToPKM(sav, crit); } catch { stop.Cancel(); break; }
+                    try { p = r.Enc.ConvertToPKM(tr, crit); } catch { stop.Cancel(); break; }
                     p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
                     EncCond.ApplyMark(p);
                     p = EncCond.FitSize(p, ref sizeFree, AppState.IsLegal);
