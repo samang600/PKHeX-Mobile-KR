@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- 생성 엔진(Shared/PKHeXKR.Gen) 문장 해석 시험: 표로 적은 예문 → 기대 결과. 패키지 없이 콘솔로 (dotnet run, 실패하면 종료 코드 1) -->
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>disable</Nullable>
+		<RootNamespace>PKHeXKR.Tests</RootNamespace>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\PKHeXKR.Gen\PKHeXKR.Gen.csproj" />
+	</ItemGroup>
+</Project>
