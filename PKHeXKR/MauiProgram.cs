@@ -21,8 +21,8 @@ public class App : Application
     protected override Window CreateWindow(IActivationState activationState)
     {
         var w = new Window(new MainPage()) { Title = "PKHeX 모바일" };
-        w.Stopped += (_, _) => LastSession.Save();       // 백그라운드로 갈 때
-        w.Destroying += (_, _) => LastSession.Save();    // 꺼질 때
+        w.Stopped += (_, _) => { LastSession.Save(); BlankBox.Save(); };       // 백그라운드로 갈 때
+        w.Destroying += (_, _) => { LastSession.Save(); BlankBox.Save(); };    // 꺼질 때
         return w;
     }
 }

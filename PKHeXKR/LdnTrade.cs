@@ -206,8 +206,11 @@ public static class LdnTrade
             }
             catch { }
         if (mons.Count == 0) return;
-        if (AppState.Sav == null || string.IsNullOrEmpty(AppState.Sav.Metadata.FileName))
-        { Note.Show($"받은 포켓몬 {mons.Count}마리는 앱에 보관했어요 · 세이브를 연 뒤 PokeLDN 교환 화면의 '받은 포켓몬'으로 넣으세요"); return; }
+        if (AppState.Sav == null) { Note.Show($"받은 포켓몬 {mons.Count}마리는 앱에 보관했어요 · 세이브를 연 뒤 PokeLDN 교환 화면의 '받은 포켓몬'으로 넣으세요"); return; }
+        bool blank = string.IsNullOrEmpty(AppState.Sav.Metadata.FileName);
+        // 빈 세이브에도 넣음: 게임이 다르고 빈 세이브 박스가 비어 있으면 받은 포켓몬 게임의 빈 세이브로 바꿔서 (다른 형식으로 바꾸면 정보가 사라질 수 있음)
+        if (blank && mons[0].Pk.Context != AppState.Sav.Context && BoxesEmpty(AppState.Sav) && GameOf(mons[0].Pk.Context) is { } gv)
+            try { var ns = AppState.NewBlankSave(gv); if (ns.Context == mons[0].Pk.Context) AppState.SetSave(ns); } catch { }
         var fit = mons.Select(m => (m.File, Pk: AppState.ForSave(m.Pk))).Where(m => m.Pk != null).ToList();
         if (fit.Count == 0) { Note.Show($"받은 포켓몬 {mons.Count}마리는 지금 세이브에 넣을 수 없습니다"); return; }
         var names = string.Join(", ", fit.Take(6).Select(p => PKHeX.Core.GameInfo.Strings.Species[p.Pk.Species]));
@@ -231,7 +234,18 @@ public static class LdnTrade
             }
         }
         AppState.NotifyBox();
-        Note.Show(placed < fit.Count ? $"{placed}마리 넣음 · 박스에 빈 칸이 없어 {fit.Count - placed}마리는 남겨 뒀어요 (빈 칸을 만든 뒤 '받은 포켓몬'으로)" : $"{placed}마리를 박스에 넣었습니다 (세이브 저장 필요)");
+        Note.Show(placed < fit.Count ? $"{placed}마리 넣음 · 박스에 빈 칸이 없어 {fit.Count - placed}마리는 남겨 뒀어요 (빈 칸을 만든 뒤 '받은 포켓몬'으로)" : (blank ? $"{placed}마리를 빈 세이브 박스에 넣었습니다" : $"{placed}마리를 박스에 넣었습니다 (세이브 저장 필요)"));
+    }
+    private static GameVersion? GameOf(EntityContext c) => c switch
+    {
+        EntityContext.Gen9 => GameVersion.SL, EntityContext.Gen9a => GameVersion.ZA, EntityContext.Gen8 => GameVersion.SW, EntityContext.Gen8b => GameVersion.BD,
+        EntityContext.Gen8a => GameVersion.PLA, EntityContext.Gen7b => GameVersion.GP, EntityContext.Gen7 => GameVersion.US, EntityContext.Gen6 => GameVersion.OR,
+        EntityContext.Gen5 => GameVersion.B2, EntityContext.Gen4 => GameVersion.HG, EntityContext.Gen3 => GameVersion.E, _ => null,
+    };
+    private static bool BoxesEmpty(SaveFile s)
+    {
+        for (int b = 0; b < s.BoxCount; b++) for (int i = 0; i < s.BoxSlotCount; i++) if (s.GetBoxSlotAtIndex(b, i).Species != 0) return false;
+        return true;
     }
 
     /// <summary>
@@ -459,6 +473,20 @@ public static class LdnTrade
         return true;
     }
 
+    private static readonly System.Text.RegularExpressions.Regex HostOffer = new(@"^\[\w+\] 169\.254\.\d+\.\d+: offers species (\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    /// <summary>스위치(호스트) 쪽이 전설·준전설·환상을 내놓으면 미리 알림: 11-01 SV 4마리 교환에서 스위치가 우라오스를 고르자
+    /// 확인 첫 단계(80000200) 뒤로 스위치가 답하지 않고 멈춤 (우리가 보낸 딩루·위유이 등 전설은 문제없었음). 소드실드 무한다이노·자시안도 같은 모습.</summary>
+    private static void HostOfferHint(string line)
+    {
+        if (line == null) return;
+        var m = HostOffer.Match(line);
+        if (!m.Success || !ushort.TryParse(m.Groups[1].Value, out var sp)) return;
+        if (!(SpeciesCategory.IsLegendary(sp) || SpeciesCategory.IsSubLegendary(sp) || SpeciesCategory.IsMythical(sp))) return;
+        var name = sp < GameInfo.Strings.Species.Count ? GameInfo.Strings.Species[sp] : sp.ToString();
+        var t = $"⚠ 스위치에서 고른 {name}은(는) 전설·환상이라 교환 확인 단계에서 멈출 수 있어요 (PokeLDN이 아직 처리하지 못함). 멈추면 스위치에서 취소하고 다른 포켓몬을 골라 주세요";
+        if (!StatusLines.Contains(t)) StatusLines.Add(t);
+    }
+
     private static async void Tick(object s, EventArgs e)
     {
         string json;
@@ -467,7 +495,7 @@ public static class LdnTrade
         using (var doc = JsonDocument.Parse(json))
         {
             var r = doc.RootElement;
-            foreach (var l in r.GetProperty("lines").EnumerateArray()) FullLog.Append(l.GetString()).Append('\n');
+            foreach (var l in r.GetProperty("lines").EnumerateArray()) { var ls = l.GetString(); FullLog.Append(ls).Append('\n'); HostOfferHint(ls); }
             if (FullLog.Length > 4_000_000) FullLog.Remove(0, FullLog.Length - 3_000_000);   // 응답(ACK) 한 줄이 600자라 8만 자로는 마지막 15초만 남았음 → 넉넉히
             foreach (var st in r.GetProperty("status").EnumerateArray())
             {

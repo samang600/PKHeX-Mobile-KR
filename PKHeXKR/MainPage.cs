@@ -178,7 +178,7 @@ public class MainPage : ContentPage
         UpdateSummary(); UpdateLive();
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), async () => await UpdateCheck.Run(false));
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(5), () => Task.Run(async () => { var m = await EventData.Run(false); if (m != null) MainThread.BeginInvokeOnMainThread(() => Note.Show(m)); }));   // 배포 데이터 자동 업데이트 (하루 한 번)
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(600), async () => await LastSession.Restore());   // 설정: 마지막 세이브 그대로 열기
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(600), async () => await LastSession.RestoreStartup());   // 설정: 마지막 세이브 그대로 열기
         AppState.LiveLost += () => MainThread.BeginInvokeOnMainThread(() => { UpdateLive(); Note.Show("라이브헥스 연결이 끊어졌습니다"); });
     }
 

@@ -355,6 +355,7 @@ public class SettingsSheet : Sheet
         var topLdn = Tog("위쪽 '라이브헥스' 버튼을 PokeLDN 교환으로", Preferences.Get("top_ldn", false), v => { Preferences.Set("top_ldn", v); MainPage.Instance?.UpdateLive(); });
         topLdn.IsVisible = LdnTrade.Available;
         var keep = Tog("마지막 세이브 그대로 열기 (앱을 끌 때 편집 상태 보존)", LastSession.Enabled, v => { LastSession.Enabled = v; if (!v) LastSession.Clear(); });
+        var keepBlank = Tog("빈 세이브 박스 보존 (세이브 없이 편집하던 포켓몬을 다음 실행 때 그대로)", BlankBox.Enabled, v => { BlankBox.Enabled = v; if (!v) BlankBox.Clear(); });
         var updNow = T.Pill("지금 업데이트 확인"); updNow.Clicked += async (_, _) => await UpdateCheck.Run(true);
         var mg = Tog("배포 데이터 자동 업데이트 (하루 한 번)", EventData.Enabled, v => EventData.Enabled = v);
         string MgInfo() => $"앱에 들어 있지 않은 새 배포 카드를 PKHeX 최신 배포 DB에서 받아 합법성 검사·자동 합법화·인카운터 검색에 씁니다. 받은 배포: {EventData.Count}개" + (EventData.LastCheck > DateTime.MinValue ? $" · 마지막 확인 {EventData.LastCheck:yyyy-MM-dd HH:mm}" : "");
@@ -412,7 +413,7 @@ public class SettingsSheet : Sheet
                 });
             }));
         lv.GestureRecognizers.Clear(); lv.GestureRecognizers.Add(tapL);
-        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, bgn, bgv, upd, updNow, mg, mgHint, mgNow, keep, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
+        Body.Add(new ScrollView { Content = new VerticalStackLayout { Spacing = 12, Children = { T.L("화면 모드", 13, sub: true), row, T.Field("데이터 언어 (종·기술 이름 등)", lv), topLdn, hcRow, hcHint, trkS, trkO, htf, swf, swfHint, chkHint, bgn, bgv, upd, updNow, mg, mgHint, mgNow, keep, keepBlank, bkRow, bkHint, list, T.L("앱 데이터", 13, sub: true), dataHint, dataRow } } });
     }
 }
 
@@ -1011,6 +1012,82 @@ public class GiftPreviewSheet : Sheet
 }
 
 /// <summary>
+/// 빈 세이브 박스 보존: 세이브 파일 없이 빈 세이브에서 편집하던 포켓몬(박스·지닌 포켓몬·편집 중인 포켓몬)을 앱이 내려가거나 꺼질 때 앱 안에 저장하고,
+/// 다음 실행 때 같은 게임의 빈 세이브에 그대로 다시 넣음. 소드실드·SV·Z-A 등의 빈 세이브는 파일로 쓸 수 없어서 포켓몬만 따로 저장.
+/// </summary>
+public static class BlankBox
+{
+    public static bool Enabled { get => Preferences.Get("keep_blank", true); set => Preferences.Set("keep_blank", value); }
+    private static string Dir => Path.Combine(FileSystem.AppDataDirectory, "last_blank");
+    private static string DataFile => Path.Combine(Dir, "slots.bin");
+    public static void Clear() { try { if (Directory.Exists(Dir)) Directory.Delete(Dir, true); } catch { } }
+    public static DateTime SavedAt => File.Exists(DataFile) ? File.GetLastWriteTimeUtc(DataFile) : DateTime.MinValue;
+    private static byte[] Stored(PKM p) { var b = new byte[p.SIZE_STORED]; p.WriteDecryptedDataStored(b); return b; }
+    private static byte[] Party(PKM p) { var b = new byte[p.SIZE_PARTY]; p.WriteDecryptedDataParty(b); return b; }
+
+    public static void Save()
+    {
+        if (!Enabled) return;
+        try
+        {
+            var sav = AppState.Sav; if (sav == null || !string.IsNullOrEmpty(sav.Metadata.FileName)) return;   // 파일에서 연 세이브는 LastSession 몫
+            using var ms = new MemoryStream(); using var w = new BinaryWriter(ms);
+            w.Write(2); w.Write((int)sav.Version); w.Write(AppState.Box);
+            var recs = new List<(short box, short slot, byte[] data)>();
+            for (int b = 0; b < sav.BoxCount; b++)
+                for (int i = 0; i < sav.BoxSlotCount; i++)
+                {
+                    PKM p; try { p = sav.GetBoxSlotAtIndex(b, i); } catch { continue; }
+                    if (p.Species != 0) recs.Add(((short)b, (short)i, Stored(p)));
+                }
+            if (sav.HasParty) for (int i = 0; i < sav.PartyCount; i++) { var p = sav.GetPartySlotAtIndex(i); if (p.Species != 0) recs.Add((-1, (short)i, Party(p))); }
+            if (AppState.Pk is { Species: > 0 } ed && !AppState.PkIsUntouchedPlaceholder) recs.Add((-2, 0, Party(ed)));
+            if (recs.Count == 0) { Clear(); return; }                           // 다 비웠으면 지난 기록도 지움
+            w.Write(recs.Count);
+            foreach (var (box, slot, data) in recs) { w.Write(box); w.Write(slot); w.Write(data.Length); w.Write(data); }
+            w.Flush();
+            Directory.CreateDirectory(Dir);
+            var tmp = Path.Combine(Dir, "slots.tmp"); File.WriteAllBytes(tmp, ms.ToArray()); File.Move(tmp, DataFile, true);
+        }
+        catch { }
+    }
+
+    /// <summary>지금 열린 세이브가 빈 세이브일 때만: 저장해 둔 게임의 빈 세이브를 만들고 포켓몬을 다시 넣음.</summary>
+    public static bool Restore()
+    {
+        if (!Enabled || !File.Exists(DataFile) || !string.IsNullOrEmpty(AppState.Sav?.Metadata.FileName)) return false;
+        try
+        {
+            using var r = new BinaryReader(File.OpenRead(DataFile));
+            if (r.ReadInt32() != 2) return false;
+            var ver = (GameVersion)r.ReadInt32(); int box = r.ReadInt32(); int n = r.ReadInt32();
+            var sav = AppState.Sav.Version == ver ? AppState.Sav : AppState.NewBlankSave(ver);
+            PKM editor = null; int put = 0;
+            for (int k = 0; k < n; k++)
+            {
+                short b = r.ReadInt16(), i = r.ReadInt16(); var data = r.ReadBytes(r.ReadInt32());
+                try
+                {
+                    var p = sav.GetDecryptedPKM(data);
+                    if (p.Species == 0) continue;
+                    if (b == -2) { editor = p; continue; }
+                    if (b == -1) { if (sav.HasParty && i < 6) { sav.SetPartySlotAtIndex(p, i); put++; } }
+                    else if (b < sav.BoxCount && i < sav.BoxSlotCount) { sav.SetBoxSlotAtIndex(p, b, i); put++; }
+                }
+                catch { }
+            }
+            if (put == 0 && editor == null) return false;
+            AppState.SetSave(sav);
+            if (box >= 0 && box < sav.BoxCount) { AppState.Box = box; AppState.NotifyBox(); }
+            if (editor != null) AppState.Load(editor);
+            Note.Show($"빈 세이브에서 편집하던 포켓몬 {put}마리를 그대로 불러왔습니다");
+            return true;
+        }
+        catch { return false; }
+    }
+}
+
+/// <summary>
 /// 마지막 세이브 보존: 앱이 백그라운드로 가거나 꺼질 때 지금 열린 세이브(편집 내용 포함)를 앱 안에 저장하고,
 /// 다음 실행 때 그대로 엽니다. 원본 파일은 건드리지 않음 (내보내기 전까지 원본은 그대로).
 /// </summary>
@@ -1032,6 +1109,14 @@ public static class LastSession
             var tmpN = Path.Combine(Dir, "name.tmp"); File.WriteAllText(tmpN, sav.Metadata.FileName + "\n" + AppState.Box); File.Move(tmpN, Path.Combine(Dir, "name.txt"), true);
         }
         catch { }
+    }
+    public static DateTime SavedAt { get { var f = Path.Combine(Dir, "save.bin"); return Enabled && File.Exists(f) ? File.GetLastWriteTimeUtc(f) : DateTime.MinValue; } }
+    /// <summary>앱을 켤 때: 마지막으로 쓰던 쪽(파일 세이브 또는 빈 세이브 박스)을 다시 엶</summary>
+    public static async Task RestoreStartup()
+    {
+        if (BlankBox.SavedAt > SavedAt) { if (BlankBox.Restore()) return; }
+        if (await Restore()) return;
+        BlankBox.Restore();
     }
     public static async Task<bool> Restore()
     {

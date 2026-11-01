@@ -375,6 +375,8 @@ public static class AppState
         return p;
     }
     private static PKM placeholder;
+    /// <summary>편집기에 손대지 않은 기본 피카츄만 있는지</summary>
+    public static bool PkIsUntouchedPlaceholder => ReferenceEquals(Pk, placeholder) && !Dirty;
 
     // ===== 배포 기간: 공통 엔진(GenHost)으로 =====
     public static async Task LoadCardWindowsAsync()
