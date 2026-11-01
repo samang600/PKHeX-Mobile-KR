@@ -26,12 +26,23 @@ public static class StrangeBall
     public sealed record Entry(ushort Species, byte Form, string Events, bool Evolved);
 
     private static readonly Dictionary<EntityContext, List<Entry>> cache = new();
+    // cache·slotCache는 '오늘까지 열린 기간'으로 만듦 → 날짜가 바뀌면(앱을 켜 둔 채 새 와일드 에어리어 기간이 열림) 다시 만듦. 둘 다 같은 잠금으로
+    private static readonly object sync = new();
+    private static DateOnly cacheDay;
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
+    private static void DropIfNewDay()
+    {
+        var today = Today;
+        if (cacheDay == today) return;
+        cache.Clear(); slotCache = null; cacheDay = today;
+    }
 
     /// <summary>이 세이브 게임에 있는 종만, 잡은 종 + 진화형. 이미 지난(또는 오늘까지의) 기간만.</summary>
     public static List<Entry> Possible(SaveFile sav)
     {
-        lock (cache)
+        lock (sync)
         {
+            DropIfNewDay();
             if (cache.TryGetValue(sav.Context, out var c)) return c;
             var res = Build(sav);
             cache[sav.Context] = res;
@@ -53,8 +64,14 @@ public static class StrangeBall
     private static List<(EncounterSlot8GO Slot, List<DateOnly> Days, string Events)> slotCache;
     private static List<(EncounterSlot8GO Slot, List<DateOnly> Days, string Events)> StrangeSlots(SaveFile sav)
     {
-        if (slotCache != null) return slotCache;
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        lock (sync)
+        {
+            DropIfNewDay();
+            return slotCache ??= BuildSlots(sav, cacheDay);
+        }
+    }
+    private static List<(EncounterSlot8GO Slot, List<DateOnly> Days, string Events)> BuildSlots(SaveFile sav, DateOnly today)
+    {
         var pk = sav.BlankPKM; var list = new List<(EncounterSlot8GO, List<DateOnly>, string)>();
         foreach (var s in GoSlots())
         {
@@ -73,17 +90,19 @@ public static class StrangeBall
             }
             if (days.Count > 0) list.Add((s, days, string.Join("·", evs)));
         }
-        return slotCache = list;
+        return list;
     }
 
     /// <summary>
     /// 스트레인지볼 주문 만들기: GO 와일드 에어리어 조우(이 종 또는 진화 전)를 HOME 형식으로 바꿔 이 게임 형식으로 → 볼·만난 날짜·HOME 기록·
     /// 받은 트레이너 정리 → 주문한 종으로 진화 → 나머지 조건(QuickGen.Finish). 합법이 될 때까지 날짜·조우를 바꿔 시도.
+    /// 성별·성격·특성·개체값·크기·레벨 조건은 EncCond(QuickGen.SetEncCond로 넣은 주문 조건)대로 (예전에는 무시하고 아무 개체나 만들었음).
     /// </summary>
     public static (PKM Pk, string How) Make(OrderSpec o, SaveFile sav, CancellationToken tok)
     {
         if (!IsPossible(sav, o.Species, o.Form))
             return (null, (o.Form >= 0 && IsPossible(sav, o.Species) ? "스트레인지볼은 이 폼에 불가능해요" : "스트레인지볼은 이 포켓몬에 불가능해요") + " (포켓몬 GO 와일드 에어리어에서 사파리볼로 잡은 포켓몬만 · '스트레인지볼 가능한 포켓몬' 목록 참고)");
+        if (o.Shiny == 3) return (null, "스트레인지볼(포켓몬 GO 출신) 이로치는 네모 이로치만 가능해요");
         var line = new HashSet<ushort> { o.Species };
         try
         {
@@ -93,8 +112,13 @@ public static class StrangeBall
         }
         catch { }
         var shiny = o.Shiny switch { 1 or 3 or 4 => Shiny.Always, 2 => Shiny.Never, _ => Shiny.Random };
+        // 주문 조건 (성격·성별·특성·개체값): GO 조우는 그대로 따라 만듦. 6V·5V는 개체값을 31로 정해 달라고 함 (GO 개체값은 HP·공격·방어만 정해지고 스피드는 무작위)
+        var crit = EncCond.Criteria() with { Shiny = shiny };
+        if (o.FlawlessIVs >= 5 && crit is { IV_HP: < 0, IV_ATK: < 0, IV_DEF: < 0, IV_SPA: < 0, IV_SPD: < 0, IV_SPE: < 0 })
+            crit = crit with { IV_HP = 31, IV_ATK = 31, IV_DEF = 31, IV_SPA = 31, IV_SPD = 31, IV_SPE = (sbyte)(o.FlawlessIVs >= 6 ? 31 : -1) };
+        bool Wanted(PKM x) => EncCond.Satisfied(x) && (o.FlawlessIVs <= 0 || QuickGen.FlawlessCount(x) >= o.FlawlessIVs);
         var me = GenHost.TrainerOf(sav);
-        var rnd = Random.Shared;
+        var rnd = Random.Shared; bool anyMade = false;
         // 폼(리전폼 등)을 정했으면: 같은 종의 조우는 그 폼만, 진화 전 조우는 진화 뒤 폼이 맞는지 아래에서 확인 (폼을 무시하고 원종이 나오던 문제)
         var srcs = StrangeSlots(sav).Where(x => line.Contains(x.Slot.Species) && (o.Form < 0 || x.Slot.Species != o.Species || x.Slot.Form == o.Form))
             .OrderBy(x => x.Slot.Species == o.Species ? 0 : 1).ToList();
@@ -104,11 +128,11 @@ public static class StrangeBall
             // 주문한 날짜가 있으면 그 범위 안의 날짜만
             var useDays = days.Where(d => o.MetFrom is not { } a || (d >= a && d <= (o.MetTo ?? a))).ToList();
             if (useDays.Count == 0) continue;
+            bool? sizeFree = null;
             for (int tr = 0; tr < 6 && !tok.IsCancellationRequested; tr++)
             {
                 try
                 {
-                    var crit = EncounterCriteria.Unrestricted with { Shiny = shiny, Gender = o.Gender >= 0 ? (Gender)o.Gender : Gender.Random };
                     var raw = slot.ConvertToPKM(sav, crit);
                     if (raw == null) continue;
                     var pk = raw.GetType() == sav.PKMType ? raw : EntityConverter.ConvertToType(raw, sav.PKMType, out _);
@@ -118,12 +142,18 @@ public static class StrangeBall
                     // HOME 트래커는 절대 만들어 넣지 않음 (진짜 값은 HOME 서버만 발급) → '홈 트래커 없음 검사'가 켜진 게임에선 불법으로 표시됨
                     pk.CurrentHandler = 1; pk.HandlingTrainerName = me.OT; pk.HandlingTrainerGender = me.Gender; pk.SetHTLanguage((byte)me.Language);
                     pk.SetSuggestedMemories();
+                    if (o.Level > 0 && o.Level >= pk.MetLevel) QuickGen.SetLevel(pk, o.Level);
                     pk.RefreshChecksum();
+                    // 조건은 진화해도 그대로 → 진화(무거움) 전에 확인. 크기는 바꿔도 합법이면 맞춤
+                    pk = EncCond.FitSize(pk, ref sizeFree, GenHost.IsLegal);
+                    if (!Wanted(pk)) continue;
                     var p = EvoUtil.ToTarget(pk, o.Species, o.Form);
                     if (p == null || p.Species != o.Species || (o.Form >= 0 && p.Form != o.Form)) continue;
                     var keepDate = o.MetFrom; o.MetFrom = null;   // 날짜는 위에서 이벤트 기간으로 정함
                     try { p = QuickGen.Finish(o, p, sav); } finally { o.MetFrom = keepDate; }
                     p.Ball = (byte)Ball.Strange; p.RefreshChecksum();
+                    anyMade = true;
+                    if (!Wanted(p)) continue;   // 마무리(어버이 바꾸기 등) 뒤에도 조건 그대로인지
                     if (GenHost.IsLegal(p))
                         return (p, $"포켓몬 GO 와일드 에어리어({evs}) 사파리볼 → 스트레인지볼 · 만난 날짜 {p.MetDate:yyyy-MM-dd}");
                     if (OnlyTrackerMissing(p))
@@ -132,7 +162,8 @@ public static class StrangeBall
                 catch { }
             }
         }
-        return (null, "스트레인지볼로 합법인 개체를 만들지 못했어요 (GO 출신 조건: 이로치·성별·레벨 조합 확인)");
+        return (null, anyMade || srcs.Count == 0 ? "스트레인지볼로 합법인 개체를 만들지 못했어요 (GO 출신 조건: 이로치·성별·레벨 조합 확인)"
+            : "스트레인지볼로 조건(성별·성격·특성·개체값·크기·레벨)을 모두 만족하는 개체를 만들지 못했어요 (GO 출신은 개체값 HP·공격·방어가 홀수 등 제한이 있음)");
     }
 
     /// <summary>불법 사유가 'HOME 트래커 없음' 하나뿐인지</summary>

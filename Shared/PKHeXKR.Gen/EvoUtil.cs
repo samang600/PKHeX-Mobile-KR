@@ -77,7 +77,8 @@ public static class EvoUtil
         {
         if (e is IPlusRecord pr && e.PersonalInfo is IPermitPlus pp && plus != PlusRecordApplicatorOption.None)
         { try { pr.ClearPlusFlags(pp.PlusCountTotal); pr.SetPlusFlags(e, pp, plus); } catch { } }   // 기술플러스 조건을 진화체 기준으로 채움
-        foreach (var useArg in new[] { true, false })   // 폼 인수가 필요한 게임(SV)과 없는 게임(Z-A) 모두 시도
+        // 폼 인수가 필요한 게임(SV)과 없는 게임(Z-A) 모두 시도. 폼 인수가 없는 개체(또는 0)는 두 번 해도 같으므로 한 번만 (합법성 검사가 두 배로 들었음)
+        foreach (var useArg in e is IFormArgument && fa0 != 0 ? new[] { true, false } : [true])
         {
             if (e is IFormArgument fx) fx.FormArgument = useArg ? fa0 : 0;
             foreach (var lv in new[] { baseLv, 16, 20, 30, 36, 40, 50, 52, 60, 64, 100 }.Where(x => x >= baseLv).Distinct())

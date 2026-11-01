@@ -12,9 +12,9 @@ public static class GenHost
     public static Func<GameStrings> StringsSource = () => GameInfo.Strings;
     public static GameStrings Strings => StringsSource();
 
-    /// <summary>합법 판정. 모바일은 설정(검사 끄기·스위치판 FRLG 등)을 반영한 판정으로 바꿔 끼움.</summary>
     /// <summary>true면 교환·HOME 맡기기가 안 되는 조우(라이드 코라이돈·미라이돈 등)는 후보에서 뺌 (교환봇용)</summary>
     public static bool ExcludeUntradable;
+    /// <summary>합법 판정. 모바일은 설정(검사 끄기·스위치판 FRLG 등)을 반영한 판정으로 바꿔 끼움.</summary>
     public static Func<PKM, bool> IsLegal = p => { try { return p.Species != 0 && new LegalityAnalysis(p).Valid; } catch { return false; } };
 
     /// <summary>앱에 들어 있는 PKHeX.Core에 없는 배포 기간 (모바일: 배포 데이터 자동 업데이트).</summary>
@@ -119,7 +119,27 @@ public static class GenHost
     /// 개체를 만들 때 쓸 트레이너. 1~3세대 세이브는 언어가 0으로 읽혀 영어 개체가 되고,
     /// 일본판 세이브의 가나 이름이 영어 글자표에 안 들어가 어버이 이름이 비는 문제(OT 너무 짧음) → 세이브 언어를 채운 사본.
     /// </summary>
-    public static ITrainerInfo TrainerOf(SaveFile sav) => TrainerOverride(sav) ?? (sav.Language > 0 ? sav : new SimpleTrainerInfo(sav) { Language = GenTrainers.SaveLanguage(sav, (int)LanguageID.English) });
+    public static ITrainerInfo TrainerOf(SaveFile sav) => With8a(TrainerOverride(sav) ?? (sav.Language > 0 ? sav : new SimpleTrainerInfo(sav) { Language = GenTrainers.SaveLanguage(sav, (int)LanguageID.English) }), sav);
+
+    /// <summary>
+    /// 레전즈 아르세우스: 세이브의 도감 연구 단계에 따른 이로치 추첨 횟수(ITrainerInfo8a)를 세이브가 아닌 트레이너(설정 트레이너·어버이 지정)로 만들 때도 쓰게 감쌈.
+    /// 안 감싸면 PKHeX가 추첨 1회로 보고 만들어, 세이브 기준으로 가능한 이로치가 덜 나옴.
+    /// </summary>
+    public static ITrainerInfo With8a(ITrainerInfo tr, SaveFile sav) => tr is ITrainerInfo8a || sav is not ITrainerInfo8a la ? tr : new Trainer8a(tr, la);
+
+    private sealed class Trainer8a(ITrainerInfo tr, ITrainerInfo8a la) : ITrainerInfo, ITrainerInfo8a
+    {
+        public string OT => tr.OT;
+        public byte Gender => tr.Gender;
+        public GameVersion Version => tr.Version;
+        public int Language => tr.Language;
+        public byte Generation => tr.Generation;
+        public EntityContext Context => tr.Context;
+        public uint ID32 => tr.ID32;
+        public ushort TID16 => tr.TID16;
+        public ushort SID16 => tr.SID16;
+        public byte GetShinyRolls(ushort species) => la.GetShinyRolls(species);
+    }
 
     /// <summary>
     /// 지금 세이브 대신 쓸 트레이너 (null이면 세이브 트레이너).
@@ -157,6 +177,11 @@ public static class GenTrainers
 
     public static bool IsJapaneseSave(SaveFile s) => s is SAV1 { Japanese: true } or SAV2 { Japanese: true } or SAV3 { Japanese: true };
 
+    /// <summary>TID·SID → 32비트 ID. 7세대 이후는 6자리 TID·4자리 SID(표시 방식, 4294/967295까지), 그 전은 16비트 둘.</summary>
+    public static uint Id32(bool gen7, int tid, int sid) => gen7
+        ? (uint)Math.Min(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999_999), uint.MaxValue)
+        : (uint)((Math.Min(sid, 65535) << 16) | Math.Min(tid, 65535));
+
     /// <summary>세이브 언어 (1~3세대는 0으로 읽혀 ALM이 영어로 만듦 → 일본판 형식이면 일본어, 아니면 대체 언어).</summary>
     public static int SaveLanguage(SaveFile s, int fallback) => s.Language > 0 ? s.Language : IsJapaneseSave(s) ? (int)LanguageID.Japanese : fallback;
 
@@ -166,13 +191,12 @@ public static class GenTrainers
     /// </summary>
     public static void Register(SaveFile s, Func<GameVersion, TrainerPref> explicitPref, Func<GameVersion, TrainerPref> defaultPref, Func<GameVersion, int, int> safeLang)
     {
-        TrainerSettings.Clear();
         var basePref = explicitPref(s.Version) ?? defaultPref(s.Version);
         int saveLang = SaveLanguage(s, safeLang(s.Version, basePref?.Lang ?? (int)LanguageID.English));
         var over = GenHost.TrainerOverride(s);
         var me = over ?? (s.Language > 0 ? s : new SimpleTrainerInfo(s) { Language = saveLang });   // 지금 게임에 쓸 트레이너
         if (over != null) saveLang = over.Language;
-        TrainerSettings.Register(me);
+        var list = new List<ITrainerInfo> { me };
         foreach (var v in Games.Distinct())
         {
             if (v == s.Version) continue;
@@ -187,16 +211,25 @@ public static class GenTrainers
                 {
                     var t = ex ?? defaultPref(v);
                     ot = t.OT; g = t.Gender; lang = safeLang(v, t.Lang);
-                    id32 = gen >= 7 ? (uint)(Math.Min(t.SID, 4294) * 1_000_000L + Math.Min(t.TID, 999999)) : (uint)(Math.Min(t.TID, 65535) | (Math.Min(t.SID, 65535) << 16));
+                    id32 = Id32(gen >= 7, t.TID, t.SID);
                 }
                 if (v is GameVersion.GN or GameVersion.BU) lang = (int)LanguageID.Japanese;
                 var tr = gen is 6 or 7
                     ? new SimpleTrainerInfo(v) { OT = ot, Gender = g, Language = lang, ID32 = id32, ConsoleRegion = 5, Country = 136, Region = 1 }   // 3DS: 한국 본체
                     : new SimpleTrainerInfo(v) { OT = ot, Gender = g, Language = lang, ID32 = id32 };
-                TrainerSettings.Register(tr);
+                list.Add(tr);
             }
             catch { }
         }
+        // ALM 트레이너 목록은 전역이고 잠금이 없음: 생성(QuickGen.Make 등, CondGate 안)이 읽는 도중 비우고 다시 채우지 않게 CondGate 안에서 한 번에 바꿈.
+        // 오래 걸리는 생성(인카운터 '찾을 때까지' 등) 때문에 화면이 멈추지 않게 기다리는 시간은 제한 (못 잡으면 예전처럼 그냥 바꿈)
+        bool gate = QuickGen.CondGate.Wait(TimeSpan.FromSeconds(5));
+        try
+        {
+            TrainerSettings.Clear();
+            foreach (var tr in list) TrainerSettings.Register(tr);
+        }
+        finally { if (gate) QuickGen.CondGate.Release(); }
     }
 
     /// <summary>설정 트레이너 → 그 게임용 트레이너 정보 (7세대 이후 6자리 TID·4자리 SID, 3DS는 한국 본체).</summary>
@@ -204,7 +237,7 @@ public static class GenTrainers
     {
         var gen = new SimpleTrainerInfo(v).Generation;
         int lang = v is GameVersion.GN or GameVersion.BU ? (int)LanguageID.Japanese : safeLang(v, t.Lang);
-        uint id32 = gen >= 7 ? (uint)(Math.Min(t.SID, 4294) * 1_000_000L + Math.Min(t.TID, 999999)) : (uint)(Math.Min(t.TID, 65535) | (Math.Min(t.SID, 65535) << 16));
+        uint id32 = Id32(gen >= 7, t.TID, t.SID);
         return gen is 6 or 7
             ? new SimpleTrainerInfo(v) { OT = t.OT, Gender = t.Gender, Language = lang, ID32 = id32, ConsoleRegion = 5, Country = 136, Region = 1 }
             : new SimpleTrainerInfo(v) { OT = t.OT, Gender = t.Gender, Language = lang, ID32 = id32 };

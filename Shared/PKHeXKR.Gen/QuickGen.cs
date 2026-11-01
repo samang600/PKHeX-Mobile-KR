@@ -21,13 +21,31 @@ public static class QuickGen
     /// </summary>
     public static readonly SemaphoreSlim CondGate = new(1, 1);
 
-    /// <summary>한 마리 만들기 (인카운터 조건을 잠시 빌려 쓰고 원래대로 돌려 놓음).</summary>
+    /// <summary>
+    /// 한 마리 만들기 (인카운터 조건을 잠시 빌려 쓰고 원래대로 돌려 놓음).
+    /// 만드는 동안 인카운터 검색 화면에서 바꾼 조건은 되돌리지 않음 (예전에는 끝날 때 옛 값으로 덮어써 화면에서 고른 조건이 사라졌음).
+    /// </summary>
     public static (PKM Pk, string How) Make(OrderSpec o, SaveFile sav, CancellationToken tok)
     {
         try { CondGate.Wait(tok); } catch (OperationCanceledException) { return (null, "중지했습니다"); }
-        var snap = SnapshotEncCond();
-        try { return MakeOne(o, sav, tok); }
-        finally { RestoreEncCond(snap); CondGate.Release(); }
+        var snap = SnapshotEncCond(); Dictionary<FieldInfo, object> mine = null;
+        try { SetEncCond(o, sav); mine = SnapshotEncCond(); return MakeOne(o, sav, tok); }
+        finally { RestoreEncCond(snap, mine); CondGate.Release(); }
+    }
+
+    /// <summary>CondGate를 잡고 실행 (이미 잡은 상태(Make 안)에서는 부르지 말 것: 다시 들어갈 수 없음).</summary>
+    public static T WithCondGate<T>(Func<T> f, CancellationToken tok = default)
+    {
+        CondGate.Wait(tok);
+        try { return f(); }
+        finally { CondGate.Release(); }
+    }
+
+    /// <summary>box·slot부터 다음 빈 칸으로 옮김. 반환: 빈 칸이 있는지.</summary>
+    public static bool NextEmptySlot(SaveFile sav, ref int box, ref int slot)
+    {
+        while (box < sav.BoxCount && sav.GetBoxSlotAtIndex(box, slot).Species != 0) { if (++slot >= sav.BoxSlotCount) { slot = 0; box++; } }
+        return box < sav.BoxCount;
     }
 
     /// <summary>여러 마리를 시작 박스부터 빈 칸에. 반환: 넣은 수.</summary>
@@ -38,12 +56,14 @@ public static class QuickGen
         int put = 0, box = startBox, slot = 0;
         foreach (var p in made)
         {
-            while (box < sav.BoxCount && sav.GetBoxSlotAtIndex(box, slot).Species != 0) { if (++slot >= sav.BoxSlotCount) { slot = 0; box++; } }
-            if (box >= sav.BoxCount) break;
+            if (!NextEmptySlot(sav, ref box, ref slot)) break;
             sav.SetBoxSlotAtIndex(p, box, slot); placed?.Add((box, slot)); put++;
         }
         return put;
     }
+
+    /// <summary>개체값이 최대(V)인 능력치 수.</summary>
+    public static int FlawlessCount(PKM p) => new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(v => v == p.MaxIV);
 
     public static string Stats(PKM p)
     {
@@ -74,8 +94,8 @@ public static class QuickGen
     {
         if (!InGame(o, sav))
             return (null, NotInGame);
+        SetEncCond(o, sav);   // 스트레인지볼도 성격·성별·특성·개체값·크기 조건을 따르게 먼저
         if (o.Ball == StrangeBall.BallId) return StrangeBall.Make(o, sav, tok);   // 스트레인지볼: GO 와일드 에어리어 출신으로만 가능
-        SetEncCond(o, sav);
         var candidates = Candidates(o, sav);
         string How(IEncounterInfo e, PKM p) => $"{KindName(e)} · {GenHost.GameName(e.Version)}{(e is MysteryGift mg ? $" · {mg.CardTitle} (카드 {mg.CardID})" : "")}에서 생성 · 어버이 {p.OriginalTrainerName} {p.DisplayTID}"
             + (o.Level > 0 && p.CurrentLevel != o.Level ? $" · Lv{o.Level}로는 만들 수 없어 Lv{p.CurrentLevel}" : "");
@@ -105,8 +125,9 @@ public static class QuickGen
                 EncCond.ApplyMark(p);
                 // 자동 합법화는 우두머리·크기 등을 모르므로, 조건을 만족하지 않으면 쓰지 않음 (엉뚱한 개체 방지)
                 bool alphaOk = o.Alpha != 1 || p is IAlpha { IsAlpha: true };
-                if (!alphaOk || !EncCond.Satisfied(p) || !GenHost.IsLegal(p))
-                    return (null, "조건(우두머리·크기·이로치 등)을 만족하는 합법 개체를 찾지 못했습니다");
+                bool ivOk = o.FlawlessIVs <= 0 || FlawlessCount(p) >= o.FlawlessIVs;   // 6V·5V (ALM은 5V를 모르고, 카레의증표는 개체값을 다시 뽑음)
+                if (!alphaOk || !ivOk || !EncCond.Satisfied(p) || !GenHost.IsLegal(p))
+                    return (null, "조건(우두머리·크기·이로치·개체값 등)을 만족하는 합법 개체를 찾지 못했습니다");
                 return (Finish(o, p, sav), "자동 합법화(ALM)로 생성");
             }
         }
@@ -238,12 +259,17 @@ public static class QuickGen
         return null;
     }
 
-    /// <summary>시드를 0부터 순서대로 (소드실드 야생 등).</summary>
+    /// <summary>
+    /// 시드를 순서대로 (소드실드 야생 등). 시작 시드는 무작위(32비트는 끝에서 0으로 이어짐):
+    /// 0부터 시작하면 같은 주문이 늘 같은 개체(같은 PID·개체값)로 만들어졌음.
+    /// </summary>
     public static PKM TrySeq(OrderSpec o, Seeder sd, SaveFile sav, CancellationToken tok, double seconds)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew(); var p = sd.Template.Clone(); int illegal = 0;
-        for (ulong seed = 0; !tok.IsCancellationRequested && sw.Elapsed.TotalSeconds < seconds && (!sd.Is32 || seed <= 0xFFFFFFFF); seed++)
+        ulong start = (ulong)Random.Shared.NextInt64(); if (sd.Is32) start &= 0xFFFFFFFF;
+        for (ulong n = 0; !tok.IsCancellationRequested && sw.Elapsed.TotalSeconds < seconds && (!sd.Is32 || n <= 0xFFFFFFFF); n++)
         {
+            ulong seed = sd.Is32 ? (start + n) & 0xFFFFFFFF : start + n;
             bool ok; try { ok = sd.Gen(p, seed); } catch { ok = false; }
             if (!ok) continue;
             var c = sd.Finish(p.Clone());
@@ -251,9 +277,8 @@ public static class QuickGen
             if (o.Ball > 0) c.Ball = (byte)o.Ball;
             if (o.Level > 0 && o.Level >= c.MetLevel) SetLevel(c, o.Level);
             if (!EncCond.Satisfied(c)) continue;
+            if (o.FlawlessIVs > 0 && FlawlessCount(c) < o.FlawlessIVs) continue;   // 진화(무거움) 전에 확인
             if (c.Species != o.Species) { c = EvoUtil.Evolve(c, o.Species, o.Form); if (c.Species != o.Species) continue; }
-            if (false) continue;
-            if (o.FlawlessIVs > 0 && new[] { c.IV_HP, c.IV_ATK, c.IV_DEF, c.IV_SPA, c.IV_SPD, c.IV_SPE }.Count(v => v == c.MaxIV) < o.FlawlessIVs) continue;
             c.RefreshChecksum();
             if (GenHost.IsLegal(c)) return c;
             if (++illegal > 300) return null;
@@ -314,16 +339,19 @@ public static class QuickGen
             if (p.GetType() != sav.PKMType) { fail = true; return null; }   // 이 게임 형식으로 옮길 수 없음
             // 개체값을 정해 달라고 했는데 다르게 나옴 = 이 조합은 이 조우로 못 만듦 (무작위로 6V·5V가 나올 확률은 사실상 0)
             if (want != null && (p.IV_HP != want[0] || p.IV_ATK != want[1] || p.IV_DEF != want[2] || p.IV_SPA != want[3] || p.IV_SPD != want[4] || p.IV_SPE != want[5])) { mismatch = true; return null; }
-            if (e is MysteryGift mg && GenHost.DistributionDate(mg, p.Language) is { } dd)   // 배포 개체: 실제 배포 기간 시작일 (합법이 유지될 때만)
-            { var t = p.Clone(); t.MetDate = dd; t.RefreshChecksum(); if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t; }
             EncCond.ApplyMark(p);
             if (o.Ball > 0) p.Ball = (byte)o.Ball;
             if (o.Level > 0 && o.Level >= p.MetLevel) SetLevel(p, o.Level);
             // 조건(성별·이로치·성격·개체값·크기)은 진화해도 그대로라 진화 전에 먼저 확인 → 맞는 개체만 진화 (진화는 무거움)
+            // 크기 말고 다른 조건이 안 맞으면 바로 버림 (아래 배포 날짜·크기 맞추기는 합법성 검사가 들어 무거움)
+            if (!EncCond.Satisfied(p) && EncCond.SizeOk(p)) return null;
+            if (o.FlawlessIVs > 0 && FlawlessCount(p) < o.FlawlessIVs) return null;
+            // 배포 개체: 실제 배포 기간 시작일 (합법이 유지될 때만). 크기 맞추기(합법 확인)보다 먼저
+            if (e is MysteryGift mg && GenHost.DistributionDate(mg, p.Language) is { } dd && p.MetDate != dd)
+            { var t = p.Clone(); t.MetDate = dd; t.RefreshChecksum(); if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t; }
             p = EncCond.FitSize(p, ref sizeFree, GenHost.IsLegal);
             if (ivAfter8a) RaiseFlawless(p, o.FlawlessIVs);
             if (!EncCond.Satisfied(p)) return null;
-            if (o.FlawlessIVs > 0 && new[] { p.IV_HP, p.IV_ATK, p.IV_DEF, p.IV_SPA, p.IV_SPD, p.IV_SPE }.Count(v => v == p.MaxIV) < o.FlawlessIVs) return null;
             if (p.Species != o.Species) { p = EvoUtil.Evolve(p, o.Species, o.Form); if (p.Species != o.Species) return null; }
             if (o.Form >= 0 && p.Form != o.Form && FormInfo.IsFormChangeable(p.Species, p.Form, (byte)o.Form, p.Context, p.Context)) { p.Form = (byte)o.Form; p.ResetPartyStats(); }   // 게임 안에서 바꿀 수 있는 폼 (로토무·트리미앙 등)
             if (o.Form >= 0 && p.Form != o.Form) { fail = e.Form < EncounterUtil.FormDynamic; return null; }   // 다른 폼이 나옴 (폼이 고정된 조우면 더 시도할 필요 없음)
@@ -335,10 +363,6 @@ public static class QuickGen
         }
     }
 
-    /// <summary>
-    /// 조우에 쓸 트레이너. 3DS(6·7세대) 비비용 계열은 무늬가 3DS 본체의 나라·지역으로 정해지므로,
-    /// 원하는 무늬가 나오는 나라·지역·본체 지역을 골라 줌 (트레이너 언어와 별개).
-    /// </summary>
     /// <summary>어버이를 적었으면 처음부터 그 어버이로 만듦: 소드실드 고정 조우(코바르온 등)처럼 이로치가 ID와 시드에 묶인 조우는
     /// 다 만든 뒤 어버이만 바꾸면 불법이 되어 봇 어버이로 남았음 (#5773). 배포(어버이가 정해진 것)는 그대로.</summary>
     public static ITrainerInfo OrderTrainer(OrderSpec o, SaveFile sav)
@@ -349,16 +373,20 @@ public static class QuickGen
         int tid = o.TID >= 0 ? o.TID : (six ? (int)(me.ID32 % 1_000_000) : me.TID16);
         if (o.SID < 0) o.SID = Random.Shared.Next(six ? 4295 : 65536);   // 정해 두어 마무리(Finish)에서도 같은 값
         int sid = o.SID;
-        uint id32 = six ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Math.Min(sid, 65535) << 16) | Math.Min(tid, 65535));
+        uint id32 = GenTrainers.Id32(six, tid, sid);
         var ro = me as IRegionOrigin;
-        return new SimpleTrainerInfo(sav.Version)
+        return GenHost.With8a(new SimpleTrainerInfo(sav.Version)
         {
             OT = o.OT ?? me.OT, TID16 = (ushort)(id32 & 0xFFFF), SID16 = (ushort)(id32 >> 16),
             Gender = (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), Language = me.Language > 0 ? me.Language : 2,
             ConsoleRegion = ro?.ConsoleRegion ?? 1, Country = ro?.Country ?? 49, Region = ro?.Region ?? 7,
-        };
+        }, sav);
     }
 
+    /// <summary>
+    /// 조우에 쓸 트레이너. 3DS(6·7세대) 비비용 계열은 무늬가 3DS 본체의 나라·지역으로 정해지므로,
+    /// 원하는 무늬가 나오는 나라·지역·본체 지역을 골라 줌 (트레이너 언어와 별개).
+    /// </summary>
     public static ITrainerInfo TrainerFor(IEncounterInfo e, OrderSpec o, SaveFile sav)
     {
         var tr = OrderTrainer(o, sav);
@@ -439,7 +467,7 @@ public static class QuickGen
             bool six = p.Format >= 7;
             int tid = o.TID >= 0 ? o.TID : (six ? (int)(me.ID32 % 1_000_000) : me.TID16);
             int sid = o.SID >= 0 ? o.SID : Random.Shared.Next(six ? 4295 : 65536);
-            uint id32 = six ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Math.Min(sid, 65535) << 16) | Math.Min(tid, 65535));
+            uint id32 = GenTrainers.Id32(six, tid, sid);
             var t = p.Clone();
             GenHost.AutoOT(t, o.OT ?? me.OT, id32, (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), me.Language > 0 ? me.Language : p.Language);
             if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t;
@@ -582,5 +610,22 @@ public static class QuickGen
 
     // 인카운터 검색 조건을 잠시 빌려 쓰고 원래대로 돌려 놓음
     public static Dictionary<FieldInfo, object> SnapshotEncCond() => typeof(EncCond).GetFields(BindingFlags.Public | BindingFlags.Static).Where(f => !f.IsInitOnly && !f.IsLiteral).ToDictionary(f => f, f => f.GetValue(null) is int[] a ? a.Clone() : f.GetValue(null));
-    public static void RestoreEncCond(Dictionary<FieldInfo, object> s) { foreach (var (f, v) in s) try { f.SetValue(null, v); } catch { } }
+    public static void RestoreEncCond(Dictionary<FieldInfo, object> s) => RestoreEncCond(s, null);
+    /// <summary>
+    /// 되돌리기. <paramref name="mine"/>(빌려 쓰며 넣은 값)가 있으면 그 값 그대로인 칸만 되돌림:
+    /// 그사이 화면(인카운터 검색 조건)에서 바꾼 칸은 화면 값을 남김 (개체값은 칸마다).
+    /// </summary>
+    public static void RestoreEncCond(Dictionary<FieldInfo, object> s, Dictionary<FieldInfo, object> mine)
+    {
+        foreach (var (f, v) in s)
+            try
+            {
+                if (mine == null || !mine.TryGetValue(f, out var m)) { f.SetValue(null, v); continue; }
+                var cur = f.GetValue(null);
+                if (cur is int[] ca && m is int[] ma && v is int[] va && ca.Length == ma.Length && ca.Length == va.Length)
+                    f.SetValue(null, ca.Select((x, i) => x == ma[i] ? va[i] : x).ToArray());
+                else if (Equals(cur, m)) f.SetValue(null, v);
+            }
+            catch { }
+    }
 }

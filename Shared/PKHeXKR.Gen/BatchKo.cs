@@ -37,6 +37,17 @@ public static class BatchKo
     }
     private static bool Known(string t) => QuickParse.SpeciesOf(t) != 0 || QuickParse.BallOf(t) > 0 || Keys.Contains(t) || Terminators.Contains(t) || t.EndsWith("계열");
 
+    /// <summary>성별·이로치 낱말: 빠른 생성과 같은 언어 사전(한국어 사전 + 지금 언어 + 영어). 일괄 수정은 한국어 문장이 기본이라 한국어 사전은 늘 봄</summary>
+    private static bool Is(string t, string key) => Lexicon.Get("ko").Is(t, key) || Lexicon.Current.Is(t, key);
+
+    /// <summary>어버이·닉네임 값 끝의 '로'·'으로' 떼기. 떼고 한 글자만 남으면 이름의 일부로 봄 ("어버이 히로 바꾸기" → 히로, "어버이 미월로" → 미월)</summary>
+    private static string NameValue(string tok)
+    {
+        var x = tok.Trim();
+        var m = Regex.Match(x, "^(.+?)(으로|로)$");
+        return m.Success && m.Groups[1].Value.Length >= 2 ? m.Groups[1].Value : x;
+    }
+
     public static Result Convert(string text, SaveFile sav, IReadOnlyDictionary<string, string> user = null)
     {
         var r = new Result();
@@ -93,10 +104,10 @@ public static class BatchKo
             var t = w[i].Word; string next = i + 1 < split ? w[i + 1].Word : "";
             if (QuickParse.SpeciesOf(t, user) is var sp and > 0) { species.Add(sp); continue; }
             if (t is "계열" or "진화계열" or "일족" or "진화형") { family = true; continue; }
-            if (t is "이로치" or "색違い" or "shiny") { filters.Add("=IsShiny=true"); continue; }
-            if (t is "일반" or "일반색" or "노말색" or "비이로치") { filters.Add("=IsShiny=false"); continue; }
-            if (t is "암" or "암컷" or "♀") { filters.Add("=Gender=1"); continue; }
-            if (t is "수" or "수컷" or "♂") { filters.Add("=Gender=0"); continue; }
+            if (Is(t, "SHINY")) { filters.Add("=IsShiny=true"); continue; }
+            if (t is "일반" || Is(t, "NOT_SHINY")) { filters.Add("=IsShiny=false"); continue; }   // '일반'은 사전에서 '우두머리 아님'이지만 일괄 수정에서는 일반 색
+            if (Is(t, "FEMALE")) { filters.Add("=Gender=1"); continue; }
+            if (Is(t, "MALE")) { filters.Add("=Gender=0"); continue; }
             if (t is "무성" or "성별없는") { filters.Add("=Gender=2"); continue; }
             if (t is "닉네임" or "별명" or "닉")
             {
@@ -135,7 +146,7 @@ public static class BatchKo
             {
                 if (clearNext) { r.Notes.Add("어버이는 없앨 수 없어 무시했습니다"); i++; continue; }
                 if (i + 1 >= w.Count) { r.Unknown.Add(toks[i]); continue; }
-                i++; var name = w[i].To ? Regex.Replace(toks[i].Trim(), "(으로|로)$", "") : toks[i].Trim();
+                i++; var name = w[i].To ? NameValue(toks[i]) : toks[i].Trim();
                 string tid = "", sid = "";
                 if (i + 1 < w.Count && Regex.IsMatch(w[i + 1].Word, @"^\d{1,6}$")) { tid = w[++i].Word; if (i + 1 < w.Count && Regex.IsMatch(w[i + 1].Word, @"^\d{1,5}$")) sid = w[++i].Word; }
                 mods.Add($"@어버이={name}{(tid.Length > 0 ? "/" + tid : "")}{(sid.Length > 0 ? "/" + sid : "")}"); continue;
@@ -143,17 +154,17 @@ public static class BatchKo
             if (t is "닉네임" or "별명" or "닉" or "이름")
             {
                 if (clearNext || next is "없이" or "없음") { mods.Add(".IsNicknamed=false"); i++; continue; }
-                if (i + 1 < w.Count && w[i + 1].To) { var nick = toks[++i].Trim(); nick = Regex.Replace(nick, "(으로|로)$", ""); mods.Add($".Nickname={nick}"); mods.Add(".IsNicknamed=true"); continue; }
+                if (i + 1 < w.Count && w[i + 1].To) { var nick = NameValue(toks[++i]); mods.Add($".Nickname={nick}"); mods.Add(".IsNicknamed=true"); continue; }
                 r.Unknown.Add(toks[i]); continue;
             }
             if (t is "닉네임없이" or "닉없이" or "닉네임해제") { mods.Add(".IsNicknamed=false"); continue; }
             if (t is "성별") continue;
-            if (t is "암" or "암컷" or "♀") { mods.Add("@성별=1"); continue; }
-            if (t is "수" or "수컷" or "♂") { mods.Add("@성별=0"); continue; }
-            if (t is "이로치" or "색違い" or "shiny") { mods.Add(clearNext ? ".PID=$rand" : ".PID=$shiny"); if (clearNext) i++; continue; }
-            if (t is "별" or "별이로치" or "별로치") { mods.Add(".PID=$shiny1"); continue; }
-            if (t is "네모" or "네모이로치" or "네모로치") { mods.Add(".PID=$shiny0"); continue; }
-            if (t is "일반" or "일반색" or "노말색") { mods.Add(".PID=$rand"); r.Notes.Add("일반 색: 성격값을 새로 뽑음 (드물게 다시 이로치일 수 있음)"); continue; }
+            if (Is(t, "FEMALE")) { mods.Add("@성별=1"); continue; }
+            if (Is(t, "MALE")) { mods.Add("@성별=0"); continue; }
+            if (Is(t, "SHINY")) { mods.Add(clearNext ? ".PID=$rand" : ".PID=$shiny"); if (clearNext) i++; continue; }
+            if (Is(t, "SHINY_STAR")) { mods.Add(".PID=$shiny1"); continue; }
+            if (Is(t, "SHINY_SQUARE")) { mods.Add(".PID=$shiny0"); continue; }
+            if (t is "일반" || Is(t, "NOT_SHINY")) { mods.Add(".PID=$rand"); r.Notes.Add("일반 색: 성격값을 새로 뽑음 (드물게 다시 이로치일 수 있음)"); continue; }
             if (t is "레벨" or "렙" && next is "최대" or "만렙") { mods.Add(".CurrentLevel=100"); i++; continue; }
             if (t is "만렙" or "레벨최대") { mods.Add(".CurrentLevel=100"); continue; }
             if (Level(t, next) is { } lv) { if (lv.Used) i++; mods.Add($".CurrentLevel={lv.Value}"); continue; }
@@ -162,7 +173,7 @@ public static class BatchKo
             if (t is not ("레벨" or "렙") && QuickParse.BallOf(t) is var b and > 0) { mods.Add($".Ball={b}"); continue; }
             if (t is "성격") continue;
             if (QuickParse.NatureOf(t) is var na and >= 0) { mods.Add($".Nature={na}"); if (format8) mods.Add($".StatAlignment={na}"); continue; }
-            if (t is "6v" or "6V" or "개체값최대" or "올v" or "올브이" or "최대개체값" || (t == "개체값" && next is "최대" or "31")) { if (t == "개체값") i++; foreach (var iv in new[] { "HP", "ATK", "DEF", "SPA", "SPD", "SPE" }) mods.Add($".IV_{iv}=31"); continue; }
+            if (t is "6v" or "개체값최대" or "올v" or "올브이" or "최대개체값" || (t == "개체값" && next is "최대" or "31")) { if (t == "개체값") i++; foreach (var iv in new[] { "HP", "ATK", "DEF", "SPA", "SPD", "SPE" }) mods.Add($".IV_{iv}=31"); continue; }
             if (t is "친밀도" or "친밀도최대" or "친밀도max") { if (next is "최대" or "max" or "255") i++; mods.Add(".CurrentFriendship=255"); continue; }
             if (t is "리본")
             {
@@ -271,7 +282,7 @@ public static class BatchKo
                 if (parts.Length > 1 && int.TryParse(parts[1], out var tid))
                 {
                     int sid = parts.Length > 2 && int.TryParse(parts[2], out var sd) ? sd : (six ? (int)(p.ID32 / 1_000_000) : p.SID16);
-                    id32 = six ? (uint)(Math.Min(sid, 4294) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Math.Min(sid, 65535) << 16) | Math.Min(tid, 65535));
+                    id32 = GenTrainers.Id32(six, tid, sid);
                 }
                 if (p.OriginalTrainerName == name && p.ID32 == id32) return false;
                 GenHost.AutoOT(p, name, id32, p.OriginalTrainerGender, p.Language);
@@ -288,8 +299,9 @@ public static class BatchKo
         var set = new StringInstructionSet(filters.AsSpan());
         var normal = set.Filters.Where(f => f.PropertyName != "Legal").ToList();
         if (!EntityBatchEditor.Instance.IsFilterMatch(normal, p)) return false;
+        bool? legal = null;   // 합법 판정은 앱 기준(GenHost.IsLegal: 검사 끄기 설정 등 반영), 한 번만
         foreach (var f in set.Filters.Where(f => f.PropertyName == "Legal"))
-            if (new LegalityAnalysis(p).Valid != f.PropertyValue.Equals("true", StringComparison.OrdinalIgnoreCase)) return false;
+            if ((legal ??= GenHost.IsLegal(p)) != f.PropertyValue.Equals("true", StringComparison.OrdinalIgnoreCase)) return false;
         return true;
     }
 }

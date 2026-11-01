@@ -17,7 +17,7 @@ public static class EncCond
     public static ulong StartSeed, LastSeed;
     public static int ResultMode;                     // 0 첫 개체, 1 여러 개, 2 전체(32비트 조우)
     public static int MaxResults = 20;
-    public static bool ZACharm, ZAPower;
+    public static bool ZACharm, ZAPower;              // Z-A: 빛나는부적, 이차원 이로치 파워 (야생 이로치 확률)
     public static int Mark = -1;                      // 증표 (RibbonIndex), -1 = 무관
     public static RibbonIndex MarkIndex => (RibbonIndex)Mark;
     public static string MarkName(int m) { if (m < 0) return "무관"; var n = "Ribbon" + ((RibbonIndex)m).ToString(); return GenHost.Strings.Ribbons.GetNameSafe(n, out var k) ? k : ((RibbonIndex)m).ToString(); }
@@ -78,7 +78,6 @@ public static class EncCond
         // 증표는 소드실드·SV의 야생·대량발생·고정 조우에서만 (세부 조건은 생성 후 합법성 검사로 확인)
         return e is EncounterSlot8 or EncounterStatic8 or EncounterSlot9 or EncounterOutbreak9 or EncounterStatic9;
     }
-    /// <summary>만든 개체에 증표를 붙임 (카레의증표는 몬스터·수퍼·하이퍼볼만 가능하므로 볼도 맞춤).</summary>
     /// <summary>
     /// 다른 버전에서 낳은 알(교환으로 받은 알을 부화): PKHeX 생성기는 현재 트레이너 칸을 비워 두는데, 게임에서는 알을 주고받은
     /// 트레이너 이름 흔적이 남아 '예상된 쓰레기 바이트입니다'로 불법 판정됨 → 현재 트레이너 칸에 이름을 채움 (소드실드 제외: 갱신 안 함).
@@ -91,6 +90,7 @@ public static class EncCond
         p.RefreshChecksum();
     }
 
+    /// <summary>만든 개체에 증표를 붙임 (카레의증표는 몬스터·수퍼·하이퍼볼만 가능하므로 볼도 맞춤).</summary>
     public static void ApplyMark(PKM p)
     {
         FixTradedEgg(p);
@@ -101,7 +101,9 @@ public static class EncCond
             if (MarkIndex == RibbonIndex.MarkCurry)
             {
                 if ((uint)(p.Ball - 2) > 2) p.Ball = (byte)Ball.Poke;
-                // 카레로 온 포켓몬은 야생 시드 연동(PID·개체값)이 없음 → 연동 없이 다시 뽑음 (이로치·개체값 조건은 반영)
+                // 카레로 온 포켓몬은 야생 시드 연동(PID·개체값)이 없음 → PID는 연동 없이 다시 뽑음 (이로치 조건 반영).
+                // 개체값은 어떤 값이든 되므로 생성기가 만든 값(6V 등 조우에 요청한 값)을 그대로 두고, 조건에 안 맞는 칸만 바꿈
+                // (예전에는 모두 다시 뽑아 '6V 카레의증표'가 매번 실패했음)
                 var rnd = Random.Shared;
                 p.EncryptionConstant = (uint)rnd.NextInt64();
                 uint pid = (uint)rnd.NextInt64(), low = pid & 0xFFFF, tsv = (uint)(p.TID16 ^ p.SID16);
@@ -114,7 +116,9 @@ public static class EncCond
                 p.PID = pid;
                 for (int i = 0; i < 6; i++)
                 {
-                    int v = IVExact ? (IVMin[i] >= 0 ? IVMin[i] : rnd.Next(32)) : IVMin[i] >= 31 ? 31 : rnd.Next(32);
+                    int v = IV(p, i);
+                    if (IVExact) { if (IVMin[i] >= 0) v = IVMin[i]; }
+                    else if (v < IVMin[i]) v = IVMin[i] >= 31 ? 31 : rnd.Next(IVMin[i], 32);
                     switch (i) { case 0: p.IV_HP = v; break; case 1: p.IV_ATK = v; break; case 2: p.IV_DEF = v; break; case 3: p.IV_SPA = v; break; case 4: p.IV_SPD = v; break; default: p.IV_SPE = v; break; }
                 }
                 p.ResetPartyStats();
@@ -122,7 +126,7 @@ public static class EncCond
             p.RefreshChecksum();
         }
         catch { }
-    }               // Z-A: 빛나는부적, 이차원 이로치 파워 (야생 이로치 확률)
+    }
     public static bool Unlimited;   // 찾을 때까지 계속 (모바일: 앱 설정에서 읽어 넣음)
 
     /// <summary>조건을 얼마나 만족하는지 (가장 가까운 개체 고르기용).</summary>

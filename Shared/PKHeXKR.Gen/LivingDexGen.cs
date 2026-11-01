@@ -86,35 +86,42 @@ public static class LivingDexGen
         for (int i = 0; i < targets.Count && !tok.IsCancellationRequested; i++)
         {
             // 다음 빈칸
-            while (box < sav.BoxCount && sav.GetBoxSlotAtIndex(box, slot).Species != 0) { if (++slot >= sav.BoxSlotCount) { slot = 0; box++; } }
-            if (box >= sav.BoxCount) break;
+            if (!QuickGen.NextEmptySlot(sav, ref box, ref slot)) break;
             var (s, f) = targets[i];
             var pre = Preset(o, s, f);
             PKM pk = null;
-            if (al && pre?.Ball is not > 0) { pk = DexAlpha(sav, s, f, o.Shiny, tok); if (pk != null) alphaMade++; }   // 우두머리 조우(진화 전 포함)로 만들기
+            if (al && pre?.Ball is not > 0)   // 우두머리 조우(진화 전 포함)로 만들기 (시드 계산이 인카운터 조건(Z-A 부적 등)을 읽으므로 조건 잠금 안에서)
+            {
+                try { pk = QuickGen.WithCondGate(() => DexAlpha(sav, s, f, o.Shiny, tok), tok); } catch (OperationCanceledException) { break; }
+                if (pk != null) alphaMade++;
+            }
             if (pk == null) pk = MakeOne(sav, s, f, o.Shiny, pre, tok, o.Transfer ?? LivingDexOptions.DefaultTransfer(sav));
             if (pk == null && pre != null && !tok.IsCancellationRequested) { pk = MakeOne(sav, s, f, o.Shiny, null, tok, o.Transfer ?? LivingDexOptions.DefaultTransfer(sav)); if (pk != null) presetMissed++; }   // 미리 정한 값으로 안 되면 정하지 않고
             if (pk != null && pk.GetType() != sav.PKMType) pk = EntityConverter.ConvertToType(pk, sav.PKMType, out _);
             if (pk == null || pk.Species != s || pk.Form != f || pk.GetType() != sav.PKMType) { fail++; progress?.Invoke(i + 1, targets.Count, s); continue; }
+            bool? legal = null;   // 지금 pk가 합법인지 (한 번 확인한 개체는 다시 검사하지 않음: 합법성 검사는 무거움)
+            bool Legal() => legal ??= GenHost.IsLegal(pk);
             // 언어가 비어 있으면 트레이너 언어로 (합법이 유지될 때만)
-            if (pk.Language == 0 && pk.Format >= 3 && me.Language > 0) { var t0 = pk.Clone(); t0.Language = me.Language; t0.RefreshChecksum(); if (GenHost.IsLegal(t0)) pk = t0; }
+            if (pk.Language == 0 && pk.Format >= 3 && me.Language > 0) { var t0 = pk.Clone(); t0.Language = me.Language; t0.RefreshChecksum(); if (GenHost.IsLegal(t0)) { pk = t0; legal = true; } }
             // 어버이 여러 명이면 돌아가며, 날짜 구간이면 그 안의 무작위 날짜 (합법이 유지될 때만)
             if (o.OTs.Count > 0)
             {
                 var (on, otid) = o.OTs[nth++ % o.OTs.Count];
                 bool six = pk.Format >= 7; int tid = otid >= 0 ? otid : (six ? (int)(me.ID32 % 1_000_000) : me.TID16);
-                uint id32 = six ? (uint)(Random.Shared.Next(4295) * 1_000_000L + Math.Min(tid, 999_999)) : (uint)((Random.Shared.Next(65536) << 16) | Math.Min(tid, 65535));
+                uint id32 = GenTrainers.Id32(six, tid, Random.Shared.Next(six ? 4295 : 65536));
                 var t2 = pk.Clone(); GenHost.AutoOT(t2, on, id32, me.Gender, me.Language > 0 ? me.Language : pk.Language);
-                if (GenHost.IsLegal(t2) || !GenHost.IsLegal(pk)) pk = t2;
+                bool ok2 = GenHost.IsLegal(t2);
+                if (ok2 || !Legal()) { pk = t2; legal = ok2; }
             }
             if (from != null && pk.Format >= 4)
             {
                 var span = to.Value.DayNumber - from.Value.DayNumber;
                 var t3 = pk.Clone(); t3.MetDate = from.Value.AddDays(Random.Shared.Next(span + 1)); t3.RefreshChecksum();
-                if (GenHost.IsLegal(t3) || !GenHost.IsLegal(pk)) pk = t3;
+                bool ok3 = GenHost.IsLegal(t3);
+                if (ok3 || !Legal()) { pk = t3; legal = ok3; }
             }
-            { var chk = pk.Clone(); sav.AdaptToSaveFile(chk, false); if (GenHost.IsLegal(chk)) pk = chk; }   // 박스에 넣을 때 세이브가 하는 처리(맡은 트레이너 등)를 미리
-            if (!GenHost.IsLegal(pk)) { fail++; progress?.Invoke(i + 1, targets.Count, s); continue; }   // 합법이 아니면 넣지 않음
+            { var chk = pk.Clone(); sav.AdaptToSaveFile(chk, false); if (GenHost.IsLegal(chk)) { pk = chk; legal = true; } }   // 박스에 넣을 때 세이브가 하는 처리(맡은 트레이너 등)를 미리
+            if (!Legal()) { fail++; progress?.Invoke(i + 1, targets.Count, s); continue; }   // 합법이 아니면 넣지 않음
             sav.SetBoxSlotAtIndex(pk, box, slot); made++;
             if (++slot >= sav.BoxSlotCount) { slot = 0; box++; }
             progress?.Invoke(i + 1, targets.Count, s);
@@ -148,7 +155,8 @@ public static class LivingDexGen
                 var lines = new List<string> { first };
                 if (wantShiny) lines.Add("Shiny: Yes");
                 if (pre?.Ball > 0) lines.Add("Ball: " + GameInfo.GetStrings("en").balllist[pre.Ball]);
-                var p = GenHost.Legal(sav, string.Join("\n", lines));
+                // ALM은 전역 트레이너 목록(GenTrainers.Register가 바꿈)을 읽으므로 조건 잠금 안에서
+                var p = QuickGen.WithCondGate(() => GenHost.Legal(sav, string.Join("\n", lines)), tok);
                 if (p != null && pre?.Ball > 0 && p.Ball != pre.Ball) { var t = p.Clone(); t.Ball = (byte)pre.Ball; t.RefreshChecksum(); if (GenHost.IsLegal(t)) p = t; }
                 if (Ok(p) && (!wantShiny || p.IsShiny)) return p;
             }
@@ -194,7 +202,7 @@ public static class LivingDexGen
                         try { p = sd.Finish(p) ?? p; } catch { }
                         p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
                         if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
-                        if (p.Species == species && p.IsShiny && p is IAlpha { IsAlpha: true } && new LegalityAnalysis(p).Valid) return p;
+                        if (p.Species == species && p.IsShiny && p is IAlpha { IsAlpha: true } && GenHost.IsLegal(p)) return p;
                         break;
                     }
                 }
@@ -208,7 +216,7 @@ public static class LivingDexGen
                         p = EntityConverter.ConvertToType(p, sav.PKMType, out _) ?? p;
                         if (wantShiny && !p.IsShiny) continue;
                         if (p.Species != species) p = EvoUtil.Evolve(p, species, form);
-                        if (p.Species == species && p is IAlpha { IsAlpha: true } && new LegalityAnalysis(p).Valid) return p;
+                        if (p.Species == species && p is IAlpha { IsAlpha: true } && GenHost.IsLegal(p)) return p;
                     }
                 }
         }

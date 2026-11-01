@@ -12,7 +12,7 @@ public sealed class Seeder
         {
             if (!a.IsAlpha) { a.Scale = a.HeightScalar; a.ResetHeight(); a.ResetWeight(); }
             a.RefreshChecksum();
-            if (!new LegalityAnalysis(a).Valid) { a.ClearMoveShopFlags(); if (a.IsAlpha) a.AlphaMove = 0; a.SetMoveShopFlags(a); }
+            if (!GenHost.IsLegal(a)) { a.ClearMoveShopFlags(); if (a.IsAlpha) a.AlphaMove = 0; a.SetMoveShopFlags(a); }
         }
         p.RefreshChecksum();
         return p;

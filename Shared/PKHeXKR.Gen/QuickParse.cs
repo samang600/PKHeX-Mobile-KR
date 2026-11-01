@@ -488,10 +488,14 @@ public static class QuickParse
     /// <summary>증표·리본 이름 비교: 지금 언어 이름과 영어 이름 모두, 접미사('의'·'mark'·'のあかし')를 뺀 꼴로도</summary>
     private static bool NameMatches(string prop, string t, GameStrings s, Func<string, string, bool> eq)
     {
-        if (s.Ribbons.GetNameSafe(prop, out var kn) && eq(Norm(Regex.Replace(kn, @"\s*\([^)]*\)", "")), t)) return true;
-        if (L.Lang != "en" && GameInfo.GetStrings("en").Ribbons.GetNameSafe(prop, out var en) && eq(Norm(Regex.Replace(en, @"\s*\([^)]*\)", "")), t)) return true;
+        if (RibbonName(s, prop) is { } kn && eq(kn, t)) return true;
+        if (L.Lang != "en" && RibbonName(GameInfo.GetStrings("en"), prop) is { } en && eq(en, t)) return true;
         return false;
     }
+    /// <summary>리본·증표 표시 이름 (괄호 부분을 뺀 정규화 꼴, 없으면 null). 낱말마다 모든 리본 이름에 정규식을 돌리던 것을 한 번만 (문자열 묶음별)</summary>
+    private static string RibbonName(GameStrings s, string prop)
+        => ribbonNames.GetOrAdd((s, prop), k => k.Item1.Ribbons.GetNameSafe(k.Item2, out var n) ? Norm(Regex.Replace(n, @"\s*\([^)]*\)", "")) : null);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(GameStrings, string), string> ribbonNames = new();
     private static bool NameMatches(int idx, string t, string[] cur, string[] en)
     {
         if (idx < cur.Length && Norm(cur[idx]) == t) return true;
@@ -647,19 +651,44 @@ public static class QuickParse
     private static ushort? FindMove(string t)
     {
         if (t.Length < 2) return null;
-        var cur = GenHost.Strings.movelist; var en = GameInfo.GetStrings("en").movelist;
-        var key = NameKey(t);
-        for (int m = 1; m < cur.Length; m++) if (NameKey(Norm(cur[m])) == key || (m < en.Length && NameKey(Norm(en[m])) == key)) return (ushort)m;
-        return null;
+        var idx = Index(ref moveIndex, GenHost.Strings.movelist, GameInfo.GetStrings("en").movelist);
+        return idx.Map.TryGetValue(NameKey(t), out var m) ? (ushort)m : null;
     }
 
     private static bool FindSpecies(string t, out ushort sp)
     {
-        var cur = GenHost.Strings.Species; var en = GameInfo.GetStrings("en").Species;
         var key = NameKey(t);
-        if (key.Length > 0)
-            for (ushort i = 1; i < cur.Count; i++) if (NameKey(Norm(cur[i])) == key || (i < en.Count && NameKey(Norm(en[i])) == key)) { sp = i; return true; }
+        if (key.Length > 0 && Index(ref speciesIndex, GenHost.Strings.Species, GameInfo.GetStrings("en").Species).Map.TryGetValue(key, out var i)) { sp = (ushort)i; return true; }
         sp = 0; return false;
+    }
+
+    /// <summary>
+    /// 이름(NameKey) → 번호 사전 (지금 언어 + 영어). 낱말 하나마다 종·기술 목록 전체를 훑으며 정규화하던 것을 한 번만 만들어 씀.
+    /// 같은 이름이면 앞 번호가 먼저 (예전 순서대로 훑던 것과 같은 결과). 문자열 묶음(언어)이 바뀌면 다시 만듦. 만든 사전은 바꾸지 않으므로 여러 스레드에서 읽어도 됨.
+    /// </summary>
+    private sealed class NameIndex(IReadOnlyList<string> cur, IReadOnlyList<string> en)
+    {
+        public readonly IReadOnlyList<string> Cur = cur, En = en;
+        public readonly Dictionary<string, int> Map = Build(cur, en);
+        private static Dictionary<string, int> Build(IReadOnlyList<string> cur, IReadOnlyList<string> en)
+        {
+            var map = new Dictionary<string, int>();
+            for (int i = 1; i < cur.Count; i++)
+            {
+                map.TryAdd(NameKey(Norm(cur[i])), i);
+                if (i < en.Count) map.TryAdd(NameKey(Norm(en[i])), i);
+            }
+            return map;
+        }
+    }
+    private static NameIndex speciesIndex, moveIndex;
+    private static NameIndex Index(ref NameIndex slot, IReadOnlyList<string> cur, IReadOnlyList<string> en)
+    {
+        var x = Volatile.Read(ref slot);
+        if (x != null && ReferenceEquals(x.Cur, cur) && ReferenceEquals(x.En, en)) return x;
+        x = new NameIndex(cur, en);   // 동시에 두 번 만들어도 결과가 같으니 잠금 없이 바꿔 끼움
+        Volatile.Write(ref slot, x);
+        return x;
     }
 
     /// <summary>폼 단어를 그 포켓몬의 폼 이름과 맞춰 봄 (부분 일치). 지금 언어 폼 이름, 그리고 영어 폼 이름으로도</summary>
