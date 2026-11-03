@@ -475,10 +475,10 @@ public static class LdnTrade
 
     private static readonly System.Text.RegularExpressions.Regex HostOffer = new(@"^\[\w+\] 169\.254\.\d+\.\d+: offers species (\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
     /// <summary>스위치(호스트) 쪽이 전설·준전설·환상을 내놓으면 미리 알림: 11-01 SV 4마리 교환에서 스위치가 우라오스를 고르자
-    /// 확인 첫 단계(80000200) 뒤로 스위치가 답하지 않고 멈춤 (우리가 보낸 딩루·위유이 등 전설은 문제없었음). 소드실드 무한다이노·자시안도 같은 모습.</summary>
+    /// 확인 첫 단계(80000200) 뒤로 스위치가 답하지 않고 멈춤 (우리가 보낸 딩루·위유이 등 전설은 문제없었음). 소드실드 무한다이노·자시안도 같은 모습이었으나 PokeLDN 0.56.0(b95c5e9)에서 해결.</summary>
     private static void HostOfferHint(string line)
     {
-        if (line == null) return;
+        if (line == null || RunGame == "swsh") return;   // 소드실드는 PokeLDN 0.56.0에서 해결 (참가 쪽이 확인 신호를 1초마다 다시 보냄)
         var m = HostOffer.Match(line);
         if (!m.Success || !ushort.TryParse(m.Groups[1].Value, out var sp)) return;
         if (!(SpeciesCategory.IsLegendary(sp) || SpeciesCategory.IsSubLegendary(sp) || SpeciesCategory.IsMythical(sp))) return;
