@@ -468,8 +468,25 @@ public static class QuickGen
             int tid = o.TID >= 0 ? o.TID : (six ? (int)(me.ID32 % 1_000_000) : me.TID16);
             int sid = o.SID >= 0 ? o.SID : Random.Shared.Next(six ? 4295 : 65536);
             uint id32 = GenTrainers.Id32(six, tid, sid);
+            string ot = o.OT ?? me.OT; byte og = (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender); int ol = me.Language > 0 ? me.Language : p.Language;
             var t = p.Clone();
-            GenHost.AutoOT(t, o.OT ?? me.OT, id32, (byte)(o.OTGender >= 0 ? o.OTGender : me.Gender), me.Language > 0 ? me.Language : p.Language);
+            GenHost.AutoOT(t, ot, id32, og, ol);
+            if (!GenHost.IsLegal(t) && GenHost.IsLegal(p))
+            {
+                // 자동 합법화가 짝 버전(레츠고 피카츄 세이브에 이브이 출신 등)으로 만들면 '교환해 온 개체'라 받은 트레이너(HT)가 있어야 하는데
+                // AutoOT가 HT를 비워 불법이 됨 → 신청한 어버이를 버리던 문제 (11-03 #10013 리자몽: 태주 423972 → 홈봇 123456).
+                // ① 받은 트레이너를 그대로 두고 어버이만 바꿔 보고, ② 안 되면 세이브와 같은 버전 출신으로 바꿔 다시
+                var t2 = p.Clone(); GenHost.AutoOT(t2, ot, id32, og, ol);
+                t2.HandlingTrainerName = p.HandlingTrainerName; t2.HandlingTrainerGender = p.HandlingTrainerGender; t2.CurrentHandler = p.CurrentHandler;
+                t2.HandlingTrainerFriendship = p.HandlingTrainerFriendship; if (t2 is IHandlerLanguage h2 && p is IHandlerLanguage hp) h2.HandlingTrainerLanguage = hp.HandlingTrainerLanguage;
+                t2.RefreshChecksum();
+                if (GenHost.IsLegal(t2)) t = t2;
+                else if (p.Version != sav.Version && p.Version.Context == sav.Context)
+                {
+                    var t3 = p.Clone(); t3.Version = sav.Version; GenHost.AutoOT(t3, ot, id32, og, ol);
+                    if (GenHost.IsLegal(t3)) t = t3;
+                }
+            }
             if (GenHost.IsLegal(t) || !GenHost.IsLegal(p)) p = t;
             else o.Notes.Add($"어버이가 정해진 개체(게임 내 교환 등)라 원래 어버이({p.OriginalTrainerName}) 그대로 사용");   // 게임 내 교환 등
         }
