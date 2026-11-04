@@ -57,15 +57,31 @@ public sealed class KRToolsPlugin : IPlugin
         catch { }
     }
 
-    private void Open(Func<Form> make)
+    // 열린 플러그인 창 (종류마다 하나). 모달(ShowDialog)이 아니라서 창을 연 채로 PKHeX 본 창도 조작할 수 있음
+    private readonly Dictionary<Type, Form> open = new();
+
+    private void Open<T>(Func<T> make) where T : Form
     {
         if (SaveFileEditor?.SAV == null) { MessageBox.Show("세이브가 열려 있지 않습니다.", Name); return; }
-        using var f = make();
+        if (open.TryGetValue(typeof(T), out var cur) && !cur.IsDisposed)
+        {
+            if (cur.WindowState == FormWindowState.Minimized) cur.WindowState = FormWindowState.Normal;
+            cur.Activate(); return;
+        }
+        var f = make();
         var owner = (SaveFileEditor as Control)?.FindForm();
-        f.StartPosition = FormStartPosition.CenterParent;
-        f.ShowDialog(owner);
+        f.StartPosition = FormStartPosition.CenterScreen;
+        f.FormClosed += (_, _) => { open.Remove(typeof(T)); f.Dispose(); };
+        open[typeof(T)] = f;
+        f.Show(owner);   // owner를 주면 본 창 위에 떠 있지만 본 창도 누를 수 있음
     }
 
-    public void NotifySaveLoaded() { }
+    /// <summary>다른 세이브를 열면: 그 세이브 기준으로 만든 창(빠른 생성·리빙덱스·설정)은 닫음. PokeLDN 창은 교환 중일 수 있어 그대로 둠 (세이브는 쓸 때마다 새로 읽음)</summary>
+    public void NotifySaveLoaded()
+    {
+        foreach (var (t, f) in open.ToList())
+            if (t != typeof(LdnTradeForm) && !f.IsDisposed) f.Close();
+        if (open.TryGetValue(typeof(LdnTradeForm), out var l) && l is LdnTradeForm ldn && !ldn.IsDisposed) ldn.SaveChanged();
+    }
     public bool TryLoadFile(string filePath) => false;
 }

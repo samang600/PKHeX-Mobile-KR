@@ -74,10 +74,11 @@ public class LdnSheet : Sheet
         addCur = T.Pill("편집 중인 포켓몬 추가", size: 12); addCur.Clicked += (_, _) => AddCurrent();
         clearOffers = T.Pill("비우기", size: 12); clearOffers.Clicked += (_, _) => { if (LdnTrade.Running) return; LdnTrade.Offers.Clear(); if (LdnTrade.QueueGame is { } qg) LdnTrade.DropQueue(qg); Refresh(); };
         var all = T.Pill("전체 보기", size: 12); all.Clicked += (_, _) => SheetHost.Show(new LdnOffersSheet(true));
-        var offerBtns = T.Cols(3, 6); offerBtns.Add(addCur, 0); offerBtns.Add(all, 1); offerBtns.Add(clearOffers, 2);
+        var addBox = T.Pill("지금 박스 전체", size: 12); addBox.Clicked += (_, _) => AddBox();
+        var offerBtns = T.Cols(2, 6); offerBtns.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); offerBtns.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); offerBtns.Add(addCur, 0); offerBtns.Add(addBox, 1); offerBtns.Add(all, 0, 1); offerBtns.Add(clearOffers, 1, 1);
         // 받은 포켓몬: 교환이 끝났을 때 '나중에'를 눌렀거나 박스가 가득 찼거나 세이브가 없었던 것을 다시 넣기
         var recvB = T.Pill("받은 포켓몬", size: 12); recvB.Clicked += async (_, _) => await ImportReceived();
-        tradeCard.Children.Add(T.L("보낼 포켓몬 (제한 없음, 순서대로 교환) · 박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기'", 12, sub: true));
+        tradeCard.Children.Add(T.L("보낼 포켓몬 (제한 없음, 순서대로 교환) · 박스에서 여러 칸 선택 → 'PokeLDN 교환으로 보내기', 또는 '지금 박스 전체'", 12, sub: true));
         tradeCard.Children.Add(offersBox); tradeCard.Children.Add(offerBtns); tradeCard.Children.Add(recvB);
         autoOt.IsToggled = Preferences.Get("ldn_auto_ot", false); autoOt.Toggled += (_, e) => Preferences.Set("ldn_auto_ot", e.Value);
         autoOtRow = new VerticalStackLayout { Spacing = 2, Children = { Row("자동 어버이작 (SV): 콘솔 트레이너의 이름·ID로 바꿔 보내기", autoOt),
@@ -271,6 +272,29 @@ public class LdnSheet : Sheet
         if (LdnTrade.QueueGame != null) { Note.Show("리빙덱스 대기열이 있어요 · 먼저 '비우기'를 누르세요"); return; }
         LdnTrade.Offers.Add(pk.Clone());
         if (LdnExport.GameOf(pk)?.Game is { } g && g != game) { game = g; mode = "trade"; }
+        Refresh();
+    }
+
+    /// <summary>박스 화면에서 보고 있는 박스의 포켓몬을 칸 순서대로 모두 보낼 목록에 넣음 (빈 칸·알, 다른 게임 형식은 건너뜀)</summary>
+    private void AddBox()
+    {
+        if (LdnTrade.Running) { Note.Show("교환 중에는 목록을 바꿀 수 없어요"); return; }
+        if (LdnTrade.QueueGame != null) { Note.Show("리빙덱스 대기열이 있어요 · 먼저 '비우기'를 누르세요"); return; }
+        var sav = AppState.Sav; if (sav == null) { Note.Show("세이브가 열려 있지 않아요"); return; }
+        int box = Math.Clamp(AppState.Box, 0, sav.BoxCount - 1);
+        int added = 0, skipped = 0; string g0 = LdnTrade.Offers.Count > 0 ? LdnExport.GameOf(LdnTrade.Offers[0])?.Game : null;
+        for (int i = 0; i < sav.BoxSlotCount; i++)
+        {
+            PKM p; try { p = sav.GetBoxSlotAtIndex(box, i); } catch { continue; }
+            if (p == null || p.Species == 0) continue;
+            var g = LdnExport.GameOf(p)?.Game;
+            if (p.IsEgg || g == null || (g0 != null && g != g0)) { skipped++; continue; }
+            g0 ??= g;
+            LdnTrade.Offers.Add(p.Clone()); added++;
+        }
+        if (added == 0) { Note.Show($"박스 {box + 1}에 보낼 포켓몬이 없어요"); return; }
+        if (g0 != null && g0 != game) { game = g0; mode = "trade"; }
+        Note.Show($"박스 {box + 1}의 포켓몬 {added}마리를 넣었어요" + (skipped > 0 ? $" (알·다른 게임 {skipped}마리는 뺌)" : ""));
         Refresh();
     }
 

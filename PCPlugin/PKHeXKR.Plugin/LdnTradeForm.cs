@@ -86,10 +86,12 @@ public sealed class LdnTradeForm : Form
         addCur.Click += (_, _) => AddPkm(plugin.PKMEditor.PreparePKM());
         var addFile = new Button { Text = "파일 추가…", AutoSize = true };
         addFile.Click += (_, _) => AddFiles();
+        var addBox = new Button { Text = "지금 박스 전체", AutoSize = true };
+        addBox.Click += (_, _) => AddBox();
         var clear = new Button { Text = "비우기", AutoSize = true };
         clear.Click += (_, _) => { offerFiles.Clear(); RefreshOffers(); };
         var offerBtns = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top };
-        offerBtns.Controls.AddRange([addCur, addFile, clear]);
+        offerBtns.Controls.AddRange([addCur, addBox, addFile, clear]);
 
         var toEditor = new Button { Text = "편집기로 열기", AutoSize = true };
         toEditor.Click += (_, _) => { if (Selected() is { } pk) plugin.PKMEditor.PopulateFields(pk); };
@@ -106,7 +108,7 @@ public sealed class LdnTradeForm : Form
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(10) };
         void Add(Control c, SizeType t = SizeType.AutoSize, float h = 0) { layout.RowStyles.Add(new RowStyle(t, h)); layout.Controls.Add(c); }
         Add(pathRow); Add(help); Add(gameRow); Add(langHelp); Add(guide);
-        Add(new Label { Text = "보낼 포켓몬 (최대 6마리, 순서대로 교환)", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
+        Add(new Label { Text = "보낼 포켓몬 (순서대로 교환, 개수 제한 없음)", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
         Add(offers, SizeType.Absolute, 100); Add(offerBtns); Add(skipLegal); Add(runRow);
         Add(new Label { Text = "받은 포켓몬", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Padding = new Padding(0, 8, 0, 2) });
         Add(received, SizeType.Absolute, 84); Add(recBtns);
@@ -165,17 +167,43 @@ public sealed class LdnTradeForm : Form
     private void AddPkm(PKM pk)
     {
         if (pk == null || pk.Species == 0) { MessageBox.Show("편집 중인 포켓몬이 없습니다.", Text); return; }
-        if (offerFiles.Count >= 6) { MessageBox.Show("최대 6마리까지 넣을 수 있습니다.", Text); return; }
         if (!skipLegal.Checked && !new LegalityAnalysis(pk).Valid)
             Append("※ 합법이 아닌 포켓몬입니다. '합법성 확인 건너뛰기'를 켜지 않으면 PokeLDN이 교환 전에 거절합니다.");
+        WriteOffer(pk);
+        RefreshOffers();
+    }
+
+    private void WriteOffer(PKM pk)
+    {
         var data = new byte[pk.SIZE_STORED]; pk.WriteDecryptedDataStored(data);
-        var file = Path.Combine(work, $"{DateTime.Now:HHmmssfff}_{pk.Species:0000}.{pk.Extension}");
+        var file = Path.Combine(work, $"{DateTime.Now:HHmmssfff}_{offerFiles.Count:000}_{pk.Species:0000}.{pk.Extension}");
         File.WriteAllBytes(file, data);
         offerFiles.Add(file);
         var idx = Array.FindIndex(Games, g => g.Ext == pk.Extension);
         if (idx >= 0) game.SelectedIndex = idx;
-        RefreshOffers();
     }
+
+    /// <summary>PKHeX 본 창에서 보고 있는 박스의 포켓몬을 칸 순서대로 모두 보낼 목록에 넣음 (빈 칸·알은 건너뜀)</summary>
+    private void AddBox()
+    {
+        var sav = plugin.SaveFileEditor.SAV;
+        int box = Math.Clamp(plugin.SaveFileEditor.CurrentBox, 0, sav.BoxCount - 1);
+        int added = 0, eggs = 0; var bad = new List<string>();
+        foreach (var pk in sav.GetBoxData(box))
+        {
+            if (pk == null || pk.Species == 0) continue;
+            if (pk.IsEgg) { eggs++; continue; }
+            if (!skipLegal.Checked && !new LegalityAnalysis(pk).Valid) bad.Add(GameInfo.Strings.Species[pk.Species]);
+            WriteOffer(pk); added++;
+        }
+        RefreshOffers();
+        if (added == 0) { MessageBox.Show($"박스 {box + 1}에 보낼 포켓몬이 없습니다.", Text); return; }
+        Append($"박스 {box + 1}의 포켓몬 {added}마리를 넣었습니다" + (eggs > 0 ? $" (알 {eggs}개는 뺌)" : "") + ".");
+        if (bad.Count > 0) Append($"※ 합법이 아닌 포켓몬 {bad.Count}마리: {string.Join(", ", bad)} — '합법성 확인 건너뛰기'를 켜지 않으면 PokeLDN이 그 포켓몬은 거절합니다.");
+    }
+
+    /// <summary>PKHeX에서 다른 세이브를 열었을 때 안내 문구만 다시 맞춤</summary>
+    public void SaveChanged() { try { UpdateGuide(); } catch { } }
 
     private void AddFiles()
     {
@@ -183,7 +211,6 @@ public sealed class LdnTradeForm : Form
         if (d.ShowDialog(this) != DialogResult.OK) return;
         foreach (var f in d.FileNames)
         {
-            if (offerFiles.Count >= 6) break;
             offerFiles.Add(f);
         }
         var idx = Array.FindIndex(Games, g => offerFiles.Count > 0 && offerFiles[^1].EndsWith("." + g.Ext, StringComparison.OrdinalIgnoreCase));
