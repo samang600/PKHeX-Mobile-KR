@@ -1052,6 +1052,35 @@ public static class BlankBox
         catch { }
     }
 
+    /// <summary>
+    /// 저장해 둔 복호화 데이터 → 포켓몬. v1.8.3까지는 다시 넣을 때 한 번 더 '복호화'해서 실행할 때마다 데이터가 더 깨졌음.
+    /// 그렇게 깨진 채 저장된 것은 1~3번 다시 암호화하면 원래대로 돌아오므로, 정상으로 안 읽히면 그렇게 되돌려 봄.
+    /// </summary>
+    private static PKM Parse(SaveFile sav, byte[] data)
+    {
+        PKM Read(byte[] d)
+        {
+            var p = EntityFormat.GetFromBytes((byte[])d.Clone(), sav.Context);
+            if (p != null && p.GetType() != sav.PKMType) p = EntityConverter.ConvertToType(p, sav.PKMType, out _);
+            return p;
+        }
+        bool Sane(PKM p) => p != null && p.Species > 0 && p.Species <= sav.MaxSpeciesID && p.CurrentLevel is >= 1 and <= 100
+                            && sav.Personal.IsPresentInGame(p.Species, p.Form) && p.Ball <= sav.MaxBallID && p.Language is > 0 and <= 13;
+        var first = Read(data);
+        if (Sane(first) && first.ChecksumValid) return first;
+        if (data.Length < 0x148 || sav.Generation < 8) return first;   // 8세대 이후 형식만 되돌려 봄 (이 기능을 쓰는 게임)
+        var cur = (byte[])data.Clone();
+        for (int k = 1; k <= 3; k++)
+        {
+            if (sav.Context == EntityContext.Gen8a) PokeCrypto.Encrypt8A(cur); else PokeCrypto.Encrypt8(cur);
+            PKM p; try { var enc = (byte[])cur.Clone(); if (sav.Context == EntityContext.Gen8a) PokeCrypto.Encrypt8A(enc); else PokeCrypto.Encrypt8(enc); p = Read(enc); } catch { continue; }
+            if (!Sane(p)) continue;
+            p.RefreshChecksum();
+            return p;
+        }
+        return Sane(first) ? first : null;
+    }
+
     /// <summary>지금 열린 세이브가 빈 세이브일 때만: 저장해 둔 게임의 빈 세이브를 만들고 포켓몬을 다시 넣음.</summary>
     public static bool Restore()
     {
@@ -1068,8 +1097,9 @@ public static class BlankBox
                 short b = r.ReadInt16(), i = r.ReadInt16(); var data = r.ReadBytes(r.ReadInt32());
                 try
                 {
-                    var p = sav.GetDecryptedPKM(data);
-                    if (p.Species == 0) continue;
+                    // 저장해 둔 건 이미 복호화된 데이터 → GetDecryptedPKM(무조건 한 번 더 복호화)을 쓰면 깨짐 (실행할 때마다 더 깨졌음)
+                    var p = Parse(sav, data);
+                    if (p == null || p.Species == 0) continue;
                     if (b == -2) { editor = p; continue; }
                     if (b == -1) { if (sav.HasParty && i < 6) { sav.SetPartySlotAtIndex(p, i); put++; } }
                     else if (b < sav.BoxCount && i < sav.BoxSlotCount) { sav.SetBoxSlotAtIndex(p, b, i); put++; }
