@@ -35,6 +35,11 @@ public sealed class PluginSettings
     /// <summary>PokeLDN 교환 트레이너 국적 (PKHeX 언어 번호, 8 = 한국어)</summary>
     public int LdnLanguage { get; set; } = 8;
     public bool LdnSkipLegality { get; set; } = true;
+    /// <summary>스위치 세이브 바로 고치기 (ftpsrv): 스위치 IP·포트·로그인 (ftpsrv 기본은 로그인 없음)</summary>
+    public string FtpHost { get; set; } = "";
+    public int FtpPort { get; set; } = 5000;
+    public string FtpUser { get; set; } = "";
+    public string FtpPass { get; set; } = "";
 
     // 저장 위치: PKHeX 폴더 (쓰기 권한이 없으면 %AppData%\PKHeXKR)
     private const string FileName = "pkhexkr_plugin.json";

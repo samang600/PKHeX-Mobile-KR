@@ -32,7 +32,9 @@ public sealed class KRToolsPlugin : IPlugin
         settings.Click += (_, _) => Open(() => new SettingsForm(this));
         var ldn = new ToolStripMenuItem("PokeLDN 교환 (ESP32 보드)…");
         ldn.Click += (_, _) => Open(() => new LdnTradeForm(this));
-        root.DropDownItems.AddRange([quick, dex, ldn, new ToolStripSeparator(), settings]);
+        var ftp = new ToolStripMenuItem("스위치 세이브 바로 고치기 (ftpsrv)…");
+        ftp.Click += (_, _) => Open(() => new FtpSaveForm(this));
+        root.DropDownItems.AddRange([quick, dex, ldn, ftp, new ToolStripSeparator(), settings]);
         tools.DropDownItems.Add(root);
     }
 
@@ -80,7 +82,7 @@ public sealed class KRToolsPlugin : IPlugin
     public void NotifySaveLoaded()
     {
         foreach (var (t, f) in open.ToList())
-            if (t != typeof(LdnTradeForm) && !f.IsDisposed) f.Close();
+            if (t != typeof(LdnTradeForm) && t != typeof(FtpSaveForm) && !f.IsDisposed) f.Close();   // ftpsrv 창은 자기가 세이브를 불러오므로 그대로
         if (open.TryGetValue(typeof(LdnTradeForm), out var l) && l is LdnTradeForm ldn && !ldn.IsDisposed) ldn.SaveChanged();
     }
     public bool TryLoadFile(string filePath) => false;
