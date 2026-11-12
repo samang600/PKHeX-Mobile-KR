@@ -490,7 +490,8 @@ public sealed class WA9(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
             }
             pk.Scale = pk.HeightScalar = pk.WeightScalar = Scale == 256 ? (byte)rnd.Next(256) : (byte)Scale;
         }
-
+        else if (IsFixedSpec) // [KR] 고정 사양 배포: 크기도 카드 값 그대로
+            pk.Scale = Scale == 256 ? (byte)rnd.Next(256) : (byte)Scale;
         pk.ResetPartyStats();
         pk.RefreshChecksum();
         return pk;
@@ -526,7 +527,7 @@ public sealed class WA9(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
 
     private void SetPINGA(PA9 pk, EncounterCriteria criteria, PersonalInfo9ZA pi)
     {
-        if (IsHOMEGift) // Do not use LumioseRNG for HOME gifts
+        if (IsHOMEGift || IsFixedSpec) // Do not use LumioseRNG for HOME gifts (or gifts with fixed EC/PID)
         {
             pk.Nature = pk.StatAlignment = criteria.GetNature((sbyte)Nature == -1 ? Nature.Random : Nature);
             pk.Gender = criteria.GetGender(Gender, pi);
@@ -750,7 +751,10 @@ public sealed class WA9(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
 
     protected override bool IsMatchDeferred(PKM pk) => false;
 
-    protected override bool IsMatchPartial(PKM pk) => !IsHOMEGift && TryGetSeed(pk, out _) != SeedCorrelationResult.Success;
+    protected override bool IsMatchPartial(PKM pk) => !IsHOMEGift && !IsFixedSpec && TryGetSeed(pk, out _) != SeedCorrelationResult.Success;
+
+    /// <summary>EC·PID가 카드에 고정된 배포 (예: 색이 다른 제르네아스) — 개체 생성 난수와 무관하므로 시드 검사를 하지 않음 [KR]</summary>
+    public bool IsFixedSpec => EncryptionConstant != 0 && PIDType == ShinyType8.FixedValue;
 
     #region Lazy Ribbon Implementation
 
@@ -905,9 +909,12 @@ public sealed class WA9(Memory<byte> raw) : DataMysteryGift(raw), ILangNick, INa
     }
 
     public SeedCorrelationResult TryGetSeed(PKM pk, out ulong seed) =>
+        IsFixedSpec ? SetZero(out seed) :
         GetParams(PersonalTable.ZA[Species, Form]).TryGetSeed(pk, out seed)
             ? SeedCorrelationResult.Success
             : SeedCorrelationResult.Invalid;
+
+    private static SeedCorrelationResult SetZero(out ulong seed) { seed = 0; return SeedCorrelationResult.Ignore; }
 
     public LumioseCorrelation Correlation => LumioseCorrelation.SkipTrainer;
     public byte FlawlessIVCount => GetFlawlessIVCount(IV_HP);

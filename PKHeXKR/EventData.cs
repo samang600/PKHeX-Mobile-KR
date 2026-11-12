@@ -30,7 +30,9 @@ public static class EventData
     /// <summary>앱에 넣어 둔 카드 (PKHeX에 아직 없는 HOME 선물 등). Resources/Raw/home_gifts</summary>
     private static readonly string[] BuiltinCards = ["9251_HOME_FRLG_Celebi_JPN.wc8", "9252_HOME_FRLG_Celebi_ENG.wc8",
         // PKHeX 배포 DB에 아직 없는 카드 (projectpokemon/EventsGallery): Z-A 몬스터볼 무늬 비비용·포켓몬센터 다부니, SV 포켓몬센터 쫀도기. PKHeX가 넣으면 빼도 됨
-        "1616_ZA_Vivillon_PokeBall.wa9", "0105_ZA_PokeCenter_Audino.wa9", "0072_SV_PokeCenter_Fidough.wc9"];   // FRLG 도감 완성 보상 세레비 일본어(ミツリン)·영어(HOME) (HOME 4.1.0, 실물 기준)
+        "1616_ZA_Vivillon_PokeBall.wa9", "0105_ZA_PokeCenter_Audino.wa9", "0072_SV_PokeCenter_Fidough.wc9",
+        "1617_ZA_Shiny_Xerneas.wa9"];   // Z-A 색이 다른 제르네아스 (CELEBRATE30TH, 11-12~1-7): 실물 파일 사양 그대로 (ID·PID·EC·개체값·성격 고정). 카드 번호 1617은 임시
+          // FRLG 도감 완성 보상 세레비 일본어(ミツリン)·영어(HOME) (HOME 4.1.0, 실물 기준)
     public static string BuiltinDir { get { var d = Path.Combine(FileSystem.AppDataDirectory, "mgdb_builtin"); Directory.CreateDirectory(d); return d; } }
     private static void CopyBuiltin()
     {
