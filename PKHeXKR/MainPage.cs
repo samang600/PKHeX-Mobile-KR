@@ -72,7 +72,7 @@ public class MainPage : ContentPage
         Tap(info, () =>
         {
             var p0 = AppState.Pk; if (p0.Species == 0 || p0.Format < 3) return;
-            SheetHost.Show(new PickerSheet("성격", AppState.NatureItems(), (int)p0.Nature, c => Quick(p => { p.Nature = (Nature)c.Value; if (p.Format < 8) p.StatAlignment = p.Nature; }, p => $"성격을 {GameInfo.Strings.natures[(int)p.Nature]}(으)로 바꿨습니다")));
+            SheetHost.Show(new PickerSheet("성격", AppState.NatureItems(), (int)p0.Nature, c => Quick(p => { NatureEdit.Set(p, (Nature)c.Value); }, p => $"성격을 {GameInfo.Strings.natures[(int)p.Nature]}(으)로 바꿨습니다")));
         });
         var icons = new HorizontalStackLayout { Spacing = 8, Children = { genderLabel, natureLabel, mintLabel, ballIcon, itemIcon } };   // 이로치는 그림 오른쪽 위, 우두머리·거다이맥스는 이름 옆
         Tap(mintLabel, () => SheetHost.Show(new PickerSheet("민트 (능력 성격)", AppState.MintItems(AppState.Pk), (int)AppState.Pk.StatAlignment,
@@ -98,7 +98,7 @@ public class MainPage : ContentPage
         Tap(natureLabel, () =>
         {
             var p0 = AppState.Pk; if (p0.Species == 0 || p0.Format < 3) return;
-            SheetHost.Show(new PickerSheet("성격", AppState.NatureItems(), (int)p0.Nature, c => Quick(p => { p.Nature = (Nature)c.Value; if (p.Format < 8) p.StatAlignment = p.Nature; }, p => $"성격을 {GameInfo.Strings.natures[(int)p.Nature]}(으)로 바꿨습니다")));
+            SheetHost.Show(new PickerSheet("성격", AppState.NatureItems(), (int)p0.Nature, c => Quick(p => { NatureEdit.Set(p, (Nature)c.Value); }, p => $"성격을 {GameInfo.Strings.natures[(int)p.Nature]}(으)로 바꿨습니다")));
         });
         Tap(ballIcon, () =>
         {
@@ -412,7 +412,7 @@ public class MainPage : ContentPage
     }
 
     // 메뉴 항목 (Menu·RunMenu 공통)
-    private const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
+    private const string favs = "즐겨찾기", quick = "텍스트로 빠른 생성", ftp = "원격 세이브 (FTP·HTTP)", mgift = "이상한 소포 받기함", wrec = "이상한 소포 앨범 (받은 기록)", ldnTrade = "PokeLDN 교환 (ESP32 보드)", raid = "레이드 편집";
     private const string recent = "최근 연 세이브", sharePk = "편집 중인 포켓몬 공유", dex = "리빙덱스 채우기", settings = "설정";
     private const string boxOne = "박스 내보내기", batch = "일괄 수정", player = "플레이어 편집", inst = "인스턴스 관리", copyPk = "포켓몬 복사", pastePk = "포켓몬 붙여넣기";
     private const string open = "파일 열기 (세이브·포켓몬·박스)", export = "세이브 내보내기", exportPk = "편집 중인 포켓몬 파일로 저장", showdown = "쇼다운 세트 (가져오기·내보내기)",
@@ -425,7 +425,7 @@ public class MainPage : ContentPage
             ("파일", [("📂", open), ("🕘", recent), ("⭐", favs), ("💾", export), ("🧬", exportPk), ("📤", sharePk), ("📦", boxOne), ("⇄", showdown)]),
             ("게임 · 트레이너", [("🎮", game), ("👤", trainer), ("🤝", autoOT)]),
             ("인스턴스", [("🗂", inst), ("📋", copyPk), ("📥", pastePk)]),
-            ("도구", [("✍", quick), ("📶", ftp), .. (LdnTrade.Available ? new (string, string)[] { ("🔁", ldnTrade) } : []), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), .. (RaidSheet.Supported(AppState.Sav) ? new (string, string)[] { ("⚔", raid) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
+            ("도구", [("✍", quick), ("📶", ftp), .. (LdnTrade.Available ? new (string, string)[] { ("🔁", ldnTrade) } : []), .. (MysteryGiftSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎁", mgift) } : []), .. (WonderRecordsSheet.Supported(AppState.Sav) ? new (string, string)[] { ("🎫", wrec) } : []), .. (RaidSheet.Supported(AppState.Sav) ? new (string, string)[] { ("⚔", raid) } : []), ("🛠", batch), ("🎒", player), ("🏠", home), ("📚", dex)]),
             ("설정", [("⚠", AppState.HaX ? haxOff : haxOn), ("⚙", settings), ("ⓘ", about)]),
         };
         SheetHost.Show(new MenuSheet(groups, k => Dispatcher.Dispatch(async () => { try { await RunMenu(k); } catch (Exception ex) { Note.Show("오류: " + ex.Message); } })));
@@ -442,6 +442,7 @@ public class MainPage : ContentPage
             case quick: SheetHost.Show(new QuickSheet()); break;
             case ftp: SheetHost.Show(new FtpSheet()); break;
             case mgift: SheetHost.Show(new MysteryGiftSheet()); break;
+            case wrec: SheetHost.Show(new WonderRecordsSheet()); break;
             case raid: SheetHost.Show(new RaidSheet()); break;
             case sharePk: if (AppState.Pk.Species == 0) { Note.Show("공유할 포켓몬이 없습니다"); break; } await ShareUtil.ShareBytes(ShareUtil.Stored(AppState.Pk), AppState.Pk.FileName, AppState.Pk.FileName); break;
             case dex: SheetHost.Show(new LivingDexSheet()); break;
@@ -477,7 +478,7 @@ public class MainPage : ContentPage
                 break;
             case haxOff: AppState.SetHaX(false); Note.Show("PKHaX 모드를 껐습니다"); break;
             case about:
-                await this.DisplayAlertTr("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-11-09 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.62.2(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
+                await this.DisplayAlertTr("PKHeX 모바일", $"버전 {AppInfo.Current.VersionString}\nPKHeX.Core {typeof(PKM).Assembly.GetName().Version} (개발 버전, 2026-11-09 소스)\nAutoLegalityMod {typeof(APILegality).Assembly.GetName().Version}\n\nPKHeX(kwsch)·ALM(santacrab2 외) 기반, GPLv3\n{(LdnTrade.Available ? "PokeLDN 교환: PokeLDN 0.66.7(Decryptu, AGPLv3) · Chaquopy\n" : "")}시드 계산 참고: SWSHSeedFinderPlugin(hexbyt3), sv-research(MewTracker), 레이드: Tera-Finder(Manu098vm, 보상 표 GPLv3)·RaidCrawler(LegoFigure11)·PokeLDN 레이드 자료", "확인");
                 break;
         }
     }

@@ -114,7 +114,7 @@ public class MainSection : Section
         friend = Num(v => Changed(() => { Pk.CurrentFriendship = (byte)v; }), 255);
         genderBtn = T.Pill("♂"); genderBtn.HeightRequest = 44;
         genderBtn.Clicked += (_, _) => Changed(() => CycleGender());
-        (var nv, nature) = T.Chooser(() => Pick("성격", AppState.NatureItems(), (int)Pk.Nature, c => Changed(() => { Pk.Nature = (Nature)c.Value; if (Pk.Format < 8) Pk.StatAlignment = Pk.Nature; Reload(); })));
+        (var nv, nature) = T.Chooser(() => Pick("성격", AppState.NatureItems(), (int)Pk.Nature, c => Changed(() => { NatureEdit.Set(Pk, (Nature)c.Value); Reload(); })));
         natureRow = T.Field("성격", nv);   // 민트는 '능력 성격' 칸과 편집기 상단 성격 옆 (괄호)에서
         (var snv, statNature) = T.Chooser(() => Pick("능력 성격(민트)", AppState.MintItems(Pk), (int)Pk.StatAlignment, c => Changed(() => { Pk.StatAlignment = (Nature)c.Value; Reload(); })));
         statNatureRow = T.Field("능력 성격 (민트)", snv);
