@@ -92,6 +92,7 @@ public static class QuickGen
     // ===== 한 마리 만들기 =====
     public static (PKM, string) MakeOne(OrderSpec o, SaveFile sav, CancellationToken tok)
     {
+        GenderForm(o);
         if (!InGame(o, sav))
             return (null, NotInGame);
         SetEncCond(o, sav);   // 스트레인지볼도 성격·성별·특성·개체값·크기 조건을 따르게 먼저
@@ -361,6 +362,15 @@ public static class QuickGen
             if (++illegal > 300) fail = true;   // 이 조우로는 합법이 안 나옴 (볼 불가 등)
             return null;
         }
+    }
+
+    /// <summary>성별로 폼이 정해지는 포켓몬(냐오닉스·에써르·대쓰여너·퍼퓨돈): 성별만 적으면 폼을 맞추고, 폼만 적으면 성별을 맞춤.
+    /// (폼을 안 정하면 수컷 폼 조우만 찾아 '암컷 + 크기·증표'가 조우 없음으로 실패했음 — 크기·증표가 없으면 자동 합법화로 만들어져서 드러나지 않음)</summary>
+    public static void GenderForm(OrderSpec o)
+    {
+        if (o.Species is not ((int)Species.Meowstic or (int)Species.Indeedee or (int)Species.Basculegion or (int)Species.Oinkologne)) return;
+        if (o.Form < 0 && o.Gender is 0 or 1) o.Form = o.Gender;
+        else if (o.Gender < 0 && o.Form is 0 or 1) o.Gender = o.Form;
     }
 
     /// <summary>어버이를 적었으면 처음부터 그 어버이로 만듦: 소드실드 고정 조우(코바르온 등)처럼 이로치가 ID와 시드에 묶인 조우는
